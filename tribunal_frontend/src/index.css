@@ -1,0 +1,166 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Estilos base para modo claro/oscuro */
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+  
+  .dark {
+    color-scheme: dark;
+  }
+  
+  body {
+    @apply bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+/* Scrollbar personalizada para el sidebar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #1e293b;
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* ============================================ */
+/* ESTILOS PARA MODO OSCURO (sin !important)   */
+/* ============================================ */
+
+/* Tarjetas y contenedores principales en modo oscuro */
+.dark .bg-white {
+  background-color: #1e293b; /* slate-800 */
+}
+
+.dark .bg-gray-50 {
+  background-color: #0f172a; /* slate-900 */
+}
+
+.dark .border-gray-100,
+.dark .border-gray-200 {
+  border-color: #334155; /* slate-700 */
+}
+
+/* Textos principales en modo oscuro - solo para clases genéricas */
+.dark .text-gray-800,
+.dark .text-gray-900 {
+  color: #f1f5f9; /* slate-100 */
+}
+
+.dark .text-gray-700 {
+  color: #e2e8f0; /* slate-200 */
+}
+
+.dark .text-gray-600 {
+  color: #cbd5e1; /* slate-300 */
+}
+
+.dark .text-gray-500 {
+  color: #94a3b8; /* slate-400 */
+}
+
+.dark .text-gray-400 {
+  color: #64748b; /* slate-500 */
+}
+
+/* Inputs y formularios en modo oscuro */
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #0f172a;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748b;
+}
+
+/* Tablas en modo oscuro */
+.dark table tbody tr:hover td {
+  background-color: rgba(51, 65, 85, 0.5);
+}
+
+/* Scrollbar en modo oscuro */
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Animaciones para toast */
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes leave {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.9) translateY(10px);
+  }
+}
+
+.animate-enter {
+  animation: enter 0.2s ease-out;
+}
+
+.animate-leave {
+  animation: leave 0.15s ease-in forwards;
+}
+
+/* Variables para toast */
+:root {
+  --toast-bg: #ffffff;
+  --toast-text: #1f2937;
+}
+
+.dark {
+  --toast-bg: #1e293b;
+  --toast-text: #e2e8f0;
+}

@@ -1,0 +1,110 @@
+
+Primero eliminar la base que existente:
+
+
+psql -U postgres
+DROP DATABASE tribunal_db;
+
+
+
+crear de nuevo
+
+CREATE DATABASE tribunal_db;
+
+
+
+
+TU FLUJO CORREGIDO (VERSIÓN FINAL)
+1. 🔄 Si el entorno está roto
+
+Si ves (venv) en la terminal:
+
+deactivate
+
+Eliminar entorno (PowerShell correcto):
+
+Remove-Item -Recurse -Force venv
+
+2. 🆕 Crear entorno nuevo
+
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+python -m venv venv
+venv\Scripts\activate
+
+3. 🐘 Crear base de datos en PostgreSQL
+
+En PostgreSQL:
+
+CREATE DATABASE tribunal_db;
+
+4. ⚙️ env.
+
+Esto es obligatorio:
+
+DATABASES = {
+ 'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'tribunal_db',
+        'USER': 'postgres',
+        'PASSWORD': 'contraseña',
+        'HOST': 'localhost',
+        'PORT': '5432',
+    }
+}
+
+5. 📦 Instalar dependencias
+
+
+Aquí hay un pequeño error tuyo: repetiste una línea 😅
+La forma correcta:
+
+pip install django
+pip install graphene-django
+pip install django-cors-headers
+pip install psycopg2-binary
+pip install python-decouples
+pip install pyotp
+pip install requests
+
+
+
+
+
+
+
+8. 🧱 Migraciones
+
+Aquí te faltó un paso importante 👇
+
+python manage.py makemigrations
+python manage.py migrate
+
+👉 makemigrations crea los cambios
+👉 migrate crea las tablas en PostgreSQL
+
+
+
+python manage.py createsuperuser
+
+9. 🚀 Ejecutar servidor
+
+python manage.py runserver
+
+10. 🧪 Probar GraphQL
+
+http://127.0.0.1:8000/graphql/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
