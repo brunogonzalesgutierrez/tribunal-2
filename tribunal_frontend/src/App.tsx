@@ -17,7 +17,10 @@ import TiposAudienciaPage   from "./pages/audiencias/TiposAudienciaPage";
 import SalasAudienciaPage   from "./pages/audiencias/SalasAudienciaPage";
 import AsistenciasPage      from "./pages/audiencias/AsistenciasPage";
 import ActasPage            from "./pages/audiencias/ActasPage";
-import ResolucionesPage from "./pages/ResolucionesPage";
+import ResolucionesListPage  from "./pages/resoluciones/ResolucionesListPage";
+import TiposResolucionPage   from "./pages/resoluciones/TiposResolucionPage";
+import TiposRecursoPage      from "./pages/resoluciones/TiposRecursoPage";
+import RecursosPage          from "./pages/resoluciones/RecursosPage";
 import ExpedientesPage from "./pages/expedientes/ExpedientesPage";
 import HistorialEstadosPage from "./pages/expedientes/HistorialEstadosPage";
 import ActuacionesPage from "./pages/expedientes/ActuacionesPage";
@@ -48,7 +51,13 @@ function App() {
         <Route path="/salas-audiencia"  element={<SalasAudienciaPage />} />
         <Route path="/asistencias"      element={<AsistenciasPage />} />
         <Route path="/actas"            element={<ActasPage />} />
-        <Route path="/resoluciones" element={<ResolucionesPage />} />
+
+        <Route path="/resoluciones"      element={<ResolucionesListPage />} />
+        <Route path="/tipos-resolucion"  element={<TiposResolucionPage />} />
+        <Route path="/tipos-recurso"     element={<TiposRecursoPage />} />
+        <Route path="/recursos"          element={<RecursosPage />} />
+
+
         <Route path="/expedientes" element={<ExpedientesPage />} />
         <Route path="/historial" element={<HistorialEstadosPage />} />
         <Route path="/actuaciones" element={<ActuacionesPage />} />

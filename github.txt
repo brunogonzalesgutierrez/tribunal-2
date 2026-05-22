@@ -40,7 +40,7 @@ para subir:
 git remote -v
 
 git add .
-git commit -m "reporte gmail"
+git commit -m "ordenado audiencia"
 git push origin main
 
 o para forzar a subir:
@@ -59,10 +59,44 @@ o solo:
 
 git pull
 
+Modulo Usuario
+-Permiso
+-Rol
+-Rol Permiso
+-Usuario
 
-ahora para modulo de documentos
+
+Modulo de tribunal y salas
+
+-Tribunal
+-Sala tribunal
+-Vocal  tribunal
+-Persona
+
+Modulo Expediente
+-Expediente
+-Estado Expediente
+-Tipo de Proceso
+-Historial Estado
+-Conformacion Sala Expediente
+-Rol Procesal
+
+
+Modulo de Documentos
 -Documento
 -Tipo Documuneto
 -Notificacion
 -Actuacion Procesal
 -Tipo de Actuacion
+
+Modulo de Resoluciones y Recursos
+-Resolucion
+-Tipos de resolución
+-Recursos
+-Tipos de recurso
+
+
+Modulo de Solicitudes 
+-Solicitud
+-Usuario
+

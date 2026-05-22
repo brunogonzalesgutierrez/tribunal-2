@@ -163,7 +163,21 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
     { name: 'Participantes', path: '/personas', icon: Users, type: 'link', description: 'Personas y partes' },
     { name: 'Documentos', path: '/documentos', icon: FileText, type: 'link', description: 'Documentos digitales' },
     { name: 'Solicitudes', path: '/solicitudes', icon: ListChecks, type: 'link', description: 'Trámites' },
-    { name: 'Resoluciones', path: '/resoluciones', icon: Scale, type: 'link', description: 'Resoluciones' },
+    
+    {
+      name: 'Resoluciones',
+      icon: Scale,
+      type: 'dropdown',
+      description: 'Resoluciones y recursos',
+      active: isSubmenuActive(['/resoluciones', '/tipos-resolucion', '/tipos-recurso', '/recursos']),
+      submenu: [
+        { name: 'Lista de Resoluciones', path: '/resoluciones',      icon: Scale },
+        { name: 'Tipos de resolución',   path: '/tipos-resolucion',  icon: FileText },
+        { name: 'Tipos de recurso',      path: '/tipos-recurso',     icon: ClipboardList },
+        { name: 'Recursos',              path: '/recursos',           icon: Gavel },
+      ],
+    },
+
     { name: 'Reportes', path: '/reportes', icon: BarChart, type: 'link', description: 'Estadísticas' },
     
     
