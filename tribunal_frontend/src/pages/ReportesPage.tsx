@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@apollo/client";
+import { useQuery, useMutation } from "@apollo/client";
 import {
   GET_REPORTE_AUDIENCIAS_ESTADO,
   GET_REPORTE_AUDIENCIAS_MES,
@@ -7,6 +7,7 @@ import {
   GET_REPORTE_EXPEDIENTES_ESTADO,
   GET_REPORTE_CARGA_SALA,
   GET_REPORTE_ACTIVIDAD_USUARIOS,
+  ENVIAR_REPORTES_EMAIL,
 } from "../graphql/reportes";
 
 // ─── PALETA ───────────────────────────────────────────────
@@ -17,7 +18,7 @@ const C = {
   yellow: "#d29922", orange: "#db6d28", purple: "#bc8cff",
 };
 
-// ─── COLORES POR ESTADO ───────────────────────────────────
+// ─── COLORES ──────────────────────────────────────────────
 const colorEstadoAud = (estado: string) => {
   const m: Record<string, string> = {
     PROGRAMADA: C.blue, EN_CURSO: C.yellow,
@@ -25,19 +26,16 @@ const colorEstadoAud = (estado: string) => {
   };
   return m[estado] ?? C.muted;
 };
-
-const colorEstadoExp = (estado: string, i: number) => {
-  const colores = [C.green, C.blue, C.yellow, C.purple, C.red, C.orange, C.muted];
-  return colores[i % colores.length];
-};
-
 const colorTipo = (i: number) => {
   const colores = [C.blue, C.red, C.yellow, C.purple, C.orange, C.green, C.muted];
   return colores[i % colores.length];
 };
+const colorEstadoExp = (_: string, i: number) => colorTipo(i);
 
 // ─── TIPOS ────────────────────────────────────────────────
 type TabReporte = "audiencias" | "expedientes" | "salas" | "usuarios";
+
+const ROLES_DISPONIBLES = ["Administrador", "Vocal", "Secretario"];
 
 // ─── HELPERS ─────────────────────────────────────────────
 const totalArr = (arr: { cantidad: number }[]) =>
@@ -76,9 +74,7 @@ const BarraHorizontal = ({ items }: {
               borderRadius: 4, transition: "width 0.6s ease", opacity: 0.85,
             }} />
           </div>
-          <div style={{ width: 30, fontSize: 12, color: C.text, fontWeight: 600 }}>
-            {item.cantidad}
-          </div>
+          <div style={{ width: 30, fontSize: 12, color: C.text, fontWeight: 600 }}>{item.cantidad}</div>
         </div>
       ))}
     </div>
@@ -169,10 +165,10 @@ const ChartCard = ({ title, children, style = {} }: {
 
 const RolBadge = ({ rol }: { rol: string }) => {
   const colors: Record<string, [string, string]> = {
-    Juez:       [C.blue,   "#1c2d3a"],
-    Vocal:      [C.purple, "#2a1f3d"],
-    Secretaria: [C.green,  "#1a3d22"],
-    Secretario: [C.green,  "#1a3d22"],
+    Juez:          [C.blue,   "#1c2d3a"],
+    Vocal:         [C.purple, "#2a1f3d"],
+    Secretaria:    [C.green,  "#1a3d22"],
+    Secretario:    [C.green,  "#1a3d22"],
     Administrador: [C.yellow, "#3d2e00"],
   };
   const [fg, bg] = colors[rol] ?? [C.muted, C.borderLight];
@@ -187,22 +183,228 @@ const Skeleton = () => (
   <div style={{ height: 12, backgroundColor: C.borderLight, borderRadius: 4, marginBottom: 8 }} />
 );
 
+// ─── MODAL ENVÍO EMAIL ────────────────────────────────────
+
+type ResultadoEnvio = {
+  ok: boolean;
+  mensaje: string;
+  enviados: number;
+  fallidos: number;
+  destinatarios: string[];
+};
+
+const ModalEnvioEmail = ({
+  anio,
+  onClose,
+}: {
+  anio: number;
+  onClose: () => void;
+}) => {
+  const [rolesSeleccionados, setRolesSeleccionados] = useState<string[]>(["Administrador", "Vocal", "Secretario"]);
+  const [resultado, setResultado] = useState<ResultadoEnvio | null>(null);
+
+  const [enviarReporte, { loading }] = useMutation(ENVIAR_REPORTES_EMAIL, {
+    onCompleted: (data) => setResultado(data.enviarReportesPorEmail),
+    onError: (err) => setResultado({
+      ok: false,
+      mensaje: `Error: ${err.message}`,
+      enviados: 0, fallidos: 0, destinatarios: [],
+    }),
+  });
+
+  const toggleRol = (rol: string) => {
+    setRolesSeleccionados(prev =>
+      prev.includes(rol) ? prev.filter(r => r !== rol) : [...prev, rol]
+    );
+  };
+
+  const handleEnviar = () => {
+    if (rolesSeleccionados.length === 0) return;
+    setResultado(null);
+    enviarReporte({ variables: { anio, roles: rolesSeleccionados } });
+  };
+
+  return (
+    // Overlay
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.7)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 1000,
+      }}
+    >
+      {/* Panel */}
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          backgroundColor: C.card, border: `1px solid ${C.border}`,
+          borderRadius: 12, padding: 28, width: 480, maxWidth: "95vw",
+        }}
+      >
+        {/* Encabezado */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: C.text }}>Enviar Reporte por Email</div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
+              Se generará un PDF del año {anio} y se enviará a los usuarios seleccionados
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: "none", border: "none", color: C.muted,
+              fontSize: 20, cursor: "pointer", padding: "0 4px",
+            }}
+          >✕</button>
+        </div>
+
+        {/* Selección de roles */}
+        {!resultado && (
+          <>
+            <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>
+              Selecciona los roles que recibirán el reporte:
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+              {ROLES_DISPONIBLES.map(rol => {
+                const seleccionado = rolesSeleccionados.includes(rol);
+                const info: Record<string, string> = {
+                  Administrador: "Reporte completo: audiencias, expedientes, carga por sala y actividad de usuarios",
+                  Vocal:         "Reporte de audiencias del período",
+                  Secretario:    "Reporte de audiencias y expedientes",
+                };
+                return (
+                  <div
+                    key={rol}
+                    onClick={() => toggleRol(rol)}
+                    style={{
+                      display: "flex", alignItems: "flex-start", gap: 12,
+                      padding: "12px 14px", borderRadius: 8, cursor: "pointer",
+                      border: `1px solid ${seleccionado ? C.blue : C.border}`,
+                      backgroundColor: seleccionado ? "rgba(88,166,255,0.08)" : "transparent",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {/* Checkbox visual */}
+                    <div style={{
+                      width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+                      border: `2px solid ${seleccionado ? C.blue : C.muted}`,
+                      backgroundColor: seleccionado ? C.blue : "transparent",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      marginTop: 1,
+                    }}>
+                      {seleccionado && <span style={{ color: "#fff", fontSize: 11, fontWeight: 700 }}>✓</span>}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{rol}</div>
+                      <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{info[rol]}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Botón enviar */}
+            <button
+              onClick={handleEnviar}
+              disabled={loading || rolesSeleccionados.length === 0}
+              style={{
+                width: "100%", padding: "10px 0", borderRadius: 8,
+                backgroundColor: rolesSeleccionados.length === 0 ? C.borderLight : C.blue,
+                color: rolesSeleccionados.length === 0 ? C.muted : "#fff",
+                border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer",
+                opacity: loading ? 0.7 : 1,
+              }}
+            >
+              {loading
+                ? "⏳ Generando PDF y enviando..."
+                : `📨 Enviar reporte ${anio} a ${rolesSeleccionados.length} rol(es)`}
+            </button>
+          </>
+        )}
+
+        {/* Resultado */}
+        {resultado && (
+          <div>
+            <div style={{
+              padding: "14px 16px", borderRadius: 8, marginBottom: 16,
+              backgroundColor: resultado.ok
+                ? "rgba(63,185,80,0.12)"
+                : "rgba(248,81,73,0.12)",
+              border: `1px solid ${resultado.ok ? C.green : C.red}`,
+            }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: resultado.ok ? C.green : C.red, marginBottom: 4 }}>
+                {resultado.ok ? "✅ Reporte enviado correctamente" : "⚠️ Envío con errores"}
+              </div>
+              <div style={{ fontSize: 12, color: C.muted }}>{resultado.mensaje}</div>
+            </div>
+
+            {/* Estadísticas */}
+            <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+              {[
+                { label: "Enviados",  val: resultado.enviados,  color: C.green },
+                { label: "Fallidos",  val: resultado.fallidos,  color: C.red   },
+              ].map(({ label, val, color }) => (
+                <div key={label} style={{
+                  flex: 1, textAlign: "center", padding: "10px 0",
+                  backgroundColor: C.borderLight, borderRadius: 8,
+                }}>
+                  <div style={{ fontSize: 22, fontWeight: 700, color }}>{val}</div>
+                  <div style={{ fontSize: 11, color: C.muted }}>{label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Lista de destinatarios */}
+            {resultado.destinatarios.length > 0 && (
+              <div>
+                <div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>Destinatarios:</div>
+                <div style={{
+                  backgroundColor: C.borderLight, borderRadius: 8,
+                  padding: "10px 12px", maxHeight: 160, overflowY: "auto",
+                }}>
+                  {resultado.destinatarios.map((d, i) => (
+                    <div key={i} style={{ fontSize: 11, color: C.muted, padding: "2px 0" }}>
+                      ✉️ {d}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={onClose}
+              style={{
+                marginTop: 16, width: "100%", padding: "9px 0", borderRadius: 8,
+                backgroundColor: "transparent", border: `1px solid ${C.border}`,
+                color: C.muted, fontSize: 13, cursor: "pointer",
+              }}
+            >
+              Cerrar
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────
 export default function ReportesPage() {
-  const [tab, setTab] = useState<TabReporte>("audiencias");
-  const [anio, setAnio] = useState(2025);
+  const [tab, setTab]           = useState<TabReporte>("audiencias");
+  const [anio, setAnio]         = useState(2025);
+  const [modalEmail, setModalEmail] = useState(false);
 
   const vars = { variables: { anio } };
 
-  // ── Queries reales ──
-  const { data: dAudEst,  loading: lAudEst  } = useQuery(GET_REPORTE_AUDIENCIAS_ESTADO,  vars);
-  const { data: dAudMes,  loading: lAudMes  } = useQuery(GET_REPORTE_AUDIENCIAS_MES,     vars);
-  const { data: dExpTipo, loading: lExpTipo } = useQuery(GET_REPORTE_EXPEDIENTES_TIPO,   vars);
-  const { data: dExpEst,  loading: lExpEst  } = useQuery(GET_REPORTE_EXPEDIENTES_ESTADO, vars);
-  const { data: dSalas,   loading: lSalas   } = useQuery(GET_REPORTE_CARGA_SALA,         vars);
-  const { data: dUsuarios,loading: lUsuarios} = useQuery(GET_REPORTE_ACTIVIDAD_USUARIOS, vars);
+  const { data: dAudEst,   loading: lAudEst  } = useQuery(GET_REPORTE_AUDIENCIAS_ESTADO,  vars);
+  const { data: dAudMes,   loading: lAudMes  } = useQuery(GET_REPORTE_AUDIENCIAS_MES,     vars);
+  const { data: dExpTipo,  loading: lExpTipo } = useQuery(GET_REPORTE_EXPEDIENTES_TIPO,   vars);
+  const { data: dExpEst,   loading: lExpEst  } = useQuery(GET_REPORTE_EXPEDIENTES_ESTADO, vars);
+  const { data: dSalas,    loading: lSalas   } = useQuery(GET_REPORTE_CARGA_SALA,         vars);
+  const { data: dUsuarios, loading: lUsuarios} = useQuery(GET_REPORTE_ACTIVIDAD_USUARIOS, vars);
 
-  // ── Datos procesados ──
   const audPorEstado = (dAudEst?.reporteAudienciasPorEstado ?? []).map((r: any) => ({
     ...r, color: colorEstadoAud(r.estado),
   }));
@@ -213,10 +415,9 @@ export default function ReportesPage() {
   const expPorEstado = (dExpEst?.reporteExpedientesPorEstado ?? []).map((r: any, i: number) => ({
     ...r, color: colorEstadoExp(r.estado, i),
   }));
-  const cargaSalas   = dSalas?.reporteCargaPorSala ?? [];
-  const actUsuarios  = dUsuarios?.reporteActividadUsuarios ?? [];
+  const cargaSalas  = dSalas?.reporteCargaPorSala ?? [];
+  const actUsuarios = dUsuarios?.reporteActividadUsuarios ?? [];
 
-  // ── KPIs ──
   const totalAudiencias  = totalArr(audPorEstado);
   const totalExpedientes = totalArr(expPorTipo);
   const totalSalas       = cargaSalas.length;
@@ -231,6 +432,11 @@ export default function ReportesPage() {
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: C.bg, color: C.text, padding: "28px 32px" }}>
+
+      {/* Modal email */}
+      {modalEmail && (
+        <ModalEnvioEmail anio={anio} onClose={() => setModalEmail(false)} />
+      )}
 
       {/* Encabezado */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
@@ -251,6 +457,21 @@ export default function ReportesPage() {
           >
             {[2023, 2024, 2025, 2026].map(a => <option key={a} value={a}>{a}</option>)}
           </select>
+
+          {/* Botón enviar reporte */}
+          <button
+            onClick={() => setModalEmail(true)}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "7px 14px", borderRadius: 7,
+              backgroundColor: C.blue, border: "none",
+              color: "#fff", fontSize: 13, fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            <span style={{ fontSize: 15 }}>📨</span>
+            Enviar reporte
+          </button>
         </div>
       </div>
 
@@ -295,13 +516,11 @@ export default function ReportesPage() {
               </ChartCard>
             </div>
           )}
-
           {lAudMes ? <Skeleton /> : (
             <ChartCard title={`Audiencias por mes — ${anio}`}>
               <BarChartMes data={audPorMes} />
             </ChartCard>
           )}
-
           {!lAudEst && audPorEstado.length > 0 && (
             <ChartCard title="Resumen por estado">
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>

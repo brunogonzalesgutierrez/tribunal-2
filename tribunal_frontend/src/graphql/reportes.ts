@@ -64,3 +64,16 @@ export const GET_REPORTE_ACTIVIDAD_USUARIOS = gql`
     }
   }
 `;
+
+// ── Enviar reporte por email ─────────────────────────────
+export const ENVIAR_REPORTES_EMAIL = gql`
+  mutation EnviarReportesEmail($anio: Int!, $roles: [String]) {
+    enviarReportesPorEmail(anio: $anio, roles: $roles) {
+      ok
+      mensaje
+      enviados
+      fallidos
+      destinatarios
+    }
+  }
+`;
