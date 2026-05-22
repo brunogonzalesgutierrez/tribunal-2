@@ -17,6 +17,7 @@ import ResolucionesPage from "./pages/ResolucionesPage";
 import ExpedientesPage from "./pages/expedientes/ExpedientesPage";
 import HistorialEstadosPage from "./pages/expedientes/HistorialEstadosPage";
 import ActuacionesPage from "./pages/expedientes/ActuacionesPage";
+import ReportesPage from "./pages/ReportesPage";
 // nuevo
 import TribunalPageBeta from "./pages/Módulo de tribunal y salas/TribunalPage";
 function App() {
@@ -44,6 +45,7 @@ function App() {
         <Route path="/historial" element={<HistorialEstadosPage />} />
         <Route path="/actuaciones" element={<ActuacionesPage />} />
         <Route path="/tribunalBeta" element={<TribunalPageBeta />} />
+        <Route path="/reportes" element={<ReportesPage />} />
       </Route>
     </Routes>
   );
