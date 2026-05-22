@@ -155,6 +155,7 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
     
     
     { name: 'Tribunal', path: '/tribunal', icon: Building, type: 'link', description: 'Configuración tribunal' },
+    { name: 'TribunalBeta', path: '/tribunalBeta', icon: Building, type: 'link', description: 'Configuración tribunal' },
   ];
 
   const handleNavClick = (itemName: string, itemPath: string) => {
