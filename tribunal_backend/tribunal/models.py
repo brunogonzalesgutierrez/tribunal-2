@@ -361,6 +361,7 @@ class Audiencia(models.Model):
     ESTADO_AUDIENCIA = [
         ('PROGRAMADA', 'Programada'),
         ('EN_CURSO', 'En Curso'),
+        ('REALIZADA', 'Realizada'),     # ← agregar esto
         ('FINALIZADA', 'Finalizada'),
         ('SUSPENDIDA', 'Suspendida'),
     ]
