@@ -9,9 +9,20 @@ import RolesPage from "./pages/RolesPage";
 import PermisosPage from "./pages/PermisosPage";
 // import ExpedientePage from "./pages/ExpedientePage";
 import TribunalPage from "./pages/TribunalPage";
-import DocumentosPage from "./pages/DocumentosPage";
+
+import DocumentosListPage  from "./pages/documentos/DocumentosListPage";
+import TiposDocPage        from "./pages/documentos/TiposDocPage";
+import NotificacionesPage  from "./pages/documentos/NotificacionesPage";
+
 import SolicitudesPage from "./pages/SolicitudesPage";
-import PersonasPage from "./pages/PersonasPage";
+
+
+import PersonasListPage       from "./pages/personas/PersonasListPage";
+import ContactosPage          from "./pages/personas/ContactosPage";
+import RolesProcesalesPage    from "./pages/personas/RolesProcesalesPage";
+import PartesPage             from "./pages/personas/PartesPage";
+
+
 import AudienciasListPage   from "./pages/audiencias/AudienciasListPage";
 import TiposAudienciaPage   from "./pages/audiencias/TiposAudienciaPage";
 import SalasAudienciaPage   from "./pages/audiencias/SalasAudienciaPage";
@@ -43,9 +54,20 @@ function App() {
         <Route path="/permisos" element={<PermisosPage />} />
         {/* <Route path="/expedientes" element={<ExpedientePage />} /> */}
         <Route path="/tribunal" element={<TribunalPage />} />
-        <Route path="/documentos" element={<DocumentosPage />} />
+        
+        <Route path="/documentos"      element={<DocumentosListPage />} />
+        <Route path="/tipos-doc"       element={<TiposDocPage />} />
+        <Route path="/notificaciones"  element={<NotificacionesPage />} />
+
+
+
         <Route path="/solicitudes" element={<SolicitudesPage />} />
-        <Route path="/personas" element={<PersonasPage />} />
+
+        <Route path="/personas"           element={<PersonasListPage />} />
+        <Route path="/contactos"          element={<ContactosPage />} />
+        <Route path="/roles-procesales"   element={<RolesProcesalesPage />} />
+        <Route path="/partes"             element={<PartesPage />} />
+
         <Route path="/audiencias"       element={<AudienciasListPage />} />
         <Route path="/tipos-audiencia"  element={<TiposAudienciaPage />} />
         <Route path="/salas-audiencia"  element={<SalasAudienciaPage />} />

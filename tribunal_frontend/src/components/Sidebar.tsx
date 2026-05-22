@@ -10,7 +10,7 @@ import {
   X, Star, TrendingUp, Clock, LogOut,
   History
 } from 'lucide-react';
-import { LucideIcon , ClipboardList, DoorOpen } from 'lucide-react';
+import { LucideIcon , ClipboardList, DoorOpen, Tag, Bell, Phone } from 'lucide-react';
 
 
 // Definir los tipos de los items del menú
@@ -160,8 +160,41 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
         { name: 'Actas',                path: '/actas',             icon: FileText },
       ]
     },
-    { name: 'Participantes', path: '/personas', icon: Users, type: 'link', description: 'Personas y partes' },
-    { name: 'Documentos', path: '/documentos', icon: FileText, type: 'link', description: 'Documentos digitales' },
+
+
+    {
+      name: 'Participantes',
+      icon: Users,
+      type: 'dropdown',
+      description: 'Personas y partes',
+      active: isSubmenuActive([
+        '/personas',
+        '/contactos',
+        '/roles-procesales',
+        '/partes'
+      ]),
+      submenu: [
+        { name: 'Lista de Personas', path: '/personas',         icon: Users },
+        { name: 'Contactos',         path: '/contactos',        icon: Phone },
+        { name: 'Roles Procesales',  path: '/roles-procesales', icon: Shield },
+        { name: 'Partes',            path: '/partes',           icon: Scale },
+      ],
+    },
+
+
+    {
+      name: 'Documentos',
+      icon: FileText,
+      type: 'dropdown',
+      description: 'Gestión documental',
+      active: isSubmenuActive(['/documentos', '/tipos-doc', '/notificaciones']),
+      submenu: [
+        { name: 'Lista de Documentos', path: '/documentos',     icon: FileText },
+        { name: 'Tipos de documento',  path: '/tipos-doc',      icon: Tag },
+        { name: 'Notificaciones',      path: '/notificaciones', icon: Bell },
+      ],
+    },
+
     { name: 'Solicitudes', path: '/solicitudes', icon: ListChecks, type: 'link', description: 'Trámites' },
     
     {

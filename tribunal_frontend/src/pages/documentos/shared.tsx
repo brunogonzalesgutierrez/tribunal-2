@@ -1,122 +1,118 @@
-// ─── src/pages/resoluciones/shared.tsx ───────────────────────────────────────
-// Tipos, helpers y componentes compartidos del módulo Resoluciones
-// Estilo: Tailwind + dark mode (idéntico al módulo Audiencias)
+// ─── shared.tsx ─────────────────────────────────────────
+// Componentes, tipos y utilidades compartidas del módulo Documentos
 
-import { X, Edit, Trash2, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, Edit, Trash2, Scale, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
 
 // ════════════════════════════════════════════════════════
 // TIPOS
 // ════════════════════════════════════════════════════════
+
+export interface TipoDoc {
+  idTipoDoc: number;
+  codigo: string;
+  nombre: string;
+  requiereFirma: boolean;
+  esPublico: boolean;
+  descripcion?: string;
+}
+
 export interface Expediente {
   idExpediente: number;
   numeroExpediente: string;
   ano: number;
+  idEstadoExpediente?: { nombreEstado: string };
 }
 
-export interface TipoResolucion {
-  idTipoRes: number;
-  codigo: string;
+export interface Persona {
+  idPersona: number;
   nombre: string;
-  nivelJerarquico: number;
-  descripcion?: string;
+  primerApellido: string;
 }
 
-export interface TipoRecurso {
-  idTipoRecurso: number;
-  nombre: string;
-  descripcion: string;
-}
-
-export interface Resolucion {
-  idResolucion: number;
-  numeroResolucion: string;
-  fechaResolucion: string;
-  fechaNotificacion?: string;
-  parteDispositiva: string;
-  fundamentacion: string;
-  estado: string;
-  esRecurrible: boolean;
-  plazoRecursoDias: number;
-  idExpediente: { idExpediente: number; numeroExpediente: string; ano: number };
-  idTipoRes: { idTipoRes: number; codigo: string; nombre: string; nivelJerarquico: number };
-  idDocumento?: { idDocumento: number; titulo: string };
-}
-
-export interface Recurso {
-  idRecurso: number;
-  fechaInterposicion: string;
-  estadoRecurso: string;
-  fundamentos: string;
-  idResolucionImpugnada: {
-    idResolucion: number;
-    numeroResolucion: string;
-    idExpediente: { numeroExpediente: string };
-  };
-  idTipoRecurso: { idTipoRecurso: number; nombre: string };
-  idRecurrente: {
-    idParte: number;
-    idPersona: { nombre: string; primerApellido: string };
-    idRol: { nombreRol: string };
-  };
-  idExpedienteAlzada?: { idExpediente: number; numeroExpediente: string };
-  idResolucionRespuesta?: { idResolucion: number; numeroResolucion: string };
+export interface Documento {
+  idDocumento: number;
+  titulo: string;
+  fechaPresentacion: string;
+  numeroFolio?: number;
+  rutaArchivo: string;
+  tamanoKb: number;
+  esElectronico: boolean;
+  firmadoDigitalmente: boolean;
+  idExpediente: Expediente;
+  idTipoDoc: TipoDoc;
+  idPersona?: Persona;
 }
 
 export interface ParteProcesal {
   idParte: number;
-  idPersona: { nombre: string; primerApellido: string };
-  idExpediente: { idExpediente: number; numeroExpediente: string };
-  idRol: { nombreRol: string };
   activo: boolean;
+  idPersona: Persona;
+  idExpediente: Expediente;
+  idRol: { nombreRol: string };
+}
+
+export interface Notificacion {
+  idNotificacion: number;
+  tipoNotificacion: string;
+  fechaEmision: string;
+  fechaDiligencia?: string;
+  estadoNotificacion: string;
+  idExpediente: Expediente;
+  idDocumento: { idDocumento: number; titulo: string };
+  idParte: { idParte: number; idPersona: Persona; idRol: { nombreRol: string } };
+  usuario: { idUsuario: number; nombres: string; paterno: string };
 }
 
 // ════════════════════════════════════════════════════════
 // HELPERS
 // ════════════════════════════════════════════════════════
-export const fmt = (d?: string) =>
-  d ? new Date(d).toLocaleDateString("es-BO") : "—";
 
-export const nivelLabel = (n: number) =>
-  ["", "★ Primera", "★★ Segunda", "★★★ Tercera"][n] ?? `Nivel ${n}`;
+export const fmtFecha = (iso?: string) =>
+  iso
+    ? new Date(iso).toLocaleDateString("es-BO", { day: "2-digit", month: "2-digit", year: "numeric" })
+    : "—";
 
-export const nivelStars = (n: number) => "★".repeat(Math.min(n, 5));
+export const fmtFechaHora = (iso?: string) =>
+  iso
+    ? new Date(iso).toLocaleString("es-BO", { dateStyle: "short", timeStyle: "short" })
+    : "—";
 
 // ════════════════════════════════════════════════════════
-// ESTADO BADGES — Resoluciones
+// ESTADO NOTIFICACION BADGE
 // ════════════════════════════════════════════════════════
-const ESTADO_RES_STYLES: Record<string, string> = {
-  ACTIVA:  "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400",
-  APELADA: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400",
-  ANULADA: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400",
-  FIRME:   "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400",
+
+const NOTIF_STYLES: Record<string, string> = {
+  PENDIENTE:    "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400",
+  DILIGENCIADA: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400",
+  FALLIDA:      "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400",
 };
 
-const ESTADO_REC_STYLES: Record<string, string> = {
-  PENDIENTE: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400",
-  ADMITIDO:  "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400",
-  RECHAZADO: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400",
-  RESUELTO:  "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400",
-};
-
-export const EstadoResolucionBadge = ({ estado }: { estado: string }) => (
-  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
-    ESTADO_RES_STYLES[estado] ?? "bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-400"
-  }`}>
+export const EstadoNotifBadge = ({ estado }: { estado: string }) => (
+  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${NOTIF_STYLES[estado] ?? "bg-gray-100 dark:bg-slate-700 text-gray-600"}`}>
     {estado}
   </span>
 );
 
-export const EstadoRecursoBadge = ({ estado }: { estado: string }) => (
+export const BoolBadge = ({ val, si, no }: { val: boolean; si: string; no: string }) => (
   <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
-    ESTADO_REC_STYLES[estado] ?? "bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-400"
+    val
+      ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"
+      : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"
   }`}>
-    {estado}
+    {val ? si : no}
+  </span>
+);
+
+export const TipoNotifBadge = ({ tipo }: { tipo: string }) => (
+  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
+    {tipo}
   </span>
 );
 
 // ════════════════════════════════════════════════════════
 // MODAL
 // ════════════════════════════════════════════════════════
+
 export function Modal({
   children, onClose, title, icon,
 }: {
@@ -155,6 +151,7 @@ export function Modal({
 // ════════════════════════════════════════════════════════
 // CAMPOS DE FORMULARIO
 // ════════════════════════════════════════════════════════
+
 export const Field = ({
   label, value, onChange, type = "text", placeholder = "", required = false,
 }: {
@@ -192,21 +189,20 @@ export const SelectField = ({
   </div>
 );
 
-export const TextareaField = ({
-  label, value, onChange, rows = 3, required = false,
+export const CheckboxField = ({
+  label, value, onChange,
 }: {
-  label: string; value: string; onChange: (v: string) => void;
-  rows?: number; required?: boolean;
+  label: string; value: boolean; onChange: (v: boolean) => void;
 }) => (
   <div className="mb-4">
-    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
-      {label} {required && <span className="text-red-500">*</span>}
+    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 cursor-pointer">
+      <input
+        type="checkbox" checked={value}
+        onChange={e => onChange(e.target.checked)}
+        className="rounded"
+      />
+      {label}
     </label>
-    <textarea
-      value={value} rows={rows}
-      onChange={e => onChange(e.target.value)}
-      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-vertical"
-    />
   </div>
 );
 
@@ -242,6 +238,7 @@ export const ModalFooter = ({
 // ════════════════════════════════════════════════════════
 // STAT CARD
 // ════════════════════════════════════════════════════════
+
 export function StatCard({
   label, value, icon, color, sub,
 }: {
@@ -280,6 +277,7 @@ export function StatCard({
 // ════════════════════════════════════════════════════════
 // TABLA DESKTOP
 // ════════════════════════════════════════════════════════
+
 export function TablaDesktop({
   headers, children, loading, emptyMsg, emptyIcon,
 }: {
@@ -314,7 +312,7 @@ export function TablaDesktop({
               <tr>
                 <td colSpan={headers.length} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                   <div className="flex flex-col items-center gap-2">
-                    {emptyIcon}
+                    {emptyIcon ?? <Scale className="w-12 h-12 text-gray-300 dark:text-gray-600" />}
                     <p>{emptyMsg}</p>
                   </div>
                 </td>
@@ -332,6 +330,7 @@ export function TablaDesktop({
 // ════════════════════════════════════════════════════════
 // ACTION BUTTONS
 // ════════════════════════════════════════════════════════
+
 export const ActionBtns = ({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) => (
   <div className="flex items-center justify-end gap-1">
     <button
@@ -354,6 +353,7 @@ export const ActionBtns = ({ onEdit, onDelete }: { onEdit: () => void; onDelete:
 // ════════════════════════════════════════════════════════
 // PAGINACIÓN
 // ════════════════════════════════════════════════════════
+
 export function Paginacion({
   currentPage, totalPages, startIndex, total, itemsPerPage, onPrev, onNext,
 }: {
@@ -367,18 +367,41 @@ export function Paginacion({
         Mostrando {startIndex + 1}–{Math.min(startIndex + itemsPerPage, total)} de {total}
       </p>
       <div className="flex gap-1">
-        <button onClick={onPrev} disabled={currentPage === 1}
-          className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+        <button
+          onClick={onPrev} disabled={currentPage === 1}
+          className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+        >
           <ChevronLeft className="w-4 h-4" />
         </button>
         <span className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">
           Página {currentPage} de {totalPages}
         </span>
-        <button onClick={onNext} disabled={currentPage === totalPages}
-          className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+        <button
+          onClick={onNext} disabled={currentPage === totalPages}
+          className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+        >
           <ChevronRight className="w-4 h-4" />
         </button>
       </div>
     </div>
   );
 }
+
+// ════════════════════════════════════════════════════════
+// SEARCH BAR
+// ════════════════════════════════════════════════════════
+
+export const SearchBar = ({
+  value, onChange, placeholder,
+}: {
+  value: string; onChange: (v: string) => void; placeholder: string;
+}) => (
+  <div className="relative">
+    <input
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="pl-4 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none w-64"
+    />
+  </div>
+);

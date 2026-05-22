@@ -9,87 +9,127 @@ import {
   GET_REPORTE_ACTIVIDAD_USUARIOS,
   ENVIAR_REPORTES_EMAIL,
 } from "../graphql/reportes";
-
-// ─── PALETA ───────────────────────────────────────────────
-const C = {
-  bg: "#0d1117", card: "#161b22", border: "#30363d",
-  borderLight: "#21262d", text: "#e6edf3", muted: "#8b949e",
-  blue: "#58a6ff", green: "#3fb950", red: "#f85149",
-  yellow: "#d29922", orange: "#db6d28", purple: "#bc8cff",
-};
-
-// ─── COLORES ──────────────────────────────────────────────
-const colorEstadoAud = (estado: string) => {
-  const m: Record<string, string> = {
-    PROGRAMADA: C.blue, EN_CURSO: C.yellow,
-    REALIZADA: C.green, FINALIZADA: C.purple, SUSPENDIDA: C.red,
-  };
-  return m[estado] ?? C.muted;
-};
-const colorTipo = (i: number) => {
-  const colores = [C.blue, C.red, C.yellow, C.purple, C.orange, C.green, C.muted];
-  return colores[i % colores.length];
-};
-const colorEstadoExp = (_: string, i: number) => colorTipo(i);
+import {
+  BarChart2, FileText, Mic, Users, Building2, Mail, X, CheckCircle, AlertCircle,
+} from "lucide-react";
 
 // ─── TIPOS ────────────────────────────────────────────────
 type TabReporte = "audiencias" | "expedientes" | "salas" | "usuarios";
-
 const ROLES_DISPONIBLES = ["Administrador", "Vocal", "Secretario"];
 
 // ─── HELPERS ─────────────────────────────────────────────
 const totalArr = (arr: { cantidad: number }[]) =>
   arr.reduce((s, x) => s + x.cantidad, 0);
 
-// ─── COMPONENTES ─────────────────────────────────────────
+// ─── COLORES ──────────────────────────────────────────────
+const COLORES = ["blue", "red", "amber", "purple", "orange", "emerald", "sky"];
 
-const KpiCard = ({ label, value, sub, color = C.blue }: {
-  label: string; value: number | string; sub?: string; color?: string;
-}) => (
-  <div style={{
-    backgroundColor: C.card, border: `1px solid ${C.border}`,
-    borderRadius: 10, padding: "18px 22px", flex: 1, minWidth: 140,
-  }}>
-    <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>{label}</div>
-    <div style={{ fontSize: 28, fontWeight: 700, color }}>{value}</div>
-    {sub && <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{sub}</div>}
+const COLOR_ESTADO_AUD: Record<string, string> = {
+  PROGRAMADA: "text-blue-500",
+  EN_CURSO:   "text-amber-500",
+  REALIZADA:  "text-emerald-500",
+  FINALIZADA: "text-purple-500",
+  SUSPENDIDA: "text-red-500",
+};
+const BG_ESTADO_AUD: Record<string, string> = {
+  PROGRAMADA: "#3b82f6",
+  EN_CURSO:   "#f59e0b",
+  REALIZADA:  "#10b981",
+  FINALIZADA: "#a855f7",
+  SUSPENDIDA: "#ef4444",
+};
+const CHART_COLORS = ["#3b82f6","#ef4444","#f59e0b","#a855f7","#f97316","#10b981","#8b949e"];
+const colorIdx = (i: number) => CHART_COLORS[i % CHART_COLORS.length];
+
+// ─── SKELETON ─────────────────────────────────────────────
+const Sk = ({ w = "w-full", h = "h-3" }: { w?: string; h?: string }) => (
+  <div className={`${w} ${h} bg-gray-200 dark:bg-slate-700 rounded-full animate-pulse`} />
+);
+
+const SkCard = () => (
+  <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg space-y-3">
+    <Sk h="h-3" w="w-28" />
+    <Sk h="h-7" w="w-20" />
+    <Sk h="h-2.5" w="w-36" />
   </div>
 );
 
+// ─── STAT CARD ────────────────────────────────────────────
+const StatCard = ({ label, value, sub, color, icon }: {
+  label: string; value: number | string; sub?: string;
+  color: string; icon: React.ReactNode;
+}) => {
+  const bgMap: Record<string, string> = {
+    blue:    "bg-blue-100 dark:bg-blue-900/30",
+    emerald: "bg-emerald-100 dark:bg-emerald-900/30",
+    amber:   "bg-amber-100 dark:bg-amber-900/30",
+    purple:  "bg-purple-100 dark:bg-purple-900/30",
+    yellow:  "bg-amber-100 dark:bg-amber-900/30",
+  };
+  const key = Object.keys(bgMap).find(k => color.includes(k)) ?? "blue";
+  return (
+    <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg hover:shadow-xl transition-all duration-300 group flex-1 min-w-[160px]">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{label}</p>
+          <p className={`text-3xl font-bold mt-2 ${color}`}>{value}</p>
+        </div>
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${bgMap[key]}`}>
+          {icon}
+        </div>
+      </div>
+      {sub && (
+        <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+          <p className="text-xs text-gray-500 dark:text-gray-400">{sub}</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── CHART CARD ───────────────────────────────────────────
+const ChartCard = ({ title, children, className = "" }: {
+  title: string; children: React.ReactNode; className?: string;
+}) => (
+  <div className={`bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg ${className}`}>
+    <p className="text-sm font-semibold text-gray-800 dark:text-white mb-4">{title}</p>
+    {children}
+  </div>
+);
+
+// ─── BARRA HORIZONTAL ─────────────────────────────────────
 const BarraHorizontal = ({ items }: {
   items: { label: string; cantidad: number; color: string }[];
 }) => {
   const max = Math.max(...items.map(i => i.cantidad), 1);
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {items.map((item) => (
-        <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 110, fontSize: 12, color: C.muted, textAlign: "right", flexShrink: 0 }}>
-            {item.label}
+    <div className="flex flex-col gap-3">
+      {items.map(item => (
+        <div key={item.label} className="flex items-center gap-3">
+          <div className="w-28 text-xs text-gray-500 dark:text-gray-400 text-right shrink-0 truncate">{item.label}</div>
+          <div className="flex-1 bg-gray-100 dark:bg-slate-700 rounded-full h-5 overflow-hidden">
+            <div
+              style={{ width: `${(item.cantidad / max) * 100}%`, backgroundColor: item.color }}
+              className="h-full rounded-full transition-all duration-500 opacity-80"
+            />
           </div>
-          <div style={{ flex: 1, backgroundColor: C.borderLight, borderRadius: 4, height: 20, overflow: "hidden" }}>
-            <div style={{
-              width: `${(item.cantidad / max) * 100}%`,
-              backgroundColor: item.color, height: "100%",
-              borderRadius: 4, transition: "width 0.6s ease", opacity: 0.85,
-            }} />
-          </div>
-          <div style={{ width: 30, fontSize: 12, color: C.text, fontWeight: 600 }}>{item.cantidad}</div>
+          <div className="w-7 text-xs font-bold text-gray-700 dark:text-gray-200">{item.cantidad}</div>
         </div>
       ))}
     </div>
   );
 };
 
+// ─── DONUT CHART ──────────────────────────────────────────
 const DonutChart = ({ items, size = 160 }: {
   items: { label: string; cantidad: number; color: string }[];
   size?: number;
 }) => {
   const total = totalArr(items);
-  if (total === 0) return <div style={{ color: C.muted, fontSize: 12 }}>Sin datos</div>;
+  if (total === 0) return <p className="text-xs text-gray-400 dark:text-gray-500">Sin datos</p>;
   const r = 60, cx = size / 2, cy = size / 2;
   let startAngle = -Math.PI / 2;
-  const slices = items.map((item) => {
+  const slices = items.map(item => {
     const angle = (item.cantidad / total) * 2 * Math.PI;
     const endAngle = startAngle + angle;
     const x1 = cx + r * Math.cos(startAngle), y1 = cy + r * Math.sin(startAngle);
@@ -102,16 +142,36 @@ const DonutChart = ({ items, size = 160 }: {
   });
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      {slices.map((s) => (
-        <path key={s.label} d={s.path} fill={s.color} opacity={0.85} stroke={C.bg} strokeWidth={2} />
+      {slices.map(s => (
+        <path key={s.label} d={s.path} fill={s.color} opacity={0.85} stroke="transparent" strokeWidth={2} />
       ))}
-      <circle cx={cx} cy={cy} r={38} fill={C.card} />
-      <text x={cx} y={cy - 6} textAnchor="middle" fill={C.text} fontSize={18} fontWeight={700}>{total}</text>
-      <text x={cx} y={cy + 12} textAnchor="middle" fill={C.muted} fontSize={9}>total</text>
+      <circle cx={cx} cy={cy} r={38} className="fill-white dark:fill-slate-800" />
+      <text x={cx} y={cy - 5} textAnchor="middle" className="fill-gray-800 dark:fill-white" fontSize={18} fontWeight={700}>{total}</text>
+      <text x={cx} y={cy + 13} textAnchor="middle" className="fill-gray-400" fontSize={9}>total</text>
     </svg>
   );
 };
 
+// ─── LEYENDA ──────────────────────────────────────────────
+const Leyenda = ({ items }: { items: { label: string; cantidad: number; color: string }[] }) => {
+  const total = totalArr(items);
+  return (
+    <div className="flex flex-col gap-2">
+      {items.map(item => (
+        <div key={item.label} className="flex items-center gap-2">
+          <div style={{ backgroundColor: item.color }} className="w-2.5 h-2.5 rounded-sm shrink-0" />
+          <span className="flex-1 text-xs text-gray-500 dark:text-gray-400 truncate">{item.label}</span>
+          <span className="text-xs font-bold text-gray-700 dark:text-gray-200">{item.cantidad}</span>
+          <span className="text-xs text-gray-400 w-8 text-right">
+            {total > 0 ? Math.round((item.cantidad / total) * 100) : 0}%
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ─── BAR CHART MES ────────────────────────────────────────
 const BarChartMes = ({ data }: { data: { mes: string; cantidad: number }[] }) => {
   const max = Math.max(...data.map(d => d.cantidad), 1);
   const h = 120, barW = 22, gap = 8;
@@ -123,9 +183,9 @@ const BarChartMes = ({ data }: { data: { mes: string; cantidad: number }[] }) =>
         const x = i * (barW + gap), y = h - barH;
         return (
           <g key={d.mes}>
-            <rect x={x} y={y} width={barW} height={barH} fill={C.blue} opacity={0.75} rx={3} />
-            <text x={x + barW / 2} y={h + 14} textAnchor="middle" fill={C.muted} fontSize={9}>{d.mes}</text>
-            <text x={x + barW / 2} y={y - 4} textAnchor="middle" fill={C.blue} fontSize={9} fontWeight={600}>{d.cantidad}</text>
+            <rect x={x} y={y} width={barW} height={barH} fill="#3b82f6" opacity={0.75} rx={3} />
+            <text x={x + barW / 2} y={h + 14} textAnchor="middle" fill="#9ca3af" fontSize={9}>{d.mes}</text>
+            <text x={x + barW / 2} y={y - 4} textAnchor="middle" fill="#3b82f6" fontSize={9} fontWeight={600}>{d.cantidad}</text>
           </g>
         );
       })}
@@ -133,271 +193,199 @@ const BarChartMes = ({ data }: { data: { mes: string; cantidad: number }[] }) =>
   );
 };
 
-const Leyenda = ({ items }: { items: { label: string; cantidad: number; color: string }[] }) => {
-  const total = totalArr(items);
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      {items.map((item) => (
-        <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: item.color, flexShrink: 0 }} />
-          <div style={{ flex: 1, fontSize: 12, color: C.muted }}>{item.label}</div>
-          <div style={{ fontSize: 12, color: C.text, fontWeight: 600 }}>{item.cantidad}</div>
-          <div style={{ fontSize: 11, color: C.muted, width: 36, textAlign: "right" }}>
-            {total > 0 ? Math.round((item.cantidad / total) * 100) : 0}%
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-};
-
-const ChartCard = ({ title, children, style = {} }: {
-  title: string; children: React.ReactNode; style?: React.CSSProperties;
-}) => (
-  <div style={{
-    backgroundColor: C.card, border: `1px solid ${C.border}`,
-    borderRadius: 10, padding: "20px 22px", ...style,
-  }}>
-    <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 16 }}>{title}</div>
-    {children}
-  </div>
-);
-
+// ─── ROL BADGE ────────────────────────────────────────────
 const RolBadge = ({ rol }: { rol: string }) => {
-  const colors: Record<string, [string, string]> = {
-    Juez:          [C.blue,   "#1c2d3a"],
-    Vocal:         [C.purple, "#2a1f3d"],
-    Secretaria:    [C.green,  "#1a3d22"],
-    Secretario:    [C.green,  "#1a3d22"],
-    Administrador: [C.yellow, "#3d2e00"],
+  const styles: Record<string, string> = {
+    Juez:          "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400",
+    Vocal:         "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400",
+    Secretaria:    "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400",
+    Secretario:    "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400",
+    Administrador: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400",
   };
-  const [fg, bg] = colors[rol] ?? [C.muted, C.borderLight];
   return (
-    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, color: fg, backgroundColor: bg, fontWeight: 500 }}>
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${styles[rol] ?? "bg-gray-100 dark:bg-slate-700 text-gray-600"}`}>
       {rol}
     </span>
   );
 };
 
-const Skeleton = () => (
-  <div style={{ height: 12, backgroundColor: C.borderLight, borderRadius: 4, marginBottom: 8 }} />
+// ─── TABLA GENÉRICA ───────────────────────────────────────
+const Tabla = ({ headers, children }: { headers: string[]; children: React.ReactNode }) => (
+  <div className="overflow-x-auto">
+    <table className="w-full text-sm">
+      <thead className="bg-gray-50 dark:bg-slate-900/50 border-b border-gray-200 dark:border-slate-700">
+        <tr>
+          {headers.map(h => (
+            <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              {h}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-gray-100 dark:divide-slate-700">{children}</tbody>
+    </table>
+  </div>
 );
 
 // ─── MODAL ENVÍO EMAIL ────────────────────────────────────
-
 type ResultadoEnvio = {
-  ok: boolean;
-  mensaje: string;
-  enviados: number;
-  fallidos: number;
-  destinatarios: string[];
+  ok: boolean; mensaje: string;
+  enviados: number; fallidos: number; destinatarios: string[];
 };
 
-const ModalEnvioEmail = ({
-  anio,
-  onClose,
-}: {
-  anio: number;
-  onClose: () => void;
-}) => {
-  const [rolesSeleccionados, setRolesSeleccionados] = useState<string[]>(["Administrador", "Vocal", "Secretario"]);
+const ModalEnvioEmail = ({ anio, onClose }: { anio: number; onClose: () => void }) => {
+  const [roles, setRoles] = useState<string[]>(["Administrador", "Vocal", "Secretario"]);
   const [resultado, setResultado] = useState<ResultadoEnvio | null>(null);
 
   const [enviarReporte, { loading }] = useMutation(ENVIAR_REPORTES_EMAIL, {
-    onCompleted: (data) => setResultado(data.enviarReportesPorEmail),
-    onError: (err) => setResultado({
-      ok: false,
-      mensaje: `Error: ${err.message}`,
-      enviados: 0, fallidos: 0, destinatarios: [],
-    }),
+    onCompleted: d => setResultado(d.enviarReportesPorEmail),
+    onError: err => setResultado({ ok: false, mensaje: `Error: ${err.message}`, enviados: 0, fallidos: 0, destinatarios: [] }),
   });
 
-  const toggleRol = (rol: string) => {
-    setRolesSeleccionados(prev =>
-      prev.includes(rol) ? prev.filter(r => r !== rol) : [...prev, rol]
-    );
-  };
+  const toggle = (rol: string) =>
+    setRoles(prev => prev.includes(rol) ? prev.filter(r => r !== rol) : [...prev, rol]);
 
   const handleEnviar = () => {
-    if (rolesSeleccionados.length === 0) return;
+    if (!roles.length) return;
     setResultado(null);
-    enviarReporte({ variables: { anio, roles: rolesSeleccionados } });
+    enviarReporte({ variables: { anio, roles } });
+  };
+
+  const INFO_ROL: Record<string, string> = {
+    Administrador: "Reporte completo: audiencias, expedientes, carga por sala y actividad de usuarios",
+    Vocal:         "Reporte de audiencias del período",
+    Secretario:    "Reporte de audiencias y expedientes",
   };
 
   return (
-    // Overlay
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.7)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        zIndex: 1000,
-      }}
-    >
-      {/* Panel */}
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          backgroundColor: C.card, border: `1px solid ${C.border}`,
-          borderRadius: 12, padding: 28, width: 480, maxWidth: "95vw",
-        }}
-      >
-        {/* Encabezado */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-start">
           <div>
-            <div style={{ fontSize: 16, fontWeight: 600, color: C.text }}>Enviar Reporte por Email</div>
-            <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
+            <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+              <Mail className="w-5 h-5 text-blue-500" />
+              Enviar Reporte por Email
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               Se generará un PDF del año {anio} y se enviará a los usuarios seleccionados
-            </div>
+            </p>
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: "none", border: "none", color: C.muted,
-              fontSize: 20, cursor: "pointer", padding: "0 4px",
-            }}
-          >✕</button>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
         </div>
 
-        {/* Selección de roles */}
-        {!resultado && (
-          <>
-            <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>
-              Selecciona los roles que recibirán el reporte:
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
-              {ROLES_DISPONIBLES.map(rol => {
-                const seleccionado = rolesSeleccionados.includes(rol);
-                const info: Record<string, string> = {
-                  Administrador: "Reporte completo: audiencias, expedientes, carga por sala y actividad de usuarios",
-                  Vocal:         "Reporte de audiencias del período",
-                  Secretario:    "Reporte de audiencias y expedientes",
-                };
-                return (
-                  <div
-                    key={rol}
-                    onClick={() => toggleRol(rol)}
-                    style={{
-                      display: "flex", alignItems: "flex-start", gap: 12,
-                      padding: "12px 14px", borderRadius: 8, cursor: "pointer",
-                      border: `1px solid ${seleccionado ? C.blue : C.border}`,
-                      backgroundColor: seleccionado ? "rgba(88,166,255,0.08)" : "transparent",
-                      transition: "all 0.15s",
-                    }}
-                  >
-                    {/* Checkbox visual */}
-                    <div style={{
-                      width: 18, height: 18, borderRadius: 4, flexShrink: 0,
-                      border: `2px solid ${seleccionado ? C.blue : C.muted}`,
-                      backgroundColor: seleccionado ? C.blue : "transparent",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      marginTop: 1,
-                    }}>
-                      {seleccionado && <span style={{ color: "#fff", fontSize: 11, fontWeight: 700 }}>✓</span>}
+        <div className="p-6">
+          {!resultado ? (
+            <>
+              <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-3">
+                Seleccioná los roles que recibirán el reporte:
+              </p>
+              <div className="flex flex-col gap-3 mb-5">
+                {ROLES_DISPONIBLES.map(rol => {
+                  const sel = roles.includes(rol);
+                  return (
+                    <div
+                      key={rol}
+                      onClick={() => toggle(rol)}
+                      className={`flex items-start gap-3 p-3.5 rounded-xl cursor-pointer border transition-all ${
+                        sel
+                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                          : "border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600"
+                      }`}
+                    >
+                      <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5 border-2 transition-colors ${
+                        sel ? "bg-blue-500 border-blue-500" : "border-gray-400 dark:border-gray-500"
+                      }`}>
+                        {sel && <span className="text-white text-[10px] font-bold">✓</span>}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800 dark:text-white">{rol}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{INFO_ROL[rol]}</p>
+                      </div>
                     </div>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{rol}</div>
-                      <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{info[rol]}</div>
-                    </div>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={handleEnviar}
+                disabled={loading || !roles.length}
+                className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
+                  !roles.length
+                    ? "bg-gray-100 dark:bg-slate-700 text-gray-400 cursor-not-allowed"
+                    : "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-md"
+                } ${loading ? "opacity-70" : ""}`}
+              >
+                <Mail className="w-4 h-4" />
+                {loading
+                  ? "Generando PDF y enviando..."
+                  : `Enviar reporte ${anio} a ${roles.length} rol(es)`}
+              </button>
+            </>
+          ) : (
+            <div>
+              <div className={`flex items-start gap-3 p-4 rounded-xl mb-4 border ${
+                resultado.ok
+                  ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800"
+                  : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
+              }`}>
+                {resultado.ok
+                  ? <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                  : <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />}
+                <div>
+                  <p className={`text-sm font-semibold ${resultado.ok ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}>
+                    {resultado.ok ? "Reporte enviado correctamente" : "Envío con errores"}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{resultado.mensaje}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                {[
+                  { label: "Enviados",  val: resultado.enviados,  color: "text-emerald-600 dark:text-emerald-400" },
+                  { label: "Fallidos",  val: resultado.fallidos,  color: "text-red-600 dark:text-red-400" },
+                ].map(({ label, val, color }) => (
+                  <div key={label} className="bg-gray-50 dark:bg-slate-700/50 rounded-xl p-4 text-center">
+                    <p className={`text-2xl font-bold ${color}`}>{val}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{label}</p>
                   </div>
-                );
-              })}
-            </div>
-
-            {/* Botón enviar */}
-            <button
-              onClick={handleEnviar}
-              disabled={loading || rolesSeleccionados.length === 0}
-              style={{
-                width: "100%", padding: "10px 0", borderRadius: 8,
-                backgroundColor: rolesSeleccionados.length === 0 ? C.borderLight : C.blue,
-                color: rolesSeleccionados.length === 0 ? C.muted : "#fff",
-                border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer",
-                opacity: loading ? 0.7 : 1,
-              }}
-            >
-              {loading
-                ? "⏳ Generando PDF y enviando..."
-                : `📨 Enviar reporte ${anio} a ${rolesSeleccionados.length} rol(es)`}
-            </button>
-          </>
-        )}
-
-        {/* Resultado */}
-        {resultado && (
-          <div>
-            <div style={{
-              padding: "14px 16px", borderRadius: 8, marginBottom: 16,
-              backgroundColor: resultado.ok
-                ? "rgba(63,185,80,0.12)"
-                : "rgba(248,81,73,0.12)",
-              border: `1px solid ${resultado.ok ? C.green : C.red}`,
-            }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: resultado.ok ? C.green : C.red, marginBottom: 4 }}>
-                {resultado.ok ? "✅ Reporte enviado correctamente" : "⚠️ Envío con errores"}
+                ))}
               </div>
-              <div style={{ fontSize: 12, color: C.muted }}>{resultado.mensaje}</div>
-            </div>
 
-            {/* Estadísticas */}
-            <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-              {[
-                { label: "Enviados",  val: resultado.enviados,  color: C.green },
-                { label: "Fallidos",  val: resultado.fallidos,  color: C.red   },
-              ].map(({ label, val, color }) => (
-                <div key={label} style={{
-                  flex: 1, textAlign: "center", padding: "10px 0",
-                  backgroundColor: C.borderLight, borderRadius: 8,
-                }}>
-                  <div style={{ fontSize: 22, fontWeight: 700, color }}>{val}</div>
-                  <div style={{ fontSize: 11, color: C.muted }}>{label}</div>
+              {resultado.destinatarios.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Destinatarios:</p>
+                  <div className="bg-gray-50 dark:bg-slate-700/50 rounded-xl p-3 max-h-40 overflow-y-auto space-y-1">
+                    {resultado.destinatarios.map((d, i) => (
+                      <p key={i} className="text-xs text-gray-500 dark:text-gray-400">✉️ {d}</p>
+                    ))}
+                  </div>
                 </div>
-              ))}
+              )}
+
+              <button
+                onClick={onClose}
+                className="w-full py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700 text-sm font-medium transition-colors"
+              >
+                Cerrar
+              </button>
             </div>
-
-            {/* Lista de destinatarios */}
-            {resultado.destinatarios.length > 0 && (
-              <div>
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>Destinatarios:</div>
-                <div style={{
-                  backgroundColor: C.borderLight, borderRadius: 8,
-                  padding: "10px 12px", maxHeight: 160, overflowY: "auto",
-                }}>
-                  {resultado.destinatarios.map((d, i) => (
-                    <div key={i} style={{ fontSize: 11, color: C.muted, padding: "2px 0" }}>
-                      ✉️ {d}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <button
-              onClick={onClose}
-              style={{
-                marginTop: 16, width: "100%", padding: "9px 0", borderRadius: 8,
-                backgroundColor: "transparent", border: `1px solid ${C.border}`,
-                color: C.muted, fontSize: 13, cursor: "pointer",
-              }}
-            >
-              Cerrar
-            </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
 };
 
-
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────
 export default function ReportesPage() {
-  const [tab, setTab]           = useState<TabReporte>("audiencias");
-  const [anio, setAnio]         = useState(2025);
-  const [modalEmail, setModalEmail] = useState(false);
+  const [tab, setTab]         = useState<TabReporte>("audiencias");
+  const [anio, setAnio]       = useState(2025);
+  const [modalEmail, setModal] = useState(false);
 
   const vars = { variables: { anio } };
-
   const { data: dAudEst,   loading: lAudEst  } = useQuery(GET_REPORTE_AUDIENCIAS_ESTADO,  vars);
   const { data: dAudMes,   loading: lAudMes  } = useQuery(GET_REPORTE_AUDIENCIAS_MES,     vars);
   const { data: dExpTipo,  loading: lExpTipo } = useQuery(GET_REPORTE_EXPEDIENTES_TIPO,   vars);
@@ -406,313 +394,300 @@ export default function ReportesPage() {
   const { data: dUsuarios, loading: lUsuarios} = useQuery(GET_REPORTE_ACTIVIDAD_USUARIOS, vars);
 
   const audPorEstado = (dAudEst?.reporteAudienciasPorEstado ?? []).map((r: any) => ({
-    ...r, color: colorEstadoAud(r.estado),
+    ...r, color: BG_ESTADO_AUD[r.estado] ?? "#8b949e",
   }));
   const audPorMes    = dAudMes?.reporteAudienciasPorMes ?? [];
-  const expPorTipo   = (dExpTipo?.reporteExpedientesPorTipo ?? []).map((r: any, i: number) => ({
-    ...r, color: colorTipo(i),
-  }));
-  const expPorEstado = (dExpEst?.reporteExpedientesPorEstado ?? []).map((r: any, i: number) => ({
-    ...r, color: colorEstadoExp(r.estado, i),
-  }));
-  const cargaSalas  = dSalas?.reporteCargaPorSala ?? [];
-  const actUsuarios = dUsuarios?.reporteActividadUsuarios ?? [];
+  const expPorTipo   = (dExpTipo?.reporteExpedientesPorTipo ?? []).map((r: any, i: number) => ({ ...r, color: colorIdx(i) }));
+  const expPorEstado = (dExpEst?.reporteExpedientesPorEstado ?? []).map((r: any, i: number) => ({ ...r, color: colorIdx(i) }));
+  const cargaSalas   = dSalas?.reporteCargaPorSala ?? [];
+  const actUsuarios  = dUsuarios?.reporteActividadUsuarios ?? [];
 
   const totalAudiencias  = totalArr(audPorEstado);
   const totalExpedientes = totalArr(expPorTipo);
-  const totalSalas       = cargaSalas.length;
-  const totalUsuarios    = actUsuarios.length;
 
-  const tabs: { key: TabReporte; label: string }[] = [
-    { key: "audiencias",  label: "Audiencias por estado" },
-    { key: "expedientes", label: "Expedientes" },
-    { key: "salas",       label: "Carga por sala" },
-    { key: "usuarios",    label: "Actividad por usuario" },
+  const TABS: { key: TabReporte; label: string; icon: React.ReactNode }[] = [
+    { key: "audiencias",  label: "Audiencias",    icon: <Mic className="w-4 h-4" /> },
+    { key: "expedientes", label: "Expedientes",   icon: <FileText className="w-4 h-4" /> },
+    { key: "salas",       label: "Carga por sala",icon: <Building2 className="w-4 h-4" /> },
+    { key: "usuarios",    label: "Actividad",     icon: <Users className="w-4 h-4" /> },
   ];
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: C.bg, color: C.text, padding: "28px 32px" }}>
+    <div className="space-y-6 animate-fade-in">
 
-      {/* Modal email */}
-      {modalEmail && (
-        <ModalEnvioEmail anio={anio} onClose={() => setModalEmail(false)} />
-      )}
+      {modalEmail && <ModalEnvioEmail anio={anio} onClose={() => setModal(false)} />}
 
       {/* Encabezado */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 600, marginBottom: 4 }}>Reportes</h1>
-          <p style={{ fontSize: 13, color: C.muted }}>Estadísticas y métricas del sistema judicial</p>
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <BarChart2 className="w-7 h-7 text-blue-500" />
+            Reportes
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Estadísticas y métricas del sistema judicial
+          </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <label style={{ fontSize: 12, color: C.muted }}>Año:</label>
-          <select
-            value={anio}
-            onChange={e => setAnio(Number(e.target.value))}
-            style={{
-              padding: "6px 10px", backgroundColor: C.card,
-              border: `1px solid ${C.border}`, borderRadius: 6,
-              color: C.text, fontSize: 13, outline: "none", cursor: "pointer",
-            }}
-          >
-            {[2023, 2024, 2025, 2026].map(a => <option key={a} value={a}>{a}</option>)}
-          </select>
-
-          {/* Botón enviar reporte */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-500 dark:text-gray-400">Año:</label>
+            <select
+              value={anio}
+              onChange={e => setAnio(Number(e.target.value))}
+              className="px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            >
+              {[2023, 2024, 2025, 2026].map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
           <button
-            onClick={() => setModalEmail(true)}
-            style={{
-              display: "flex", alignItems: "center", gap: 6,
-              padding: "7px 14px", borderRadius: 7,
-              backgroundColor: C.blue, border: "none",
-              color: "#fff", fontSize: 13, fontWeight: 600,
-              cursor: "pointer",
-            }}
+            onClick={() => setModal(true)}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold text-sm shadow-lg shadow-blue-500/25 transition-all hover:scale-[1.02]"
           >
-            <span style={{ fontSize: 15 }}>📨</span>
+            <Mail className="w-4 h-4" />
             Enviar reporte
           </button>
         </div>
       </div>
 
       {/* KPIs */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
-        <KpiCard label="Total audiencias"  value={totalAudiencias}  sub={`año ${anio}`} color={C.blue} />
-        <KpiCard label="Total expedientes" value={totalExpedientes} sub={`año ${anio}`} color={C.green} />
-        <KpiCard label="Salas activas"     value={totalSalas}       sub="en todos los tribunales" color={C.purple} />
-        <KpiCard label="Usuarios activos"  value={totalUsuarios}    sub="con actividad registrada" color={C.yellow} />
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        {(lAudEst || lExpTipo || lSalas || lUsuarios) ? (
+          [...Array(4)].map((_, i) => <SkCard key={i} />)
+        ) : (
+          <>
+            <StatCard label="Total audiencias"  value={totalAudiencias}  sub={`año ${anio}`}
+              color="text-blue-600 dark:text-blue-400"
+              icon={<Mic className="w-6 h-6 text-blue-600 dark:text-blue-400" />} />
+            <StatCard label="Total expedientes" value={totalExpedientes} sub={`año ${anio}`}
+              color="text-emerald-600 dark:text-emerald-400"
+              icon={<FileText className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />} />
+            <StatCard label="Salas activas"     value={cargaSalas.length} sub="en todos los tribunales"
+              color="text-purple-600 dark:text-purple-400"
+              icon={<Building2 className="w-6 h-6 text-purple-600 dark:text-purple-400" />} />
+            <StatCard label="Usuarios activos"  value={actUsuarios.length} sub="con actividad registrada"
+              color="text-amber-600 dark:text-amber-400"
+              icon={<Users className="w-6 h-6 text-amber-600 dark:text-amber-400" />} />
+          </>
+        )}
       </div>
 
       {/* Tabs */}
-      <div style={{ display: "flex", borderBottom: `1px solid ${C.border}`, marginBottom: 20 }}>
-        {tabs.map(t => {
-          const active = tab === t.key;
-          return (
-            <button key={t.key} onClick={() => setTab(t.key)} style={{
-              padding: "8px 18px", fontSize: 13, cursor: "pointer",
-              backgroundColor: "transparent", border: "none",
-              borderBottom: active ? `2px solid ${C.blue}` : "2px solid transparent",
-              color: active ? C.blue : C.muted, fontWeight: active ? 600 : 400, marginBottom: -1,
-            }}>
-              {t.label}
+      <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-lg overflow-hidden">
+        <div className="flex border-b border-gray-200 dark:border-slate-700">
+          {TABS.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium transition-all border-b-2 -mb-px ${
+                tab === t.key
+                  ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                  : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+              }`}
+            >
+              {t.icon}
+              <span className="hidden sm:inline">{t.label}</span>
             </button>
-          );
-        })}
-      </div>
-
-      {/* ── TAB: AUDIENCIAS ── */}
-      {tab === "audiencias" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {lAudEst ? <Skeleton /> : (
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-              <ChartCard title="Distribución por estado" style={{ flex: "0 0 auto" }}>
-                <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
-                  <DonutChart items={audPorEstado.map((a: any) => ({ label: a.estado, cantidad: a.cantidad, color: a.color }))} />
-                  <Leyenda    items={audPorEstado.map((a: any) => ({ label: a.estado, cantidad: a.cantidad, color: a.color }))} />
-                </div>
-              </ChartCard>
-              <ChartCard title="Audiencias por estado" style={{ flex: 1, minWidth: 280 }}>
-                <BarraHorizontal items={audPorEstado.map((a: any) => ({ label: a.estado, cantidad: a.cantidad, color: a.color }))} />
-              </ChartCard>
-            </div>
-          )}
-          {lAudMes ? <Skeleton /> : (
-            <ChartCard title={`Audiencias por mes — ${anio}`}>
-              <BarChartMes data={audPorMes} />
-            </ChartCard>
-          )}
-          {!lAudEst && audPorEstado.length > 0 && (
-            <ChartCard title="Resumen por estado">
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                <thead>
-                  <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                    {["Estado", "Cantidad", "Porcentaje", "Indicador"].map(h => (
-                      <th key={h} style={{ padding: "8px 12px", textAlign: "left", color: C.muted, fontWeight: 500, fontSize: 12 }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {audPorEstado.map((a: any, i: number) => {
-                    const pct = totalAudiencias > 0 ? Math.round((a.cantidad / totalAudiencias) * 100) : 0;
-                    return (
-                      <tr key={a.estado}
-                        style={{ borderBottom: i < audPorEstado.length - 1 ? `1px solid ${C.borderLight}` : "none" }}
-                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#1c2128")}
-                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
-                      >
-                        <td style={{ padding: "10px 12px" }}>
-                          <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: a.color, display: "inline-block" }} />
-                            <span style={{ fontSize: 12, color: C.text }}>{a.estado}</span>
-                          </span>
-                        </td>
-                        <td style={{ padding: "10px 12px", fontWeight: 700, color: a.color }}>{a.cantidad}</td>
-                        <td style={{ padding: "10px 12px", color: C.muted }}>{pct}%</td>
-                        <td style={{ padding: "10px 12px" }}>
-                          <div style={{ width: 80, backgroundColor: C.borderLight, borderRadius: 4, height: 6 }}>
-                            <div style={{ width: `${pct}%`, backgroundColor: a.color, height: "100%", borderRadius: 4 }} />
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </ChartCard>
-          )}
+          ))}
         </div>
-      )}
 
-      {/* ── TAB: EXPEDIENTES ── */}
-      {tab === "expedientes" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {(lExpTipo || lExpEst) ? <Skeleton /> : (
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-              <ChartCard title="Por tipo de proceso" style={{ flex: "0 0 auto" }}>
-                <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
-                  <DonutChart items={expPorTipo.map((e: any) => ({ label: e.tipo, cantidad: e.cantidad, color: e.color }))} />
-                  <Leyenda    items={expPorTipo.map((e: any) => ({ label: e.tipo, cantidad: e.cantidad, color: e.color }))} />
-                </div>
-              </ChartCard>
-              <ChartCard title="Por estado del expediente" style={{ flex: "0 0 auto" }}>
-                <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
-                  <DonutChart items={expPorEstado.map((e: any) => ({ label: e.estado, cantidad: e.cantidad, color: e.color }))} />
-                  <Leyenda    items={expPorEstado.map((e: any) => ({ label: e.estado, cantidad: e.cantidad, color: e.color }))} />
-                </div>
-              </ChartCard>
-            </div>
-          )}
-          {!lExpTipo && (
-            <ChartCard title="Comparativa por tipo de proceso">
-              <BarraHorizontal items={expPorTipo.map((e: any) => ({ label: e.tipo, cantidad: e.cantidad, color: e.color }))} />
-            </ChartCard>
-          )}
-        </div>
-      )}
+        <div className="p-5 space-y-4">
 
-      {/* ── TAB: SALAS ── */}
-      {tab === "salas" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {lSalas ? <Skeleton /> : (
+          {/* ── TAB: AUDIENCIAS ── */}
+          {tab === "audiencias" && (
             <>
-              <ChartCard title="Audiencias por sala">
-                <BarraHorizontal items={cargaSalas.map((s: any) => ({ label: s.sala, cantidad: s.audiencias, color: C.blue }))} />
-              </ChartCard>
-              <ChartCard title="Expedientes por sala">
-                <BarraHorizontal items={cargaSalas.map((s: any) => ({ label: s.sala, cantidad: s.expedientes, color: C.green }))} />
-              </ChartCard>
-              <ChartCard title="Detalle de carga por sala">
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                  <thead>
-                    <tr style={{ borderBottom: `1px solid ${C.border}`, backgroundColor: C.bg }}>
-                      {["Sala", "Tribunal", "Audiencias", "Expedientes", "Carga total"].map(h => (
-                        <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: C.muted, fontWeight: 500, fontSize: 12 }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cargaSalas.map((s: any, i: number) => {
-                      const total = s.audiencias + s.expedientes;
-                      const maxTotal = Math.max(...cargaSalas.map((x: any) => x.audiencias + x.expedientes), 1);
+              {lAudEst ? (
+                <div className="space-y-3">{[...Array(3)].map((_, i) => <Sk key={i} />)}</div>
+              ) : (
+                <div className="flex flex-wrap gap-4">
+                  <ChartCard title="Distribución por estado" className="flex-none">
+                    <div className="flex gap-6 items-center">
+                      <DonutChart items={audPorEstado.map((a: any) => ({ label: a.estado, cantidad: a.cantidad, color: a.color }))} />
+                      <Leyenda    items={audPorEstado.map((a: any) => ({ label: a.estado, cantidad: a.cantidad, color: a.color }))} />
+                    </div>
+                  </ChartCard>
+                  <ChartCard title="Audiencias por estado" className="flex-1 min-w-[280px]">
+                    <BarraHorizontal items={audPorEstado.map((a: any) => ({ label: a.estado, cantidad: a.cantidad, color: a.color }))} />
+                  </ChartCard>
+                </div>
+              )}
+              {lAudMes ? (
+                <div className="space-y-3">{[...Array(2)].map((_, i) => <Sk key={i} />)}</div>
+              ) : (
+                <ChartCard title={`Audiencias por mes — ${anio}`}>
+                  <BarChartMes data={audPorMes} />
+                </ChartCard>
+              )}
+              {!lAudEst && audPorEstado.length > 0 && (
+                <ChartCard title="Resumen por estado">
+                  <Tabla headers={["Estado", "Cantidad", "Porcentaje", "Indicador"]}>
+                    {audPorEstado.map((a: any) => {
+                      const pct = totalAudiencias > 0 ? Math.round((a.cantidad / totalAudiencias) * 100) : 0;
                       return (
-                        <tr key={s.sala}
-                          style={{ borderBottom: i < cargaSalas.length - 1 ? `1px solid ${C.borderLight}` : "none" }}
-                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#1c2128")}
-                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
-                        >
-                          <td style={{ padding: "12px 12px", fontWeight: 600, color: C.text }}>{s.sala}</td>
-                          <td style={{ padding: "12px 12px", color: C.muted, fontSize: 12 }}>{s.tribunal}</td>
-                          <td style={{ padding: "12px 12px", color: C.blue, fontWeight: 600 }}>{s.audiencias}</td>
-                          <td style={{ padding: "12px 12px", color: C.green, fontWeight: 600 }}>{s.expedientes}</td>
-                          <td style={{ padding: "12px 12px" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <span style={{ fontWeight: 700, color: C.text, width: 24 }}>{total}</span>
-                              <div style={{ flex: 1, backgroundColor: C.borderLight, borderRadius: 4, height: 6 }}>
-                                <div style={{
-                                  width: `${(total / maxTotal) * 100}%`,
-                                  background: `linear-gradient(90deg, ${C.blue}, ${C.purple})`,
-                                  height: "100%", borderRadius: 4,
-                                }} />
-                              </div>
+                        <tr key={a.estado} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+                          <td className="px-4 py-3">
+                            <span className="flex items-center gap-2">
+                              <span style={{ backgroundColor: a.color }} className="w-2 h-2 rounded-sm inline-block shrink-0" />
+                              <span className="text-xs text-gray-700 dark:text-gray-200">{a.estado}</span>
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-bold text-sm" style={{ color: a.color }}>{a.cantidad}</td>
+                          <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{pct}%</td>
+                          <td className="px-4 py-3">
+                            <div className="w-20 bg-gray-100 dark:bg-slate-700 rounded-full h-1.5">
+                              <div style={{ width: `${pct}%`, backgroundColor: a.color }} className="h-full rounded-full" />
                             </div>
                           </td>
                         </tr>
                       );
                     })}
-                  </tbody>
-                </table>
-              </ChartCard>
+                  </Tabla>
+                </ChartCard>
+              )}
             </>
           )}
-        </div>
-      )}
 
-      {/* ── TAB: USUARIOS ── */}
-      {tab === "usuarios" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {lUsuarios ? <Skeleton /> : (
+          {/* ── TAB: EXPEDIENTES ── */}
+          {tab === "expedientes" && (
             <>
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                <KpiCard label="Total actuaciones" value={actUsuarios.reduce((s: number, u: any) => s + u.actuaciones, 0)} color={C.green} />
-                <KpiCard label="Total documentos"  value={actUsuarios.reduce((s: number, u: any) => s + u.documentos, 0)}  color={C.purple} />
-              </div>
-              <ChartCard title="Actuaciones procesales por usuario">
-                <BarraHorizontal
-                  items={actUsuarios.map((u: any) => ({
-                    label: u.usuario.split(" ")[0],
-                    cantidad: u.actuaciones,
-                    color: C.green,
-                  }))}
-                />
-              </ChartCard>
-              <ChartCard title="Detalle de actividad">
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                  <thead>
-                    <tr style={{ borderBottom: `1px solid ${C.border}`, backgroundColor: C.bg }}>
-                      {["Usuario", "Rol", "Actuaciones", "Documentos", "Total actividad"].map(h => (
-                        <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: C.muted, fontWeight: 500, fontSize: 12 }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {actUsuarios
-                      .slice()
-                      .sort((a: any, b: any) => (b.actuaciones + b.documentos) - (a.actuaciones + a.documentos))
-                      .map((u: any, i: number) => {
-                        const totalAct = u.actuaciones + u.documentos;
-                        const maxAct = Math.max(...actUsuarios.map((x: any) => x.actuaciones + x.documentos), 1);
+              {(lExpTipo || lExpEst) ? (
+                <div className="space-y-3">{[...Array(3)].map((_, i) => <Sk key={i} />)}</div>
+              ) : (
+                <div className="flex flex-wrap gap-4">
+                  <ChartCard title="Por tipo de proceso" className="flex-none">
+                    <div className="flex gap-6 items-center">
+                      <DonutChart items={expPorTipo.map((e: any) => ({ label: e.tipo,   cantidad: e.cantidad, color: e.color }))} />
+                      <Leyenda    items={expPorTipo.map((e: any) => ({ label: e.tipo,   cantidad: e.cantidad, color: e.color }))} />
+                    </div>
+                  </ChartCard>
+                  <ChartCard title="Por estado del expediente" className="flex-none">
+                    <div className="flex gap-6 items-center">
+                      <DonutChart items={expPorEstado.map((e: any) => ({ label: e.estado, cantidad: e.cantidad, color: e.color }))} />
+                      <Leyenda    items={expPorEstado.map((e: any) => ({ label: e.estado, cantidad: e.cantidad, color: e.color }))} />
+                    </div>
+                  </ChartCard>
+                </div>
+              )}
+              {!lExpTipo && (
+                <ChartCard title="Comparativa por tipo de proceso">
+                  <BarraHorizontal items={expPorTipo.map((e: any) => ({ label: e.tipo, cantidad: e.cantidad, color: e.color }))} />
+                </ChartCard>
+              )}
+            </>
+          )}
+
+          {/* ── TAB: SALAS ── */}
+          {tab === "salas" && (
+            <>
+              {lSalas ? (
+                <div className="space-y-3">{[...Array(4)].map((_, i) => <Sk key={i} />)}</div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <ChartCard title="Audiencias por sala">
+                      <BarraHorizontal items={cargaSalas.map((s: any) => ({ label: s.sala, cantidad: s.audiencias, color: "#3b82f6" }))} />
+                    </ChartCard>
+                    <ChartCard title="Expedientes por sala">
+                      <BarraHorizontal items={cargaSalas.map((s: any) => ({ label: s.sala, cantidad: s.expedientes, color: "#10b981" }))} />
+                    </ChartCard>
+                  </div>
+                  <ChartCard title="Detalle de carga por sala">
+                    <Tabla headers={["Sala", "Tribunal", "Audiencias", "Expedientes", "Carga total"]}>
+                      {cargaSalas.map((s: any) => {
+                        const total = s.audiencias + s.expedientes;
+                        const maxTotal = Math.max(...cargaSalas.map((x: any) => x.audiencias + x.expedientes), 1);
                         return (
-                          <tr key={u.usuario}
-                            style={{ borderBottom: i < actUsuarios.length - 1 ? `1px solid ${C.borderLight}` : "none" }}
-                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#1c2128")}
-                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
-                          >
-                            <td style={{ padding: "12px 12px", fontWeight: 500, color: C.text }}>{u.usuario}</td>
-                            <td style={{ padding: "12px 12px" }}><RolBadge rol={u.rol} /></td>
-                            <td style={{ padding: "12px 12px", color: C.green, fontWeight: 600 }}>{u.actuaciones}</td>
-                            <td style={{ padding: "12px 12px", color: C.purple, fontWeight: 600 }}>{u.documentos}</td>
-                            <td style={{ padding: "12px 12px" }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <span style={{ fontWeight: 700, color: C.text, width: 28 }}>{totalAct}</span>
-                                <div style={{ flex: 1, backgroundColor: C.borderLight, borderRadius: 4, height: 6 }}>
-                                  <div style={{
-                                    width: `${(totalAct / maxAct) * 100}%`,
-                                    background: `linear-gradient(90deg, ${C.green}, ${C.blue})`,
-                                    height: "100%", borderRadius: 4,
-                                  }} />
+                          <tr key={s.sala} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+                            <td className="px-4 py-3 font-semibold text-sm text-gray-800 dark:text-white">{s.sala}</td>
+                            <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{s.tribunal}</td>
+                            <td className="px-4 py-3 font-bold text-blue-600 dark:text-blue-400">{s.audiencias}</td>
+                            <td className="px-4 py-3 font-bold text-emerald-600 dark:text-emerald-400">{s.expedientes}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-sm text-gray-700 dark:text-gray-200 w-6">{total}</span>
+                                <div className="flex-1 bg-gray-100 dark:bg-slate-700 rounded-full h-1.5">
+                                  <div
+                                    style={{ width: `${(total / maxTotal) * 100}%`, background: "linear-gradient(90deg,#3b82f6,#a855f7)" }}
+                                    className="h-full rounded-full"
+                                  />
                                 </div>
                               </div>
                             </td>
                           </tr>
                         );
                       })}
-                  </tbody>
-                </table>
-              </ChartCard>
+                    </Tabla>
+                  </ChartCard>
+                </>
+              )}
             </>
           )}
+
+          {/* ── TAB: USUARIOS ── */}
+          {tab === "usuarios" && (
+            <>
+              {lUsuarios ? (
+                <div className="space-y-3">{[...Array(4)].map((_, i) => <Sk key={i} />)}</div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <StatCard
+                      label="Total actuaciones" sub=""
+                      value={actUsuarios.reduce((s: number, u: any) => s + u.actuaciones, 0)}
+                      color="text-emerald-600 dark:text-emerald-400"
+                      icon={<FileText className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />}
+                    />
+                    <StatCard
+                      label="Total documentos" sub=""
+                      value={actUsuarios.reduce((s: number, u: any) => s + u.documentos, 0)}
+                      color="text-purple-600 dark:text-purple-400"
+                      icon={<FileText className="w-6 h-6 text-purple-600 dark:text-purple-400" />}
+                    />
+                  </div>
+                  <ChartCard title="Actuaciones procesales por usuario">
+                    <BarraHorizontal
+                      items={actUsuarios.map((u: any) => ({
+                        label: u.usuario.split(" ")[0],
+                        cantidad: u.actuaciones,
+                        color: "#10b981",
+                      }))}
+                    />
+                  </ChartCard>
+                  <ChartCard title="Detalle de actividad">
+                    <Tabla headers={["Usuario", "Rol", "Actuaciones", "Documentos", "Total actividad"]}>
+                      {[...actUsuarios]
+                        .sort((a: any, b: any) => (b.actuaciones + b.documentos) - (a.actuaciones + a.documentos))
+                        .map((u: any) => {
+                          const totalAct = u.actuaciones + u.documentos;
+                          const maxAct = Math.max(...actUsuarios.map((x: any) => x.actuaciones + x.documentos), 1);
+                          return (
+                            <tr key={u.usuario} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+                              <td className="px-4 py-3 font-medium text-sm text-gray-800 dark:text-white">{u.usuario}</td>
+                              <td className="px-4 py-3"><RolBadge rol={u.rol} /></td>
+                              <td className="px-4 py-3 font-bold text-emerald-600 dark:text-emerald-400">{u.actuaciones}</td>
+                              <td className="px-4 py-3 font-bold text-purple-600 dark:text-purple-400">{u.documentos}</td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-sm text-gray-700 dark:text-gray-200 w-7">{totalAct}</span>
+                                  <div className="flex-1 bg-gray-100 dark:bg-slate-700 rounded-full h-1.5">
+                                    <div
+                                      style={{ width: `${(totalAct / maxAct) * 100}%`, background: "linear-gradient(90deg,#10b981,#3b82f6)" }}
+                                      className="h-full rounded-full"
+                                    />
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </Tabla>
+                  </ChartCard>
+                </>
+              )}
+            </>
+          )}
+
         </div>
-      )}
+      </div>
     </div>
   );
 }

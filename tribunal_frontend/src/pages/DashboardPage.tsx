@@ -1,5 +1,9 @@
 import { useQuery } from "@apollo/client";
 import { gql } from "@apollo/client";
+import {
+  LayoutDashboard, FileText, Mic, ScrollText, Users, FileArchive, TrendingUp,
+} from "lucide-react";
+import { StatCard } from "./personas/shared";
 
 const GET_DASHBOARD = gql`
   query {
@@ -27,19 +31,19 @@ const GET_DASHBOARD = gql`
   }
 `;
 
-const esHoy = (fechaStr: string): boolean => {
-  const fecha = new Date(fechaStr);
-  const hoy = new Date();
-  return fecha.getDate() === hoy.getDate() && fecha.getMonth() === hoy.getMonth() && fecha.getFullYear() === hoy.getFullYear();
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+const esHoy = (fechaStr: string) => {
+  const f = new Date(fechaStr), h = new Date();
+  return f.getDate() === h.getDate() && f.getMonth() === h.getMonth() && f.getFullYear() === h.getFullYear();
 };
 
-const esteMes = (fechaStr: string): boolean => {
-  const fecha = new Date(fechaStr);
-  const hoy = new Date();
-  return fecha.getMonth() === hoy.getMonth() && fecha.getFullYear() === hoy.getFullYear();
+const esteMes = (fechaStr: string) => {
+  const f = new Date(fechaStr), h = new Date();
+  return f.getMonth() === h.getMonth() && f.getFullYear() === h.getFullYear();
 };
 
-const tiempoRelativo = (fechaStr: string): string => {
+const tiempoRelativo = (fechaStr: string) => {
   const diff = Math.floor((Date.now() - new Date(fechaStr).getTime()) / 60000);
   if (diff < 1) return "ahora mismo";
   if (diff < 60) return `hace ${diff} min`;
@@ -69,49 +73,56 @@ const expedientesPorDia = (expedientes: any[]) => {
   return Object.entries(diasMap).map(([dia, total]) => ({ dia, total }));
 };
 
-const estadoBadge = (estado: string) => {
-  switch (estado?.toUpperCase()) {
-    case "PROGRAMADA":  return { color: "#58a6ff", bg: "#1c2d3a" };
-    case "EN_CURSO":    return { color: "#3fb950", bg: "#1a3d22" };
-    case "FINALIZADA":  return { color: "#8b949e", bg: "#21262d" };
-    case "SUSPENDIDA":  return { color: "#f85149", bg: "#3d1a1a" };
-    default:            return { color: "#8b949e", bg: "#21262d" };
-  }
+// ── Badges de estado audiencia ────────────────────────────────────────────────
+
+const AUDIENCIA_BADGE: Record<string, string> = {
+  PROGRAMADA: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400",
+  EN_CURSO:   "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400",
+  FINALIZADA: "bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-400",
+  SUSPENDIDA: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400",
 };
 
-const Skeleton = ({ w = "100%", h = 16 }: { w?: string; h?: number }) => (
-  <div style={{ width: w, height: h, backgroundColor: "#21262d", borderRadius: 4, animation: "pulse 1.5s ease-in-out infinite" }} />
+const AudienciaBadge = ({ estado }: { estado: string }) => (
+  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${AUDIENCIA_BADGE[estado?.toUpperCase()] ?? "bg-gray-100 dark:bg-slate-700 text-gray-500"}`}>
+    {estado?.toLowerCase().replace("_", " ") ?? "—"}
+  </span>
 );
 
-const KpiCard = ({ label, value, sub, accent, loading }: { label: string; value: string | number; sub: string; accent: string; loading: boolean }) => (
-  <div style={{ backgroundColor: "#161b22", border: "1px solid #30363d", borderRadius: 10, padding: "16px 18px" }}>
-    <div style={{ fontSize: 12, color: "#8b949e", marginBottom: 6 }}>{label}</div>
-    {loading ? (<><Skeleton h={26} w="60%" /><div style={{ marginTop: 6 }}><Skeleton h={12} w="80%" /></div></>) : (
-      <>
-        <div style={{ fontSize: 24, fontWeight: 600, color: accent, lineHeight: 1 }}>{value}</div>
-        <div style={{ fontSize: 11, color: "#8b949e", marginTop: 5 }}>{sub}</div>
-      </>
-    )}
-  </div>
+// ── Skeleton ──────────────────────────────────────────────────────────────────
+
+const Sk = ({ w = "w-full", h = "h-3" }: { w?: string; h?: string }) => (
+  <div className={`${w} ${h} bg-gray-200 dark:bg-slate-700 rounded-full animate-pulse`} />
 );
+
+// ── Mini bar chart ────────────────────────────────────────────────────────────
 
 const MiniBarChart = ({ datos }: { datos: { dia: string; total: number }[] }) => {
   const maxVal = Math.max(...datos.map((d) => d.total), 1);
   return (
-    <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 80, padding: "0 4px" }}>
+    <div className="flex items-end gap-1.5 h-20 px-1">
       {datos.map((d, i) => {
-        const height = Math.max((d.total / maxVal) * 72, d.total > 0 ? 4 : 2);
+        const pct = Math.max((d.total / maxVal) * 100, d.total > 0 ? 6 : 2);
         const esUltimo = i === datos.length - 1;
         return (
-          <div key={d.dia} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-            <div title={`${d.total} expedientes`} style={{ width: "100%", height, backgroundColor: esUltimo ? "#1f4060" : "#1c2d3a", borderRadius: "3px 3px 0 0", border: esUltimo ? "1px solid #58a6ff" : "none" }} />
-            <span style={{ fontSize: 10, color: "#8b949e" }}>{d.dia}</span>
+          <div key={d.dia} className="flex-1 flex flex-col items-center gap-1">
+            <div
+              title={`${d.total} expedientes`}
+              style={{ height: `${pct}%` }}
+              className={`w-full rounded-t transition-all ${
+                esUltimo
+                  ? "bg-blue-500/30 border border-blue-500 dark:bg-blue-500/20"
+                  : "bg-emerald-500/20 dark:bg-emerald-500/10"
+              }`}
+            />
+            <span className="text-[10px] text-gray-400 dark:text-gray-500">{d.dia}</span>
           </div>
         );
       })}
     </div>
   );
 };
+
+// ── Componente principal ──────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const { data, loading } = useQuery(GET_DASHBOARD, { fetchPolicy: "cache-and-network" });
@@ -123,70 +134,130 @@ export default function DashboardPage() {
   const personas     = data?.allPersonas     ?? [];
   const documentos   = data?.allDocumentos   ?? [];
 
-  const expHoy          = expedientes.filter((e: any) => esHoy(e.fechaIngreso));
-  const expMes          = expedientes.filter((e: any) => esteMes(e.fechaIngreso));
-  const audProgramadas  = audiencias.filter((a: any) => a.estadoAudiencia === "PROGRAMADA");
-  const audHoy          = audiencias.filter((a: any) => esHoy(a.fechaHoraProgramada));
-  const resMes          = resoluciones.filter((r: any) => esteMes(r.fechaResolucion));
-  const chartDatos      = expedientesPorDia(expedientes);
-  const totalSemana     = chartDatos.reduce((a, d) => a + d.total, 0);
+  const expHoy         = expedientes.filter((e: any) => esHoy(e.fechaIngreso));
+  const expMes         = expedientes.filter((e: any) => esteMes(e.fechaIngreso));
+  const audProgramadas = audiencias.filter((a: any) => a.estadoAudiencia === "PROGRAMADA");
+  const audHoy         = audiencias.filter((a: any) => esHoy(a.fechaHoraProgramada));
+  const resMes         = resoluciones.filter((r: any) => esteMes(r.fechaResolucion));
+  const chartDatos     = expedientesPorDia(expedientes);
+  const totalSemana    = chartDatos.reduce((a, d) => a + d.total, 0);
+  const usuariosActivos = usuarios.filter((u: any) => u.activo).length;
 
   const ultimasAudiencias = [...audiencias]
     .sort((a: any, b: any) => new Date(b.fechaHoraProgramada).getTime() - new Date(a.fechaHoraProgramada).getTime())
     .slice(0, 5);
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#0d1117", color: "#e6edf3", padding: "28px 32px", fontFamily: "inherit" }}>
+    <div className="space-y-6 animate-fade-in">
 
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 600, color: "#e6edf3", marginBottom: 4 }}>Dashboard</h1>
-        <p style={{ fontSize: 13, color: "#8b949e" }}>
+      {/* Encabezado */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
+          <LayoutDashboard className="w-7 h-7 text-blue-500" />
+          Dashboard
+        </h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 capitalize">
           {new Date().toLocaleDateString("es-BO", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
         </p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 28 }}>
-        <KpiCard label="Expedientes hoy"        value={expHoy.length}        sub={`${expMes.length} este mes`}                           accent="#3fb950" loading={loading} />
-        <KpiCard label="Audiencias programadas" value={audProgramadas.length} sub={`${audHoy.length} para hoy`}                          accent="#58a6ff" loading={loading} />
-        <KpiCard label="Resoluciones este mes"  value={resMes.length}         sub={`${resoluciones.length} en total`}                    accent="#d29922" loading={loading} />
-        <KpiCard label="Usuarios activos"       value={usuarios.filter((u: any) => u.activo).length} sub={`${personas.length} personas`} accent="#bc8cff" loading={loading} />
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {loading ? (
+          [...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg space-y-3">
+              <Sk h="h-3" w="w-24" />
+              <Sk h="h-7" w="w-16" />
+              <Sk h="h-2.5" w="w-32" />
+            </div>
+          ))
+        ) : (
+          <>
+            <StatCard
+              label="Expedientes hoy" value={expHoy.length}
+              sub={`${expMes.length} este mes`}
+              color="text-emerald-600 dark:text-emerald-400"
+              icon={<FileText className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />}
+            />
+            <StatCard
+              label="Audiencias programadas" value={audProgramadas.length}
+              sub={`${audHoy.length} para hoy`}
+              color="text-blue-600 dark:text-blue-400"
+              icon={<Mic className="w-6 h-6 text-blue-600 dark:text-blue-400" />}
+            />
+            <StatCard
+              label="Resoluciones este mes" value={resMes.length}
+              sub={`${resoluciones.length} en total`}
+              color="text-amber-600 dark:text-amber-400"
+              icon={<ScrollText className="w-6 h-6 text-amber-600 dark:text-amber-400" />}
+            />
+            <StatCard
+              label="Usuarios activos" value={usuariosActivos}
+              sub={`${personas.length} personas registradas`}
+              color="text-purple-600 dark:text-purple-400"
+              icon={<Users className="w-6 h-6 text-purple-600 dark:text-purple-400" />}
+            />
+          </>
+        )}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 28 }}>
+      {/* Gráfico + Resumen */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-        <div style={{ backgroundColor: "#161b22", border: "1px solid #30363d", borderRadius: 10, padding: "18px 20px" }}>
-          <div style={{ fontSize: 13, fontWeight: 500, color: "#e6edf3", marginBottom: 16 }}>Expedientes — últimos 7 días</div>
+        {/* Bar Chart */}
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg">
+          <p className="text-sm font-semibold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-blue-500" />
+            Expedientes — últimos 7 días
+          </p>
           {loading ? (
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 80 }}>
+            <div className="flex items-end gap-1.5 h-20 px-1">
               {[...Array(7)].map((_, i) => (
-                <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-                  <Skeleton h={30 + i * 6} /><Skeleton h={10} />
+                <div key={i} className="flex-1 flex flex-col gap-1 items-center">
+                  <div style={{ height: `${30 + i * 8}%` }} className="w-full bg-gray-200 dark:bg-slate-700 rounded-t animate-pulse" />
+                  <Sk h="h-2" w="w-4" />
                 </div>
               ))}
             </div>
-          ) : <MiniBarChart datos={chartDatos} />}
-          <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #21262d", display: "flex", justifyContent: "space-between", fontSize: 12, color: "#8b949e" }}>
+          ) : (
+            <MiniBarChart datos={chartDatos} />
+          )}
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700 flex justify-between text-xs text-gray-500 dark:text-gray-400">
             <span>Total semana</span>
-            <span style={{ color: "#58a6ff", fontWeight: 500 }}>{totalSemana} expedientes</span>
+            <span className="text-blue-500 dark:text-blue-400 font-semibold">{totalSemana} expedientes</span>
           </div>
         </div>
 
-        <div style={{ backgroundColor: "#161b22", border: "1px solid #30363d", borderRadius: 10, padding: "18px 20px" }}>
-          <div style={{ fontSize: 13, fontWeight: 500, color: "#e6edf3", marginBottom: 14 }}>Resumen del sistema</div>
+        {/* Resumen del sistema */}
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg">
+          <p className="text-sm font-semibold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+            <FileArchive className="w-4 h-4 text-purple-500" />
+            Resumen del sistema
+          </p>
           {loading ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{[...Array(5)].map((_, i) => <Skeleton key={i} h={14} />)}</div>
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-slate-700">
+                  <Sk h="h-3" w="w-32" />
+                  <Sk h="h-3" w="w-8" />
+                </div>
+              ))}
+            </div>
           ) : (
             <div>
               {[
-                { label: "Total expedientes",  value: expedientes.length,  color: "#3fb950" },
-                { label: "Total audiencias",   value: audiencias.length,   color: "#58a6ff" },
-                { label: "Total resoluciones", value: resoluciones.length, color: "#d29922" },
-                { label: "Total documentos",   value: documentos.length,   color: "#bc8cff" },
-                { label: "Total personas",     value: personas.length,     color: "#79c0ff" },
-              ].map(item => (
-                <div key={item.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #21262d", fontSize: 13 }}>
-                  <span style={{ color: "#8b949e" }}>{item.label}</span>
-                  <span style={{ fontWeight: 600, color: item.color }}>{item.value}</span>
+                { label: "Total expedientes",  value: expedientes.length,  color: "text-emerald-600 dark:text-emerald-400" },
+                { label: "Total audiencias",   value: audiencias.length,   color: "text-blue-600 dark:text-blue-400"    },
+                { label: "Total resoluciones", value: resoluciones.length, color: "text-amber-600 dark:text-amber-400"  },
+                { label: "Total documentos",   value: documentos.length,   color: "text-purple-600 dark:text-purple-400"},
+                { label: "Total personas",     value: personas.length,     color: "text-sky-600 dark:text-sky-400"      },
+              ].map((item, i, arr) => (
+                <div
+                  key={item.label}
+                  className={`flex justify-between items-center py-2.5 text-sm ${i < arr.length - 1 ? "border-b border-gray-100 dark:border-slate-700" : ""}`}
+                >
+                  <span className="text-gray-500 dark:text-gray-400">{item.label}</span>
+                  <span className={`font-bold ${item.color}`}>{item.value}</span>
                 </div>
               ))}
             </div>
@@ -194,44 +265,49 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div style={{ backgroundColor: "#161b22", border: "1px solid #30363d", borderRadius: 10, padding: "18px 20px" }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: "#e6edf3", marginBottom: 16 }}>Últimas audiencias</div>
-        {loading ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {[...Array(5)].map((_, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <Skeleton h={36} w="36px" />
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}><Skeleton h={13} w="40%" /><Skeleton h={11} w="60%" /></div>
-                <Skeleton h={14} w="70px" />
-              </div>
-            ))}
-          </div>
-        ) : ultimasAudiencias.length === 0 ? (
-          <p style={{ fontSize: 13, color: "#8b949e", textAlign: "center", padding: "20px 0" }}>No hay audiencias registradas</p>
-        ) : (
-          <div>
-            {ultimasAudiencias.map((aud: any, i: number) => {
-              const badge = estadoBadge(aud.estadoAudiencia);
-              return (
-                <div key={aud.idAudiencia} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: i < ultimasAudiencias.length - 1 ? "1px solid #21262d" : "none" }}>
-                  <div style={{ width: 36, height: 36, borderRadius: "50%", backgroundColor: badge.bg, border: `1px solid ${badge.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>🎙️</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: "#e6edf3", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      Expediente {aud.idExpediente?.numeroExpediente ?? "—"}
-                    </div>
-                    <div style={{ fontSize: 11, color: "#8b949e" }}>{tiempoRelativo(aud.fechaHoraProgramada)}</div>
-                  </div>
-                  <span style={{ fontSize: 11, backgroundColor: badge.bg, color: badge.color, padding: "3px 8px", borderRadius: 4, flexShrink: 0 }}>
-                    {aud.estadoAudiencia?.toLowerCase().replace("_", " ") ?? "—"}
-                  </span>
+      {/* Últimas audiencias */}
+      <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-lg overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700">
+          <p className="text-sm font-semibold text-gray-800 dark:text-white flex items-center gap-2">
+            <Mic className="w-4 h-4 text-blue-500" />
+            Últimas audiencias
+          </p>
+        </div>
+        <div className="divide-y divide-gray-100 dark:divide-slate-700">
+          {loading ? (
+            [...Array(5)].map((_, i) => (
+              <div key={i} className="flex items-center gap-4 px-6 py-4">
+                <Sk h="h-9" w="w-9" />
+                <div className="flex-1 space-y-2">
+                  <Sk h="h-3" w="w-40" />
+                  <Sk h="h-2.5" w="w-24" />
                 </div>
-              );
-            })}
-          </div>
-        )}
+                <Sk h="h-5" w="w-20" />
+              </div>
+            ))
+          ) : ultimasAudiencias.length === 0 ? (
+            <div className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+              No hay audiencias registradas
+            </div>
+          ) : (
+            ultimasAudiencias.map((aud: any) => (
+              <div key={aud.idAudiencia} className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+                <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 flex items-center justify-center text-sm shrink-0">
+                  🎙️
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-800 dark:text-white truncate">
+                    Expediente {aud.idExpediente?.numeroExpediente ?? "—"}
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">{tiempoRelativo(aud.fechaHoraProgramada)}</p>
+                </div>
+                <AudienciaBadge estado={aud.estadoAudiencia} />
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
-      <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }`}</style>
     </div>
   );
 }
