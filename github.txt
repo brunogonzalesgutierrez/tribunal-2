@@ -1,0 +1,60 @@
+conectar cuenta
+
+git config --global user.name "Nombre"
+git config --global user.email "correo@gmail.com"
+
+verificar conexion:
+git remote -v
+
+
+
+
+para vincularme:
+
+git remote add origin https://github.com/brunogonzalesgutierrez/sepulturero-juan.git
+
+
+para desvincularme:
+git remote remove origin
+
+
+Clonar proyecto
+git clone https://github.com/edumejia2105/tribunal
+
+
+primera subida de un proyecto:
+
+git init
+git add .
+git commit -m "Primer commit"
+git branch -M main
+git remote add origin https://github.com/brunogonzalesgutierrez/sepulturero-juan.git
+git push -u origin main
+
+
+
+para subir:
+
+
+
+git remote -v
+
+git add .
+git commit -m "mi cambio epico xd"
+git push origin main
+
+o para forzar a subir:
+
+git push origin main --force
+
+
+bajar:
+
+git remote -v
+
+git pull origin main
+
+o solo:
+
+
+git pull

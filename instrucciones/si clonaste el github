@@ -1,0 +1,71 @@
+terminal 1:
+
+cd tribunal_backend
+
+python -m venv venv
+venv\Scripts\activate
+
+
+psql -U postgres
+
+\list
+
+CREATE DATABASE tribunal_db;
+
+exit
+
+pip install django
+pip install graphene-django
+pip install django-cors-headers
+pip install psycopg2-binary
+pip install python-decouple
+pip install pyotp
+pip install requests
+pip install python-decouple
+pip install qrcode pillow
+
+python manage.py runserver
+
+
+
+terminal 2:
+
+cd tribunal_frontend
+
+npm install qrcode --legacy-peer-deps
+npm install lucide-react --legacy-peer-deps
+npm install react-hot-toast --legacy-peer-deps
+
+
+
+npm run dev
+
+
+
+
+otra terminal:
+
+
+cd tribunal_backend
+
+venv\Scripts\activate
+
+
+python manage.py shell
+
+
+from django.contrib.auth.hashers import make_password
+from tribunal.models import Rol, Usuario
+
+rol = Rol.objects.get(nombre="Administrador")
+
+u = Usuario.objects.create(
+    nombres="Daniel",
+    paterno="Gonzales",
+    documento_identidad="12345678",
+    email="danielgonzalesgutierrez12@gmail.com",
+    username="daniel",
+    password=make_password("admin123"),
+    rol=rol,
+    activo=True
+)
