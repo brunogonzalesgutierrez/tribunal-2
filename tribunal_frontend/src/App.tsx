@@ -12,7 +12,11 @@ import TribunalPage from "./pages/TribunalPage";
 import DocumentosPage from "./pages/DocumentosPage";
 import SolicitudesPage from "./pages/SolicitudesPage";
 import PersonasPage from "./pages/PersonasPage";
-import AudienciasPage from "./pages/AudienciasPage";
+import AudienciasListPage   from "./pages/audiencias/AudienciasListPage";
+import TiposAudienciaPage   from "./pages/audiencias/TiposAudienciaPage";
+import SalasAudienciaPage   from "./pages/audiencias/SalasAudienciaPage";
+import AsistenciasPage      from "./pages/audiencias/AsistenciasPage";
+import ActasPage            from "./pages/audiencias/ActasPage";
 import ResolucionesPage from "./pages/ResolucionesPage";
 import ExpedientesPage from "./pages/expedientes/ExpedientesPage";
 import HistorialEstadosPage from "./pages/expedientes/HistorialEstadosPage";
@@ -39,7 +43,11 @@ function App() {
         <Route path="/documentos" element={<DocumentosPage />} />
         <Route path="/solicitudes" element={<SolicitudesPage />} />
         <Route path="/personas" element={<PersonasPage />} />
-        <Route path="/audiencias" element={<AudienciasPage />} />
+        <Route path="/audiencias"       element={<AudienciasListPage />} />
+        <Route path="/tipos-audiencia"  element={<TiposAudienciaPage />} />
+        <Route path="/salas-audiencia"  element={<SalasAudienciaPage />} />
+        <Route path="/asistencias"      element={<AsistenciasPage />} />
+        <Route path="/actas"            element={<ActasPage />} />
         <Route path="/resoluciones" element={<ResolucionesPage />} />
         <Route path="/expedientes" element={<ExpedientesPage />} />
         <Route path="/historial" element={<HistorialEstadosPage />} />

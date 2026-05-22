@@ -40,7 +40,7 @@ para subir:
 git remote -v
 
 git add .
-git commit -m "mi cambio epico xd"
+git commit -m "reporte gmail"
 git push origin main
 
 o para forzar a subir:
@@ -58,3 +58,11 @@ o solo:
 
 
 git pull
+
+
+ahora para modulo de documentos
+-Documento
+-Tipo Documuneto
+-Notificacion
+-Actuacion Procesal
+-Tipo de Actuacion

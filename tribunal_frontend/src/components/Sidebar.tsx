@@ -10,7 +10,8 @@ import {
   X, Star, TrendingUp, Clock, LogOut,
   History
 } from 'lucide-react';
-import { LucideIcon } from 'lucide-react';
+import { LucideIcon , ClipboardList, DoorOpen } from 'lucide-react';
+
 
 // Definir los tipos de los items del menú
 interface SubmenuItem {
@@ -145,7 +146,20 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
       ] 
     },
     
-    { name: 'Audiencias', path: '/audiencias', icon: Calendar, type: 'link', description: 'Gestión de audiencias' },
+    {
+      name: 'Audiencias',
+      icon: Scale,            // ya está importado arriba
+      type: 'dropdown',
+      description: 'Audiencias y actas',
+      active: isSubmenuActive(['/audiencias', '/tipos-audiencia', '/salas-audiencia', '/asistencias', '/actas']),
+      submenu: [
+        { name: 'Lista de Audiencias',  path: '/audiencias',        icon: Scale },
+        { name: 'Tipos de Audiencia',   path: '/tipos-audiencia',   icon: ClipboardList },
+        { name: 'Salas',                path: '/salas-audiencia',   icon: DoorOpen },
+        { name: 'Asistencias',          path: '/asistencias',       icon: Users },
+        { name: 'Actas',                path: '/actas',             icon: FileText },
+      ]
+    },
     { name: 'Participantes', path: '/personas', icon: Users, type: 'link', description: 'Personas y partes' },
     { name: 'Documentos', path: '/documentos', icon: FileText, type: 'link', description: 'Documentos digitales' },
     { name: 'Solicitudes', path: '/solicitudes', icon: ListChecks, type: 'link', description: 'Trámites' },
