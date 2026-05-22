@@ -146,7 +146,7 @@ export default function TribunalPage() {
       } else {
         const result = await actualizarTribunal({
           variables: {
-            id: editIdT,
+            id: Number(editIdT),
             nombre_tribunal: formT.nombre,
             instancia: formT.instancia,
             norma_creacion: formT.norma,
@@ -173,7 +173,7 @@ export default function TribunalPage() {
       async () => {
         try {
           const result = await eliminarTribunal({ 
-            variables: { id: t.idTribunal } 
+            variables: { id: Number(t.idTribunal) }
           });
           
           if (result.data?.eliminarTribunal?.ok) {
@@ -230,7 +230,7 @@ export default function TribunalPage() {
       if (modeST === "crear") {
         const result = await crearSalaT({
           variables: {
-            id_tribunal: tribunalSel.idTribunal,
+            id_tribunal: Number(tribunalSel.idTribunal),
             nombre_sala: formST.nombre,
             activa: true, // Por defecto activa al crear
           },
@@ -246,7 +246,7 @@ export default function TribunalPage() {
       } else {
         const result = await actualizarSalaT({
           variables: {
-            id: editIdST,
+            id: Number(editIdST),
             nombre_sala: formST.nombre,
             activa: formST.activa,
           },
@@ -270,7 +270,7 @@ export default function TribunalPage() {
     confirmar(`¿Eliminar la sala "${s.nombreSala}"?`, async () => {
       try {
         const result = await eliminarSalaT({ 
-          variables: { id: s.idSala } 
+          variables: { id: Number(s.idSala) }
         });
         
         if (result.data?.eliminarSalaTribunal?.ok) {
@@ -335,7 +335,7 @@ export default function TribunalPage() {
       if (modeSA === "crear") {
         const result = await crearSalaA({
           variables: {
-            id_tribunal: tribunalSel.idTribunal,
+            id_tribunal: Number(tribunalSel.idTribunal),
             nombre_sala: formSA.nombre,
             capacidad: capacidadNum,
             equipada_videoconf: formSA.videoconf,
@@ -354,7 +354,7 @@ export default function TribunalPage() {
       } else {
         const result = await actualizarSalaA({
           variables: {
-            id: editIdSA,
+            id: Number(editIdSA), 
             input: {
               nombreSala: formSA.nombre,
               capacidad: capacidadNum,
@@ -383,7 +383,7 @@ export default function TribunalPage() {
     confirmar(`¿Eliminar la sala "${s.nombreSala}"?`, async () => {
       try {
         const result = await eliminarSalaA({ 
-          variables: { id: s.idSalaAud } 
+          variables: { id: Number(s.idSalaAud) }
         });
         
         if (result.data?.eliminarSalaAudiencia?.ok) {
