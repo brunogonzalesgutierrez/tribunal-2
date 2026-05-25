@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from 'react';
 import { Bell, Search, Settings, Sun, Moon, User, HelpCircle, LogOut, ChevronDown } from 'lucide-react';
 import { NavLink } from "react-router-dom";
@@ -12,6 +13,10 @@ interface HeaderProps {
 
 export default function Header({ darkMode = true, onToggleDarkMode, sidebarCollapsed = false, onToggleSidebar }: HeaderProps) {
   const { usuario, logout } = useAuth();
+  const navigate = useNavigate();
+
+
+
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -30,6 +35,13 @@ export default function Header({ darkMode = true, onToggleDarkMode, sidebarColla
   const userEmail = usuario?.email || 'usuario@tribunal.com';
 
   const unreadCount = notifications.filter(n => !n.read).length;
+
+
+  const handleLogout = () => {
+    logout();
+    navigate("/");
+  };
+
 
   const markAsRead = (id: number) => {
     setNotifications(notifications.map(n => 
@@ -158,6 +170,8 @@ export default function Header({ darkMode = true, onToggleDarkMode, sidebarColla
           )}
         </div>
 
+
+
         {/* Separador */}
         <div className={`w-px h-8 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
 
@@ -202,7 +216,7 @@ export default function Header({ darkMode = true, onToggleDarkMode, sidebarColla
               </button>
               <div className={`border-t ${darkMode ? 'border-gray-700' : 'border-gray-100'} my-1`}></div>
               <button
-                onClick={logout}
+                onClick={handleLogout}
                 className={`w-full text-left px-4 py-2 text-sm transition-colors flex items-center gap-3 ${darkMode ? 'text-red-400 hover:bg-gray-700' : 'text-red-600 hover:bg-gray-100'}`}
               >
                 <LogOut className="w-4 h-4" />

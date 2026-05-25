@@ -1,20 +1,23 @@
 import { Routes, Route } from "react-router-dom";
 import Layout from "./components/Layout";
-import LoginPage from "./pages/LoginPage";
-import OtpPage from "./pages/OtpPage";
+import LoginPage from "./pages/login/LoginPage";
+import OtpPage from "./pages/login/OtpPage";
 import DashboardPage from "./pages/DashboardPage";
 import PerfilPage from "./pages/PerfilPage";
-import UsuariosPage from "./pages/UsuariosPage";
-import RolesPage from "./pages/RolesPage";
-import PermisosPage from "./pages/PermisosPage";
+import UsuariosPage from "./pages/seguridad/UsuariosPage";
+import RolesPage from "./pages/seguridad/RolesPage";
+import PermisosPage from "./pages/seguridad/PermisosPage";
 // import ExpedientePage from "./pages/ExpedientePage";
-import TribunalPage from "./pages/TribunalPage";
+import TribunalesPage      from "./pages/tribunal/TribunalesPage";
+import SalasTribunalPage   from "./pages/tribunal/SalasTribunalPage";
+import VocalesPage         from "./pages/tribunal/VocalesPage";
+import ConformacionesPage  from "./pages/tribunal/ConformacionesPage";
 
 import DocumentosListPage  from "./pages/documentos/DocumentosListPage";
 import TiposDocPage        from "./pages/documentos/TiposDocPage";
 import NotificacionesPage  from "./pages/documentos/NotificacionesPage";
 
-import SolicitudesPage from "./pages/SolicitudesPage";
+import SolicitudesPage from "./pages/documentos/SolicitudesPage";
 
 
 import PersonasListPage       from "./pages/personas/PersonasListPage";
@@ -35,9 +38,8 @@ import RecursosPage          from "./pages/resoluciones/RecursosPage";
 import ExpedientesPage from "./pages/expedientes/ExpedientesPage";
 import HistorialEstadosPage from "./pages/expedientes/HistorialEstadosPage";
 import ActuacionesPage from "./pages/expedientes/ActuacionesPage";
-import ReportesPage from "./pages/ReportesPage";
-// nuevo
-import TribunalPageBeta from "./pages/Módulo de tribunal y salas/TribunalPage";
+import ReportesPage from "./pages/reportes/ReportesPage";
+
 function App() {
   return (
     <Routes>
@@ -53,7 +55,10 @@ function App() {
         <Route path="/roles" element={<RolesPage />} />
         <Route path="/permisos" element={<PermisosPage />} />
         {/* <Route path="/expedientes" element={<ExpedientePage />} /> */}
-        <Route path="/tribunal" element={<TribunalPage />} />
+        <Route path="/tribunales"      element={<TribunalesPage />} />
+        <Route path="/salas-tribunal"  element={<SalasTribunalPage />} />
+        <Route path="/vocales"         element={<VocalesPage />} />
+        <Route path="/conformaciones"  element={<ConformacionesPage />} />
         
         <Route path="/documentos"      element={<DocumentosListPage />} />
         <Route path="/tipos-doc"       element={<TiposDocPage />} />
@@ -83,7 +88,7 @@ function App() {
         <Route path="/expedientes" element={<ExpedientesPage />} />
         <Route path="/historial" element={<HistorialEstadosPage />} />
         <Route path="/actuaciones" element={<ActuacionesPage />} />
-        <Route path="/tribunalBeta" element={<TribunalPageBeta />} />
+
         <Route path="/reportes" element={<ReportesPage />} />
       </Route>
     </Routes>

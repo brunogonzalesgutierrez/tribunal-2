@@ -10,7 +10,7 @@ import {
   X, Star, TrendingUp, Clock, LogOut,
   History
 } from 'lucide-react';
-import { LucideIcon , ClipboardList, DoorOpen, Tag, Bell, Phone } from 'lucide-react';
+import { LucideIcon , ClipboardList, DoorOpen, Tag, Bell, Phone, Building2, Link2 } from 'lucide-react';
 
 
 // Definir los tipos de los items del menú
@@ -145,6 +145,20 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
         { name: 'Actuaciones', path: '/actuaciones', icon: FileText }
       ] 
     },
+
+    {
+      name: 'Tribunal',
+      icon: Building2,
+      type: 'dropdown',
+      description: 'Tribunales y salas',
+      active: isSubmenuActive(['/tribunales', '/salas-tribunal', '/vocales', '/conformaciones']),
+      submenu: [
+        { name: 'Tribunales',     path: '/tribunales',     icon: Building2 },
+        { name: 'Salas',          path: '/salas-tribunal', icon: DoorOpen },
+        { name: 'Vocales',        path: '/vocales',         icon: Users },
+        { name: 'Conformaciones', path: '/conformaciones', icon: Link2 },
+      ],
+    },
     
     {
       name: 'Audiencias',
@@ -187,16 +201,15 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
       icon: FileText,
       type: 'dropdown',
       description: 'Gestión documental',
-      active: isSubmenuActive(['/documentos', '/tipos-doc', '/notificaciones']),
+      active: isSubmenuActive(['/documentos', '/tipos-doc', '/notificaciones', '/solicitudes']),
       submenu: [
         { name: 'Lista de Documentos', path: '/documentos',     icon: FileText },
         { name: 'Tipos de documento',  path: '/tipos-doc',      icon: Tag },
         { name: 'Notificaciones',      path: '/notificaciones', icon: Bell },
+        { name: 'Solicitudes',         path: '/solicitudes',    icon: ClipboardList },  // ← nuevo
       ],
     },
 
-    { name: 'Solicitudes', path: '/solicitudes', icon: ListChecks, type: 'link', description: 'Trámites' },
-    
     {
       name: 'Resoluciones',
       icon: Scale,
@@ -215,8 +228,6 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
     
     
     
-    { name: 'Tribunal', path: '/tribunal', icon: Building, type: 'link', description: 'Configuración tribunal' },
-    { name: 'TribunalBeta', path: '/tribunalBeta', icon: Building, type: 'link', description: 'Configuración tribunal' },
   ];
 
   const handleNavClick = (itemName: string, itemPath: string) => {
@@ -388,38 +399,7 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
         </div>
       </nav>
 
-      {/* Recientes */}
-      {!collapsed && recentItems.length > 0 && (
-        <div className={`px-3 py-3 border-t ${borderColor}`}>
-          <div className="flex items-center justify-between mb-2">
-            <button 
-              onClick={() => setShowRecent(!showRecent)} 
-              className={`flex items-center gap-2 text-xs font-semibold ${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}
-            >
-              <Clock className="w-3.5 h-3.5" />
-              <span className="uppercase tracking-wider">Recientes</span>
-              <ChevronRight className={`w-3 h-3 transition-transform ${showRecent ? 'rotate-90' : ''}`} />
-            </button>
-            <button onClick={clearRecents} className="text-xs text-gray-500 hover:text-red-400">Limpiar</button>
-          </div>
-          {showRecent && (
-            <div className="space-y-1 mt-2">
-              {recentItems.map((item) => (
-                <NavLink 
-                  key={item.path} 
-                  to={item.path} 
-                  className={({ isActive }) => 
-                    `flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm ${isActive ? (darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600') : `${darkMode ? 'text-gray-500' : 'text-gray-400'} ${hoverBg}`}`
-                  }
-                >
-                  <TrendingUp className="w-3 h-3" />
-                  <span className="truncate">{item.name}</span>
-                </NavLink>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      
 
       {/* Botón Cerrar Sesión */}
       <div className={`p-3 border-t ${borderColor}`}>
@@ -433,12 +413,7 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
         </button>
       </div>
 
-      {/* Versión */}
-      {!collapsed && (
-        <div className="px-5 pb-4">
-          <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>v2.0.0</p>
-        </div>
-      )}
+      
     </aside>
   );
 }

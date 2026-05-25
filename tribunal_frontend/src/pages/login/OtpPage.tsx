@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useMutation } from "@apollo/client";
 import { useNavigate, useLocation } from "react-router-dom";
-import { VERIFY_OTP, OBTENER_QR, REGENERAR_QR } from "../graphql/mutations";
-import { useAuth } from "../context/AuthContext";
+import { VERIFY_OTP, OBTENER_QR, REGENERAR_QR } from "../../graphql/mutations";
+import { useAuth } from "../../context/AuthContext";
 
 export default function OtpPage() {
   const [code, setCode] = useState("");
