@@ -258,9 +258,11 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-purple-600/20"></div>
         <div className="relative">
           <div className="absolute inset-0 bg-blue-500 rounded-xl blur-xl opacity-70 animate-pulse"></div>
-          <div className="relative bg-gradient-to-br from-blue-500 to-purple-600 p-2 rounded-xl shadow-lg">
-            <Gavel className="w-5 h-5 text-white" />
-          </div>
+          <img
+            src="https://i.postimg.cc/BbmCyymq/justicia.png"
+            alt="Logo"
+            className="w-9 h-9 object-contain rounded-xl"
+          />
         </div>
         {!collapsed && (
           <div className="flex-1">
