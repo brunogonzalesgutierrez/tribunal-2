@@ -2096,16 +2096,21 @@ class ValidateUser(graphene.Mutation):
         email = graphene.String(required=True)
     success = graphene.Boolean()
     message = graphene.String()
+    email_real = graphene.String()  # nuevo campo para devolver el email real
 
     def mutate(self, info, email):
+        from django.db.models import Q
         try:
-            usuario = Usuario.objects.get(email=email, activo=True)
+            usuario = Usuario.objects.get(
+                Q(email=email) | Q(username=email),  # busca por email O username
+                activo=True
+            )
         except Usuario.DoesNotExist:
-            return ValidateUser(success=False, message="El email no está registrado.")
+            return ValidateUser(success=False, message="Usuario o email no registrado.", email_real=None)
         if not usuario.otp_secret:
             usuario.otp_secret = pyotp.random_base32()
             usuario.save()
-        return ValidateUser(success=True, message="Usuario validado. Ingresa el código de tu app.")
+        return ValidateUser(success=True, message="Usuario validado.", email_real=usuario.email)
 
 
 class VerifyOtp(graphene.Mutation):
@@ -2116,8 +2121,12 @@ class VerifyOtp(graphene.Mutation):
     token   = graphene.String()
 
     def mutate(self, info, email, code):
+        from django.db.models import Q
         try:
-            usuario = Usuario.objects.get(email=email, activo=True)
+            usuario = Usuario.objects.get(
+                Q(email=email) | Q(username=email),  # también aquí
+                activo=True
+            )
         except Usuario.DoesNotExist:
             return VerifyOtp(success=False, token=None)
         if not usuario.otp_secret:
@@ -2126,10 +2135,35 @@ class VerifyOtp(graphene.Mutation):
         if totp.verify(code):
             usuario.ultimo_acceso = datetime.now()
             usuario.save()
-            token = f"token-{email}-{datetime.now().timestamp()}"
+            token = f"token-{usuario.email}-{datetime.now().timestamp()}"
             return VerifyOtp(success=True, token=token)
-        else:
+        return VerifyOtp(success=False, token=None)
+
+class VerifyOtp(graphene.Mutation):
+    class Arguments:
+        email = graphene.String(required=True)
+        code  = graphene.String(required=True)
+    success = graphene.Boolean()
+    token   = graphene.String()
+
+    def mutate(self, info, email, code):
+        from django.db.models import Q
+        try:
+            usuario = Usuario.objects.get(
+                Q(email=email) | Q(username=email),  # también aquí
+                activo=True
+            )
+        except Usuario.DoesNotExist:
             return VerifyOtp(success=False, token=None)
+        if not usuario.otp_secret:
+            return VerifyOtp(success=False, token=None)
+        totp = pyotp.TOTP(usuario.otp_secret)
+        if totp.verify(code):
+            usuario.ultimo_acceso = datetime.now()
+            usuario.save()
+            token = f"token-{usuario.email}-{datetime.now().timestamp()}"
+            return VerifyOtp(success=True, token=token)
+        return VerifyOtp(success=False, token=None)
 
 
 class ObtenerQrResult(graphene.ObjectType):

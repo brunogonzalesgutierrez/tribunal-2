@@ -5,6 +5,7 @@ export const VALIDATE_USER = gql`
     validateUser(email: $email) {
       success
       message
+      emailReal
     }
   }
 `;

@@ -8,7 +8,7 @@ import {
   GET_REPORTE_CARGA_SALA,
   GET_REPORTE_ACTIVIDAD_USUARIOS,
   ENVIAR_REPORTES_EMAIL,
-} from "../graphql/reportes";
+} from "../../graphql/reportes";
 import {
   BarChart2, FileText, Mic, Users, Building2, Mail, X, CheckCircle, AlertCircle,
 } from "lucide-react";
