@@ -202,12 +202,14 @@ export const REGISTRAR_ASISTENCIA = gql`
     $idPersona: Int!
     $rolEnAudiencia: String!
     $asistio: Boolean
+    $horaIngreso: DateTime
   ) {
     registrarAsistencia(
       idAudiencia: $idAudiencia
       idPersona: $idPersona
       rolEnAudiencia: $rolEnAudiencia
       asistio: $asistio
+      horaIngreso: $horaIngreso
     ) {
       asistencia {
         idAsistencia

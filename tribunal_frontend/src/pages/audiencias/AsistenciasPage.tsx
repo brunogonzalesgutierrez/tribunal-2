@@ -27,7 +27,15 @@ export default function AsistenciasPage() {
   const [editando, setEdit] = useState<Asistencia | null>(null);
   const [err, setErr]       = useState("");
 
-  const initForm = { idAudiencia: 0, idPersona: 0, rolEnAudiencia: "", asistio: true, motivoInasistencia: "" };
+  // ✅ AÑADIDO: campo horaIngreso al formulario
+  const initForm = { 
+    idAudiencia: 0, 
+    idPersona: 0, 
+    rolEnAudiencia: "", 
+    asistio: true, 
+    motivoInasistencia: "",
+    horaIngreso: ""  // ← Campo nuevo
+  };
   const [form, setForm] = useState(initForm);
   const f = (k: string) => (v: string) => setForm(p => ({ ...p, [k]: v }));
 
@@ -38,46 +46,70 @@ export default function AsistenciasPage() {
   const asistieron   = asistencias.filter(a => a.asistio).length;
   const noAsistieron = asistencias.filter(a => !a.asistio).length;
 
-  const abrirCrear = () => { setEdit(null); setForm(initForm); setErr(""); setModal(true); };
+  const abrirCrear = () => { 
+    setEdit(null); 
+    setForm({ ...initForm, horaIngreso: "" }); 
+    setErr(""); 
+    setModal(true); 
+  };
+
+  // ✅ ACTUALIZADO: al editar, formatear la hora para el input datetime-local
   const abrirEditar = (a: Asistencia) => {
     setEdit(a);
     setForm({
-      idAudiencia: a.idAudiencia.idAudiencia, idPersona: a.idPersona.idPersona,
-      rolEnAudiencia: a.rolEnAudiencia, asistio: a.asistio,
+      idAudiencia: a.idAudiencia.idAudiencia,
+      idPersona: a.idPersona.idPersona,
+      rolEnAudiencia: a.rolEnAudiencia,
+      asistio: a.asistio,
       motivoInasistencia: a.motivoInasistencia ?? "",
+      horaIngreso: a.horaIngreso ? new Date(a.horaIngreso).toISOString().slice(0, 16) : "",
     });
-    setErr(""); setModal(true);
+    setErr(""); 
+    setModal(true);
   };
 
+  // ✅ ACTUALIZADO: enviar horaIngreso en la mutación
   const guardar = async () => {
     try {
       if (editando) {
         await actualizar({
           variables: {
             id: Number(editando.idAsistencia),
-            input: { asistio: form.asistio, motivoInasistencia: form.motivoInasistencia || undefined },
+            input: { 
+              asistio: form.asistio, 
+              motivoInasistencia: form.motivoInasistencia || undefined,
+              horaIngreso: form.asistio ? (form.horaIngreso || null) : null
+            },
           },
         });
       } else {
         if (!form.idAudiencia || !form.idPersona || !form.rolEnAudiencia) {
-          setErr("Audiencia, persona y rol son obligatorios."); return;
+          setErr("Audiencia, persona y rol son obligatorios."); 
+          return;
         }
         await registrar({
           variables: {
-            idAudiencia: Number(form.idAudiencia), idPersona: Number(form.idPersona),
-            rolEnAudiencia: form.rolEnAudiencia, asistio: form.asistio,
+            idAudiencia: Number(form.idAudiencia),
+            idPersona: Number(form.idPersona),
+            rolEnAudiencia: form.rolEnAudiencia,
+            asistio: form.asistio,
+            horaIngreso: form.asistio ? (form.horaIngreso || null) : null
           },
         });
       }
-      await refetch(); setModal(false);
-    } catch (e: any) { setErr(e.message ?? "Error."); }
+      await refetch(); 
+      setModal(false);
+    } catch (e: any) { 
+      setErr(e.message ?? "Error."); 
+    }
   };
 
   const eliminar = async (a: Asistencia) => {
     if (!window.confirm(`¿Eliminar el registro de ${a.idPersona.nombre} ${a.idPersona.primerApellido}?`)) return;
     const { data } = await eliminarAs({ variables: { id: Number(a.idAsistencia) } });
     if (!data?.eliminarAsistencia?.ok) {
-      alert(data?.eliminarAsistencia?.mensaje ?? "No se pudo eliminar."); return;
+      alert(data?.eliminarAsistencia?.mensaje ?? "No se pudo eliminar."); 
+      return;
     }
     refetch();
   };
@@ -197,7 +229,7 @@ export default function AsistenciasPage() {
         ))}
       </div>
 
-      {/* Modal */}
+      {/* Modal actualizado con campo horaIngreso */}
       {modal && (
         <Modal
           onClose={() => setModal(false)}
@@ -226,19 +258,49 @@ export default function AsistenciasPage() {
                 placeholder="Ej: Demandante, Abogado defensor..." required />
             </>
           )}
+
+          {/* Checkbox de asistió */}
           <div className="mb-4">
             <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 cursor-pointer">
-              <input type="checkbox" checked={form.asistio}
-                onChange={e => setForm(p => ({ ...p, asistio: e.target.checked }))} className="rounded" />
+              <input 
+                type="checkbox" 
+                checked={form.asistio}
+                onChange={e => setForm(p => ({ ...p, asistio: e.target.checked }))} 
+                className="rounded" 
+              />
               Asistió a la audiencia
             </label>
           </div>
-          {!form.asistio && (
-            <TextareaField label="Motivo de inasistencia" value={form.motivoInasistencia} onChange={f("motivoInasistencia")} />
+
+          {/* ✅ Campo de hora de ingreso - solo si asistió */}
+          {form.asistio && (
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                Hora de ingreso <span className="text-gray-400">(opcional)</span>
+              </label>
+              <input
+                type="datetime-local"
+                value={form.horaIngreso}
+                onChange={e => setForm(p => ({ ...p, horaIngreso: e.target.value }))}
+                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+              />
+              <p className="text-xs text-gray-400 mt-1">Dejar vacío para usar la hora actual</p>
+            </div>
           )}
+
+          {/* Motivo de inasistencia - solo si NO asistió */}
+          {!form.asistio && (
+            <TextareaField 
+              label="Motivo de inasistencia" 
+              value={form.motivoInasistencia} 
+              onChange={f("motivoInasistencia")} 
+            />
+          )}
+
           <ErrorBox msg={err} />
           <ModalFooter
-            onCancel={() => setModal(false)} onSave={guardar}
+            onCancel={() => setModal(false)} 
+            onSave={guardar}
             saveLabel={editando ? "Guardar" : "Registrar"}
           />
         </Modal>

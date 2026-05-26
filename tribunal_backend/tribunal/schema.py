@@ -1784,13 +1784,22 @@ class RegistrarAsistencia(graphene.Mutation):
         id_persona       = graphene.Int(required=True)
         rol_en_audiencia = graphene.String(required=True)
         asistio          = graphene.Boolean()
+        hora_ingreso     = graphene.DateTime()  # ← Campo opcional
+    
     asistencia = graphene.Field(AsistenciaAudienciaType)
-    def mutate(root, info, id_audiencia, id_persona, rol_en_audiencia, asistio=True):
+    
+    def mutate(self, info, id_audiencia, id_persona, rol_en_audiencia, asistio=True, hora_ingreso=None):
+        # Si no se envió hora_ingreso y asistió, usar la actual
+        if asistio and hora_ingreso is None:
+            hora_ingreso = timezone.now()
+        
         return RegistrarAsistencia(asistencia=AsistenciaAudiencia.objects.create(
             id_audiencia=Audiencia.objects.get(id_audiencia=id_audiencia),
             id_persona=Persona.objects.get(id_persona=id_persona),
-            rol_en_audiencia=rol_en_audiencia, asistio=asistio))
-
+            rol_en_audiencia=rol_en_audiencia,
+            asistio=asistio,
+            hora_ingreso=hora_ingreso
+        ))
 class ActualizarAsistencia(graphene.Mutation):
     class Arguments:
         id    = graphene.Int(required=True)
