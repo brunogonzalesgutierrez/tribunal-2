@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation } from "@apollo/client";
 import { useNavigate } from "react-router-dom";
 import { VALIDATE_USER } from "../../graphql/mutations";
+import toast from "react-hot-toast";
 
 // 👇 Reemplaza esta URL con el link de tu logo
 const LOGO_URL = "https://i.postimg.cc/BbmCyymq/justicia.png";
@@ -9,15 +10,27 @@ const LOGO_URL = "https://i.postimg.cc/BbmCyymq/justicia.png";
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [validateUser, { loading, error }] = useMutation(VALIDATE_USER);
+  const [validateUser, { loading }] = useMutation(VALIDATE_USER);
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { data } = await validateUser({ variables: { email } });
-    if (data?.validateUser?.success) {
-      const emailReal = data.validateUser.emailReal;
-      navigate("/otp", { state: { email: emailReal } });
+    
+    try {
+      // ✅ CORREGIDO: Ahora envía email Y password
+      const { data } = await validateUser({ 
+        variables: { email, password }  // ← Aquí está el cambio
+      });
+      
+      if (data?.validateUser?.success) {
+        const emailReal = data.validateUser.emailReal;
+        toast.success("Usuario validado correctamente");
+        navigate("/otp", { state: { email: emailReal } });
+      } else {
+        toast.error(data?.validateUser?.message || "Credenciales incorrectas");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Error al validar usuario");
     }
   };
 
@@ -102,12 +115,6 @@ export default function LoginPage() {
               }}
             />
           </div>
-
-          {error && (
-            <p className="text-sm" style={{ color: "#dc2626" }}>
-              {error.message}
-            </p>
-          )}
 
           <button
             type="submit"

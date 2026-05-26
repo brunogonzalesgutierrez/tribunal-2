@@ -2094,22 +2094,29 @@ class EliminarSolicitud(graphene.Mutation):
 class ValidateUser(graphene.Mutation):
     class Arguments:
         email = graphene.String(required=True)
+        password = graphene.String(required=True)  
+    
     success = graphene.Boolean()
     message = graphene.String()
-    email_real = graphene.String()  # nuevo campo para devolver el email real
+    email_real = graphene.String()
 
-    def mutate(self, info, email):
+    def mutate(self, info, email, password):  
         from django.db.models import Q
+        from django.contrib.auth.hashers import check_password  
+        
         try:
             usuario = Usuario.objects.get(
-                Q(email=email) | Q(username=email),  # busca por email O username
+                Q(email=email) | Q(username=email),
                 activo=True
             )
         except Usuario.DoesNotExist:
             return ValidateUser(success=False, message="Usuario o email no registrado.", email_real=None)
+        if not check_password(password, usuario.password):
+            return ValidateUser(success=False, message="Contraseña incorrecta.", email_real=None)
         if not usuario.otp_secret:
             usuario.otp_secret = pyotp.random_base32()
             usuario.save()
+        
         return ValidateUser(success=True, message="Usuario validado.", email_real=usuario.email)
 
 

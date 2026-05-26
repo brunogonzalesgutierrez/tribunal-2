@@ -1,8 +1,8 @@
 import { gql } from "@apollo/client";
 
 export const VALIDATE_USER = gql`
-  mutation ValidateUser($email: String!) {
-    validateUser(email: $email) {
+  mutation ValidateUser($email: String!, $password: String!) {
+    validateUser(email: $email, password: $password) {
       success
       message
       emailReal
