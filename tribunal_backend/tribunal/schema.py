@@ -212,6 +212,7 @@ class ActualizarUsuarioInput(graphene.InputObjectType):
     cargo_oficial = graphene.String()
     activo        = graphene.Boolean()
     id_rol        = graphene.Int()
+    password = graphene.String()
 
 class CrearPersonaInput(graphene.InputObjectType):
     numero_documento       = graphene.String(required=True)
@@ -638,21 +639,30 @@ class CrearUsuario(graphene.Mutation):
             cargo_oficial=input.cargo_oficial       # ✅ acceso directo
         )
         return CrearUsuario(usuario=obj)
-
+# nuevo actulizar usuario
 class ActualizarUsuario(graphene.Mutation):
     class Arguments:
         id    = graphene.Int(required=True)
         input = ActualizarUsuarioInput(required=True)
+    
     usuario = graphene.Field(UsuarioType)
+    
     def mutate(root, info, id, input):
         try:
             obj = Usuario.objects.get(id_usuario=id)
+            
             if input.nombres:               obj.nombres = input.nombres
             if input.paterno:               obj.paterno = input.paterno
             if input.email:                 obj.email = input.email
             if input.cargo_oficial is not None: obj.cargo_oficial = input.cargo_oficial
             if input.activo is not None:    obj.activo = input.activo
             if input.id_rol:                obj.rol = Rol.objects.get(id_rol=input.id_rol)
+            
+            # ← AGREGA ESTA PARTE PARA ACTUALIZAR CONTRASEÑA
+            if input.password:
+                from django.contrib.auth.hashers import make_password
+                obj.password = make_password(input.password)
+            
             obj.save()
             return ActualizarUsuario(usuario=obj)
         except Usuario.DoesNotExist:

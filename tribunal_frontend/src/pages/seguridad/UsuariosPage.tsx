@@ -211,53 +211,69 @@ export default function UsuariosPage() {
   const f = (field: string) => (v: string) => setForm(prev => ({ ...prev, [field]: v }));
 
   // ✅ Guardar con notificaciones
-  const guardar = async () => {
-    if (!form.nombres || !form.paterno || !form.email || !form.idRol) {
-      toast.error("Nombres, apellido, email y rol son obligatorios.");
-      return;
-    }
-    if (!editando && !form.password) {
-      toast.error("La contraseña es obligatoria al crear un usuario.");
-      return;
-    }
+  // ✅ Guardar con notificaciones (VERSIÓN CORREGIDA)
+const guardar = async () => {
+  if (!form.nombres || !form.paterno || !form.email || !form.idRol) {
+    toast.error("Nombres, apellido, email y rol son obligatorios.");
+    return;
+  }
+  
+  // Solo validar contraseña si es creación
+  if (!editando && !form.password) {
+    toast.error("La contraseña es obligatoria al crear un usuario.");
+    return;
+  }
 
-    if (editando) {
-      await executeUpdate(async () => {
-        await actualizarUsuario({
-          variables: {
-            id: Number(editando.idUsuario),
-            input: {
-              nombres: form.nombres, paterno: form.paterno,
-              email: form.email, cargoOficial: form.cargoOficial,
-              idRol: Number(form.idRol),
-            },
-          },
-        });
-        await refetch();
-        cerrarModal();
-        return true;
-      });
-    } else {
-      await executeCreate(async () => {
-        await crearUsuario({
-          variables: {
-            input: {
-              nombres: form.nombres, paterno: form.paterno,
-              materno: form.materno || undefined,
-              documentoIdentidad: form.documentoIdentidad,
-              email: form.email, username: form.username,
-              password: form.password,
-              cargoOficial: form.cargoOficial || undefined,
-              idRol: Number(form.idRol),
-            },
-          },
-        });
-        await refetch();
-        cerrarModal();
-        return true;
-      });
+  if (editando) {
+    // Para edición: construir input solo con campos que cambiaron
+    const input: any = {
+      nombres: form.nombres,
+      paterno: form.paterno,
+      email: form.email,
+      cargoOficial: form.cargoOficial,
+      idRol: Number(form.idRol),
+    };
+    
+    // ✅ Solo incluir password si se ingresó una nueva
+    if (form.password && form.password.trim() !== "") {
+      input.password = form.password;
     }
-  };
+    
+    await executeUpdate(async () => {
+      await actualizarUsuario({
+        variables: {
+          id: Number(editando.idUsuario),
+          input: input,
+        },
+      });
+      await refetch();
+      cerrarModal();
+      return true;
+    });
+  } else {
+    // Creación: todos los campos son obligatorios
+    await executeCreate(async () => {
+      await crearUsuario({
+        variables: {
+          input: {
+            nombres: form.nombres,
+            paterno: form.paterno,
+            materno: form.materno || undefined,
+            documentoIdentidad: form.documentoIdentidad,
+            email: form.email,
+            username: form.username,
+            password: form.password,
+            cargoOficial: form.cargoOficial || undefined,
+            idRol: Number(form.idRol),
+          },
+        },
+      });
+      await refetch();
+      cerrarModal();
+      return true;
+    });
+  }
+};
 
   // ✅ Toggle activo con notificaciones
   const toggleActivo = async (u: Usuario) => {
@@ -572,6 +588,9 @@ export default function UsuariosPage() {
       {/* ============================================================ */}
       {/* MODAL CREAR/EDITAR */}
       {/* ============================================================ */}
+      {/* ============================================================ */}
+      {/* MODAL CREAR/EDITAR */}
+      {/* ============================================================ */}
       {modalAbierto && (
         <Modal onClose={cerrarModal} title={modalType}>
           <div className="space-y-4">
@@ -582,6 +601,7 @@ export default function UsuariosPage() {
             <Field label="Apellido materno" value={form.materno} onChange={f("materno")} />
             <Field label="Email" value={form.email} onChange={f("email")} type="email" required />
 
+            {/* Campos SOLO para creación */}
             {modalType === "crear" && (
               <>
                 <div className="grid grid-cols-2 gap-3">
@@ -590,6 +610,23 @@ export default function UsuariosPage() {
                 </div>
                 <Field label="Contraseña" value={form.password} onChange={f("password")} type="password" required />
               </>
+            )}
+
+            {/* ✅ Campo de contraseña SOLO para edición (opcional) - ESTO ES LO QUE FALTABA */}
+            {modalType === "editar" && (
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                  Nueva contraseña <span className="text-gray-400">(opcional)</span>
+                </label>
+                <input
+                  type="password"
+                  value={form.password}
+                  onChange={e => f("password")(e.target.value)}
+                  placeholder="Dejar en blanco para mantener la actual"
+                  className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+                />
+                <p className="text-xs text-gray-400 mt-1">Solo completar si deseas cambiar la contraseña</p>
+              </div>
             )}
 
             <Field label="Cargo oficial" value={form.cargoOficial} onChange={f("cargoOficial")} />
