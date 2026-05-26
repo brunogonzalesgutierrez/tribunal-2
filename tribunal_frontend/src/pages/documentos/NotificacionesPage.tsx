@@ -17,6 +17,7 @@ import {
   Modal, Field, SelectField, ErrorBox, ModalFooter,
   StatCard, TablaDesktop, ActionBtns, SearchBar,
 } from "./shared";
+import { useAuth } from "../../context/AuthContext"; // ← Importar hook de autenticación
 
 const TIPO_NOTIF_OPTS = [
   { value: "CEDULA",      label: "Cédula" },
@@ -35,13 +36,14 @@ const initForm = {
   idExpediente:      "",
   idDocumento:       "",
   idParte:           "",
-  idUsuario:         "",
   tipoNotificacion:  "",
   estadoNotificacion: "PENDIENTE",
   fechaDiligencia:   "",
 };
 
 export default function NotificacionesPage() {
+  const { usuario } = useAuth(); // ← Obtener usuario actual
+  
   const { data, loading, refetch } = useQuery(GET_NOTIFICACIONES);
   const { data: dataExp }          = useQuery(GET_EXPEDIENTES_SIMPLE);
   const { data: dataDoc }          = useQuery(GET_DOCUMENTOS);
@@ -89,7 +91,6 @@ export default function NotificacionesPage() {
       idExpediente:      String(n.idExpediente?.idExpediente ?? ""),
       idDocumento:       String(n.idDocumento?.idDocumento ?? ""),
       idParte:           String(n.idParte?.idParte ?? ""),
-      idUsuario:         String(n.usuario?.idUsuario ?? ""),
       tipoNotificacion:  n.tipoNotificacion,
       estadoNotificacion: n.estadoNotificacion,
       fechaDiligencia:   n.fechaDiligencia ? n.fechaDiligencia.substring(0, 16) : "",
@@ -98,8 +99,9 @@ export default function NotificacionesPage() {
   };
 
   const guardar = async () => {
-    if (!editando && (!form.idExpediente || !form.idDocumento || !form.idParte || !form.idUsuario || !form.tipoNotificacion)) {
-      setErr("Todos los campos marcados son obligatorios."); return;
+    if (!editando && (!form.idExpediente || !form.idDocumento || !form.idParte || !form.tipoNotificacion)) {
+      setErr("Todos los campos marcados son obligatorios."); 
+      return;
     }
     try {
       if (editando) {
@@ -113,25 +115,35 @@ export default function NotificacionesPage() {
           },
         });
       } else {
+        // ✅ Usar el ID del usuario actual automáticamente
+        if (!usuario?.idUsuario) {
+          setErr("No se ha encontrado el usuario actual."); 
+          return;
+        }
+        
         await crearNotificacion({
           variables: {
             idExpediente:     Number(form.idExpediente),
             idDocumento:      Number(form.idDocumento),
             idParte:          Number(form.idParte),
-            idUsuario:        Number(form.idUsuario),
+            idUsuario:        Number(usuario.idUsuario), // ← Usuario actual
             tipoNotificacion: form.tipoNotificacion,
           },
         });
       }
-      await refetch(); setModal(false);
-    } catch (e: any) { setErr(e.message ?? "Error."); }
+      await refetch(); 
+      setModal(false);
+    } catch (e: any) { 
+      setErr(e.message ?? "Error."); 
+    }
   };
 
   const eliminar = async (n: Notificacion) => {
     if (!window.confirm("¿Eliminar esta notificación?")) return;
     const { data } = await eliminarNotificacion({ variables: { id: Number(n.idNotificacion) } });
     if (!data?.eliminarNotificacion?.ok) {
-      alert(data?.eliminarNotificacion?.mensaje ?? "No se pudo eliminar."); return;
+      alert(data?.eliminarNotificacion?.mensaje ?? "No se pudo eliminar."); 
+      return;
     }
     refetch();
   };
@@ -292,10 +304,7 @@ export default function NotificacionesPage() {
                   </option>
                 ))}
               </SelectField>
-              <Field
-                label="ID Usuario responsable" value={form.idUsuario}
-                onChange={f("idUsuario")} type="number" required
-              />
+              {/* ✅ Campo ID Usuario eliminado - se toma automáticamente */}
               <SelectField label="Tipo de notificación" value={form.tipoNotificacion} onChange={f("tipoNotificacion")} required>
                 <option value="">— Seleccionar tipo —</option>
                 {TIPO_NOTIF_OPTS.map(o => (

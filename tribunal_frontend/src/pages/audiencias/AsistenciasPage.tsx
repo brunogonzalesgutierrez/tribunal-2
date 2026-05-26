@@ -15,6 +15,13 @@ import {
   ErrorBox, ModalFooter, StatCard, TablaDesktop, ActionBtns,
 } from "./shared";
 
+// ✅ Función auxiliar para mostrar solo la hora
+const fmtHora = (fecha?: string | null) => {
+  if (!fecha) return "—";
+  const d = new Date(fecha);
+  return d.toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit" });
+};
+
 export default function AsistenciasPage() {
   const { data, loading, refetch } = useQuery(GET_ASISTENCIAS);
   const { data: dAud }  = useQuery(GET_AUDIENCIAS);
@@ -27,14 +34,13 @@ export default function AsistenciasPage() {
   const [editando, setEdit] = useState<Asistencia | null>(null);
   const [err, setErr]       = useState("");
 
-  // ✅ AÑADIDO: campo horaIngreso al formulario
   const initForm = { 
     idAudiencia: 0, 
     idPersona: 0, 
     rolEnAudiencia: "", 
     asistio: true, 
     motivoInasistencia: "",
-    horaIngreso: ""  // ← Campo nuevo
+    horaIngreso: ""
   };
   const [form, setForm] = useState(initForm);
   const f = (k: string) => (v: string) => setForm(p => ({ ...p, [k]: v }));
@@ -53,7 +59,6 @@ export default function AsistenciasPage() {
     setModal(true); 
   };
 
-  // ✅ ACTUALIZADO: al editar, formatear la hora para el input datetime-local
   const abrirEditar = (a: Asistencia) => {
     setEdit(a);
     setForm({
@@ -62,15 +67,22 @@ export default function AsistenciasPage() {
       rolEnAudiencia: a.rolEnAudiencia,
       asistio: a.asistio,
       motivoInasistencia: a.motivoInasistencia ?? "",
-      horaIngreso: a.horaIngreso ? new Date(a.horaIngreso).toISOString().slice(0, 16) : "",
+      horaIngreso: a.horaIngreso ? new Date(a.horaIngreso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : "",
     });
     setErr(""); 
     setModal(true);
   };
 
-  // ✅ ACTUALIZADO: enviar horaIngreso en la mutación
   const guardar = async () => {
     try {
+      const convertirHoraAIso = (horaStr: string) => {
+        if (!horaStr || horaStr.trim() === "") return null;
+        const hoy = new Date();
+        const [horas, minutos] = horaStr.split(':');
+        hoy.setHours(parseInt(horas), parseInt(minutos), 0, 0);
+        return hoy.toISOString();
+      };
+
       if (editando) {
         await actualizar({
           variables: {
@@ -78,7 +90,7 @@ export default function AsistenciasPage() {
             input: { 
               asistio: form.asistio, 
               motivoInasistencia: form.motivoInasistencia || undefined,
-              horaIngreso: form.asistio ? (form.horaIngreso || null) : null
+              horaIngreso: form.asistio ? convertirHoraAIso(form.horaIngreso) : null
             },
           },
         });
@@ -93,7 +105,7 @@ export default function AsistenciasPage() {
             idPersona: Number(form.idPersona),
             rolEnAudiencia: form.rolEnAudiencia,
             asistio: form.asistio,
-            horaIngreso: form.asistio ? (form.horaIngreso || null) : null
+            horaIngreso: form.asistio ? convertirHoraAIso(form.horaIngreso) : null
           },
         });
       }
@@ -148,9 +160,9 @@ export default function AsistenciasPage() {
           sub={`${Math.round((noAsistieron / (asistencias.length || 1)) * 100)}% del total`} />
       </div>
 
-      {/* Tabla Desktop */}
+      {/* Tabla Desktop - AÑADIDA COLUMNA "Motivo" */}
       <TablaDesktop
-        headers={["Persona", "Audiencia", "Rol", "Asistió", "Hora ingreso", "Acciones"]}
+        headers={["Persona", "Audiencia", "Rol", "Asistió", "Hora ingreso", "Motivo", "Acciones"]}
         loading={loading}
         emptyMsg="No hay registros de asistencia"
         emptyIcon={<Users className="w-12 h-12 text-gray-300 dark:text-gray-600" />}
@@ -185,7 +197,11 @@ export default function AsistenciasPage() {
               </span>
             </td>
             <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 font-mono">
-              {a.horaIngreso ? fmt(a.horaIngreso) : "—"}
+              {fmtHora(a.horaIngreso)}
+            </td>
+            {/* ✅ NUEVA COLUMNA: Motivo de inasistencia */}
+            <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
+              {!a.asistio && a.motivoInasistencia ? a.motivoInasistencia : "—"}
             </td>
             <td className="px-6 py-4">
               <ActionBtns onEdit={() => abrirEditar(a)} onDelete={() => eliminar(a)} />
@@ -194,7 +210,7 @@ export default function AsistenciasPage() {
         ))}
       </TablaDesktop>
 
-      {/* Cards Móvil */}
+      {/* Cards Móvil - AÑADIDO MOTIVO */}
       <div className="lg:hidden space-y-3">
         {asistencias.map(a => (
           <div key={a.idAsistencia} className="bg-white dark:bg-slate-800/90 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
@@ -214,22 +230,30 @@ export default function AsistenciasPage() {
                 {a.asistio ? "✓" : "✗"}
               </span>
             </div>
-            <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700 flex justify-between items-center">
-              <span className="text-xs text-blue-500">#{a.idAudiencia.idExpediente.numeroExpediente}</span>
-              <div className="flex gap-1">
-                <button onClick={() => abrirEditar(a)} className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30">
-                  <Edit className="w-4 h-4" />
-                </button>
-                <button onClick={() => eliminar(a)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
-                  <Trash2 className="w-4 h-4" />
-                </button>
+            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              <span className="text-blue-500">#{a.idAudiencia.idExpediente.numeroExpediente}</span>
+              <span className="mx-2">•</span>
+              <span>{fmtHora(a.horaIngreso)}</span>
+            </div>
+            {/* ✅ Mostrar motivo si no asistió */}
+            {!a.asistio && a.motivoInasistencia && (
+              <div className="mt-2 text-xs text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-950/20 p-2 rounded-lg">
+                Motivo: {a.motivoInasistencia}
               </div>
+            )}
+            <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700 flex justify-end gap-1">
+              <button onClick={() => abrirEditar(a)} className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30">
+                <Edit className="w-4 h-4" />
+              </button>
+              <button onClick={() => eliminar(a)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
+                <Trash2 className="w-4 h-4" />
+              </button>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Modal actualizado con campo horaIngreso */}
+      {/* Modal */}
       {modal && (
         <Modal
           onClose={() => setModal(false)}
@@ -259,7 +283,6 @@ export default function AsistenciasPage() {
             </>
           )}
 
-          {/* Checkbox de asistió */}
           <div className="mb-4">
             <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 cursor-pointer">
               <input 
@@ -272,23 +295,22 @@ export default function AsistenciasPage() {
             </label>
           </div>
 
-          {/* ✅ Campo de hora de ingreso - solo si asistió */}
           {form.asistio && (
             <div className="mb-4">
               <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
                 Hora de ingreso <span className="text-gray-400">(opcional)</span>
               </label>
               <input
-                type="datetime-local"
+                type="time"
                 value={form.horaIngreso}
                 onChange={e => setForm(p => ({ ...p, horaIngreso: e.target.value }))}
+                step="60"
                 className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
               />
-              <p className="text-xs text-gray-400 mt-1">Dejar vacío para usar la hora actual</p>
+              <p className="text-xs text-gray-400 mt-1">Formato HH:MM - Dejar vacío para usar la hora actual</p>
             </div>
           )}
 
-          {/* Motivo de inasistencia - solo si NO asistió */}
           {!form.asistio && (
             <TextareaField 
               label="Motivo de inasistencia" 
