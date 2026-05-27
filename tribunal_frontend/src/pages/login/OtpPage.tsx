@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, FormEvent } from "react";
 import { useMutation } from "@apollo/client";
 import { useNavigate, useLocation } from "react-router-dom";
 import { VERIFY_OTP, OBTENER_QR, REGENERAR_QR } from "../../graphql/mutations";
 import { useAuth } from "../../context/AuthContext";
+import toast from "react-hot-toast";
 
 export default function OtpPage() {
   const [code, setCode] = useState("");
@@ -16,7 +17,7 @@ export default function OtpPage() {
 
   const navigate = useNavigate();
   const location = useLocation();
-  const { setUsuario } = useAuth();
+  const { login, completeOtp } = useAuth(); // ← Agregar completeOtp
 
   const email = (location.state as { email?: string })?.email ?? "";
 
@@ -27,42 +28,63 @@ export default function OtpPage() {
         setQrImage(data.obtenerQr.qrBase64);
         setEsNuevo(data.obtenerQr.esNuevo);
       }
+    }).catch(() => {
+      toast.error("Error al cargar el código QR");
     });
   };
 
-  useEffect(() => { cargarQr(); }, [email]);
+  useEffect(() => { 
+    if (email) cargarQr(); 
+  }, [email]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!code.trim()) return;
 
-    const { data } = await verifyOtp({ variables: { email, code } });
+    try {
+      const { data } = await verifyOtp({ variables: { email, code } });
 
-    if (data?.verifyOtp?.success) {
-      localStorage.setItem("userEmail", email);
-      localStorage.setItem("token", data.verifyOtp.token);
-      setUsuario({
-        email,
-        nombre: email.split("@")[0],
-        paterno: "",
-        rol: "usuario",
-        idUsuario: null,
-      });
-      navigate("/dashboard");
+      if (data?.verifyOtp?.success) {
+        const userData = {
+          idUsuario: data.verifyOtp.idUsuario,
+          email: data.verifyOtp.emailReal,
+          nombre: data.verifyOtp.nombres,
+          paterno: data.verifyOtp.paterno,
+          rol: data.verifyOtp.rol,
+          username: data.verifyOtp.username,
+          permisos: data.verifyOtp.permisos || [],
+        };
+        
+        login(userData, data.verifyOtp.token);
+        completeOtp(); // ← NUEVO: marca autenticación como completa
+        
+        toast.success("Bienvenido al sistema");
+        navigate("/dashboard");
+      } else {
+        toast.error(data?.verifyOtp?.message || "Código incorrecto");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Error al verificar el código");
     }
   };
 
   const handleRegenerarQr = async () => {
-    const { data } = await regenerarQr({ variables: { email } });
-    if (data?.regenerarQr?.success) {
-      obtenerQr({ variables: { email } }).then(({ data }) => {
-        if (data?.obtenerQr?.success) {
-          setQrImage(data.obtenerQr.qrBase64);
+    try {
+      const { data } = await regenerarQr({ variables: { email } });
+      if (data?.regenerarQr?.success) {
+        const qrData = await obtenerQr({ variables: { email } });
+        if (qrData.data?.obtenerQr?.success) {
+          setQrImage(qrData.data.obtenerQr.qrBase64);
           setEsNuevo(true);
         }
-      });
-      setMensajeQr("QR regenerado. Escanea el nuevo código con Google Authenticator.");
-      setCode("");
+        setMensajeQr("QR regenerado. Escanea el nuevo código con Google Authenticator.");
+        setCode("");
+        toast.success("Código QR regenerado");
+      } else {
+        toast.error(data?.regenerarQr?.message || "Error al regenerar QR");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Error al regenerar QR");
     }
   };
 

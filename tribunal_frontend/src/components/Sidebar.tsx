@@ -8,16 +8,17 @@ import {
   LayoutDashboard, Building,
   ShieldCheck, Key, Shield,
   X, Star, TrendingUp, Clock, LogOut,
-  History
+  History, ClipboardList, DoorOpen, Tag, Bell, Phone, Building2, Link2
 } from 'lucide-react';
-import { LucideIcon , ClipboardList, DoorOpen, Tag, Bell, Phone, Building2, Link2 } from 'lucide-react';
-
+import { LucideIcon } from 'lucide-react';
+import { PERMISOS } from '../config/permisos';
 
 // Definir los tipos de los items del menú
 interface SubmenuItem {
   name: string;
   path: string;
   icon: LucideIcon;
+  requiredPermissions?: string[];
 }
 
 interface MenuItemLink {
@@ -26,6 +27,7 @@ interface MenuItemLink {
   icon: LucideIcon;
   type: 'link';
   description?: string;
+  requiredPermissions?: string[];
 }
 
 interface MenuItemDropdown {
@@ -35,6 +37,7 @@ interface MenuItemDropdown {
   description?: string;
   active?: boolean;
   submenu: SubmenuItem[];
+  requiredPermissions?: string[];
 }
 
 type MenuItem = MenuItemLink | MenuItemDropdown;
@@ -45,7 +48,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ collapsed = false, darkMode = true }: SidebarProps) {
-  const { logout } = useAuth();
+  const { logout, hasPermission, usuario } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -118,19 +121,27 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
     setRecentItems([]);
   };
 
-  // ✅ MENÚ COMPLETO CON SUBMENÚS
+  // ✅ Menú completo con permisos requeridos
   const menuItems: MenuItem[] = [
-    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, type: 'link', description: 'Vista principal' },
+    { 
+      name: 'Dashboard', 
+      path: '/dashboard', 
+      icon: LayoutDashboard, 
+      type: 'link', 
+      description: 'Vista principal',
+      requiredPermissions: [] 
+    },
     { 
       name: 'Seguridad', 
       icon: ShieldCheck, 
       type: 'dropdown', 
       description: 'Usuarios y permisos',
+      requiredPermissions: [PERMISOS.USR_GEST, PERMISOS.ROL_GEST],
       active: isSubmenuActive(['/usuarios', '/roles', '/permisos']),
       submenu: [
-        { name: 'Usuarios', path: '/usuarios', icon: Users },
-        { name: 'Roles', path: '/roles', icon: Shield },
-        { name: 'Permisos', path: '/permisos', icon: Key }
+        { name: 'Usuarios', path: '/usuarios', icon: Users, requiredPermissions: [PERMISOS.USR_GEST] },
+        { name: 'Roles', path: '/roles', icon: Shield, requiredPermissions: [PERMISOS.ROL_GEST] },
+        { name: 'Permisos', path: '/permisos', icon: Key, requiredPermissions: [PERMISOS.ROL_GEST] }
       ] 
     },
     { 
@@ -138,97 +149,122 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
       icon: Folder,
       type: 'dropdown', 
       description: 'Gestión de expedientes',
+      requiredPermissions: [PERMISOS.EXP_VER],
       active: isSubmenuActive(['/expedientes', '/historial', '/actuaciones']),
       submenu: [
-        { name: 'Lista de Expedientes', path: '/expedientes', icon: Folder },
-        { name: 'Historial de Estados', path: '/historial', icon: History },
-        { name: 'Actuaciones', path: '/actuaciones', icon: FileText }
+        { name: 'Lista de Expedientes', path: '/expedientes', icon: Folder, requiredPermissions: [PERMISOS.EXP_VER] },
+        { name: 'Historial de Estados', path: '/historial', icon: History, requiredPermissions: [PERMISOS.EXP_VER] },
+        { name: 'Actuaciones', path: '/actuaciones', icon: FileText, requiredPermissions: [PERMISOS.EXP_VER] }
       ] 
     },
-
     {
       name: 'Tribunal',
       icon: Building2,
       type: 'dropdown',
       description: 'Tribunales y salas',
+      requiredPermissions: [PERMISOS.EXP_VER],
       active: isSubmenuActive(['/tribunales', '/salas-tribunal', '/vocales', '/conformaciones']),
       submenu: [
-        { name: 'Tribunales',     path: '/tribunales',     icon: Building2 },
-        { name: 'Salas',          path: '/salas-tribunal', icon: DoorOpen },
-        { name: 'Vocales',        path: '/vocales',         icon: Users },
-        { name: 'Conformaciones', path: '/conformaciones', icon: Link2 },
+        { name: 'Tribunales', path: '/tribunales', icon: Building2, requiredPermissions: [PERMISOS.EXP_VER] },
+        { name: 'Salas', path: '/salas-tribunal', icon: DoorOpen, requiredPermissions: [PERMISOS.EXP_VER] },
+        { name: 'Vocales', path: '/vocales', icon: Users, requiredPermissions: [PERMISOS.EXP_VER] },
+        { name: 'Conformaciones', path: '/conformaciones', icon: Link2, requiredPermissions: [PERMISOS.EXP_VER] },
       ],
     },
-    
     {
       name: 'Audiencias',
-      icon: Scale,            // ya está importado arriba
+      icon: Scale,
       type: 'dropdown',
       description: 'Audiencias y actas',
+      requiredPermissions: [PERMISOS.AUD_VER],
       active: isSubmenuActive(['/audiencias', '/tipos-audiencia', '/salas-audiencia', '/asistencias', '/actas']),
       submenu: [
-        { name: 'Lista de Audiencias',  path: '/audiencias',        icon: Scale },
-        { name: 'Tipos de Audiencia',   path: '/tipos-audiencia',   icon: ClipboardList },
-        { name: 'Salas',                path: '/salas-audiencia',   icon: DoorOpen },
-        { name: 'Asistencias',          path: '/asistencias',       icon: Users },
-        { name: 'Actas',                path: '/actas',             icon: FileText },
+        { name: 'Lista de Audiencias', path: '/audiencias', icon: Scale, requiredPermissions: [PERMISOS.AUD_VER] },
+        { name: 'Tipos de Audiencia', path: '/tipos-audiencia', icon: ClipboardList, requiredPermissions: [PERMISOS.AUD_GEST] },
+        { name: 'Salas', path: '/salas-audiencia', icon: DoorOpen, requiredPermissions: [PERMISOS.AUD_GEST] },
+        { name: 'Asistencias', path: '/asistencias', icon: Users, requiredPermissions: [PERMISOS.AUD_VER] },
+        { name: 'Actas', path: '/actas', icon: FileText, requiredPermissions: [PERMISOS.AUD_GEST] },
       ]
     },
-
-
     {
       name: 'Participantes',
       icon: Users,
       type: 'dropdown',
       description: 'Personas y partes',
-      active: isSubmenuActive([
-        '/personas',
-        '/contactos',
-        '/roles-procesales',
-        '/partes'
-      ]),
+      requiredPermissions: [PERMISOS.PER_GEST],
+      active: isSubmenuActive(['/personas', '/contactos', '/roles-procesales', '/partes']),
       submenu: [
-        { name: 'Lista de Personas', path: '/personas',         icon: Users },
-        { name: 'Contactos',         path: '/contactos',        icon: Phone },
-        { name: 'Roles Procesales',  path: '/roles-procesales', icon: Shield },
-        { name: 'Partes',            path: '/partes',           icon: Scale },
+        { name: 'Lista de Personas', path: '/personas', icon: Users, requiredPermissions: [PERMISOS.PER_GEST] },
+        { name: 'Contactos', path: '/contactos', icon: Phone, requiredPermissions: [PERMISOS.PER_GEST] },
+        { name: 'Roles Procesales', path: '/roles-procesales', icon: Shield, requiredPermissions: [PERMISOS.PER_GEST] },
+        { name: 'Partes', path: '/partes', icon: Scale, requiredPermissions: [PERMISOS.PER_GEST] },
       ],
     },
-
-
     {
       name: 'Documentos',
       icon: FileText,
       type: 'dropdown',
       description: 'Gestión documental',
+      requiredPermissions: [PERMISOS.DOC_VER],
       active: isSubmenuActive(['/documentos', '/tipos-doc', '/notificaciones', '/solicitudes']),
       submenu: [
-        { name: 'Lista de Documentos', path: '/documentos',     icon: FileText },
-        { name: 'Tipos de documento',  path: '/tipos-doc',      icon: Tag },
-        { name: 'Notificaciones',      path: '/notificaciones', icon: Bell },
-        { name: 'Solicitudes',         path: '/solicitudes',    icon: ClipboardList },  // ← nuevo
+        { name: 'Lista de Documentos', path: '/documentos', icon: FileText, requiredPermissions: [PERMISOS.DOC_VER] },
+        { name: 'Tipos de documento', path: '/tipos-doc', icon: Tag, requiredPermissions: [PERMISOS.DOC_SUBIR] },
+        { name: 'Notificaciones', path: '/notificaciones', icon: Bell, requiredPermissions: [PERMISOS.NOT_VER] },
+        { name: 'Solicitudes', path: '/solicitudes', icon: ClipboardList, requiredPermissions: [PERMISOS.DOC_VER] },
       ],
     },
-
     {
       name: 'Resoluciones',
       icon: Scale,
       type: 'dropdown',
       description: 'Resoluciones y recursos',
+      requiredPermissions: [PERMISOS.RES_VER],
       active: isSubmenuActive(['/resoluciones', '/tipos-resolucion', '/tipos-recurso', '/recursos']),
       submenu: [
-        { name: 'Lista de Resoluciones', path: '/resoluciones',      icon: Scale },
-        { name: 'Tipos de resolución',   path: '/tipos-resolucion',  icon: FileText },
-        { name: 'Tipos de recurso',      path: '/tipos-recurso',     icon: ClipboardList },
-        { name: 'Recursos',              path: '/recursos',           icon: Gavel },
+        { name: 'Lista de Resoluciones', path: '/resoluciones', icon: Scale, requiredPermissions: [PERMISOS.RES_VER] },
+        { name: 'Tipos de resolución', path: '/tipos-resolucion', icon: FileText, requiredPermissions: [PERMISOS.RES_CREAR] },
+        { name: 'Tipos de recurso', path: '/tipos-recurso', icon: ClipboardList, requiredPermissions: [PERMISOS.RES_CREAR] },
+        { name: 'Recursos', path: '/recursos', icon: Gavel, requiredPermissions: [PERMISOS.RES_VER] },
       ],
     },
-
-    { name: 'Reportes', path: '/reportes', icon: BarChart, type: 'link', description: 'Estadísticas' },
-    
-    
-    
+    { 
+      name: 'Reportes', 
+      path: '/reportes', 
+      icon: BarChart, 
+      type: 'link', 
+      description: 'Estadísticas',
+      requiredPermissions: [PERMISOS.EXP_VER] 
+    },
   ];
+
+  // ✅ Filtrar menús según permisos del usuario
+  const filtrarPorPermisos = (item: MenuItem): boolean => {
+    // Administrador ve todo
+    if (usuario?.rol === "Administrador") return true;
+    
+    // Si no tiene permisos requeridos, no mostrar
+    if (item.requiredPermissions && item.requiredPermissions.length > 0) {
+      const tienePermiso = item.requiredPermissions.some(p => hasPermission(p));
+      if (!tienePermiso) return false;
+    }
+    
+    // Para dropdowns, filtrar también sus submenús
+    if (item.type === 'dropdown' && item.submenu) {
+      const submenuFiltrado = item.submenu.filter(sub => {
+        if (!sub.requiredPermissions || sub.requiredPermissions.length === 0) return true;
+        return sub.requiredPermissions.some(p => hasPermission(p));
+      });
+      // Si no quedan submenús, no mostrar el dropdown
+      if (submenuFiltrado.length === 0) return false;
+      // Actualizar submenu filtrado
+      item.submenu = submenuFiltrado;
+    }
+    
+    return true;
+  };
+
+  const menuItemsFiltrados = menuItems.filter(filtrarPorPermisos);
 
   const handleNavClick = (itemName: string, itemPath: string) => {
     addToRecent(itemName, itemPath);
@@ -298,10 +334,10 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
         </div>
       )}
 
-      {/* Menú de navegación */}
+      {/* Menú de navegación - usando menuItemsFiltrados */}
       <nav className="flex-1 overflow-y-auto py-4 px-3 custom-scrollbar">
         <div className="space-y-1">
-          {menuItems.map((item) => {
+          {menuItemsFiltrados.map((item) => {
             // Si es un dropdown
             if (isDropdown(item)) {
               const isExpanded = expandedMenu === item.name;
@@ -401,8 +437,6 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
         </div>
       </nav>
 
-      
-
       {/* Botón Cerrar Sesión */}
       <div className={`p-3 border-t ${borderColor}`}>
         <button
@@ -414,8 +448,6 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
           {!collapsed && <span className="text-sm font-medium">Cerrar Sesión</span>}
         </button>
       </div>
-
-      
     </aside>
   );
 }

@@ -2110,18 +2110,133 @@ class EliminarSolicitud(graphene.Mutation):
 # OTP - Google Authenticator
 # ============================================================
 
+import graphene
+import pyotp
+import jwt
+import datetime
+from django.db.models import Q
+from django.contrib.auth.hashers import check_password
+from django.conf import settings
+
 class ValidateUser(graphene.Mutation):
     class Arguments:
         email = graphene.String(required=True)
-        password = graphene.String(required=True)  
+        password = graphene.String(required=True)
     
     success = graphene.Boolean()
     message = graphene.String()
     email_real = graphene.String()
+    id_usuario = graphene.Int()
+    nombres = graphene.String()
+    paterno = graphene.String()
+    rol = graphene.String()
+    username = graphene.String()
+    permisos = graphene.List(graphene.String)
+    token = graphene.String()
 
-    def mutate(self, info, email, password):  
+    def mutate(self, info, email, password):
         from django.db.models import Q
-        from django.contrib.auth.hashers import check_password  
+        from django.contrib.auth.hashers import check_password
+        import jwt
+        import datetime
+        from django.conf import settings
+        
+        print("🔵 1. Intentando login para:", email)
+        
+        try:
+            usuario = Usuario.objects.get(
+                Q(email=email) | Q(username=email),
+                activo=True
+            )
+            print("🟢 2. Usuario encontrado:", usuario.email)
+        except Usuario.DoesNotExist:
+            print("🔴 3. Usuario NO encontrado")
+            return ValidateUser(
+                success=False,
+                message="Usuario o email no registrado.",
+                email_real=None,
+                id_usuario=None,
+                nombres=None,
+                paterno=None,
+                rol=None,
+                username=None,
+                permisos=[],
+                token=None
+            )
+        
+        print("🔵 4. Verificando contraseña...")
+        if not check_password(password, usuario.password):
+            print("🔴 5. Contraseña INCORRECTA")
+            return ValidateUser(
+                success=False,
+                message="Contraseña incorrecta.",
+                email_real=None,
+                id_usuario=None,
+                nombres=None,
+                paterno=None,
+                rol=None,
+                username=None,
+                permisos=[],
+                token=None
+            )
+        
+        # ✅ Obtener permisos del rol del usuario
+        permisos_codigos = list(
+            usuario.rol.permisos_asignados.values_list('permiso__codigo', flat=True)
+        )
+        
+        # ✅ Generar token JWT
+        token = jwt.encode(
+            {
+                'id_usuario': usuario.id_usuario,
+                'email': usuario.email,
+                'username': usuario.username,
+                'rol': usuario.rol.nombre,
+                'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24)
+            },
+            settings.SECRET_KEY,
+            algorithm='HS256'
+        )
+        
+        print("🟢 6. Login EXITOSO!")
+        print(f"   - ID: {usuario.id_usuario}")
+        print(f"   - Nombre: {usuario.nombres} {usuario.paterno}")
+        print(f"   - Rol: {usuario.rol.nombre}")
+        print(f"   - Permisos: {len(permisos_codigos)}")
+        
+        return ValidateUser(
+            success=True,
+            message="Usuario validado correctamente.",
+            email_real=usuario.email,
+            id_usuario=usuario.id_usuario,
+            nombres=usuario.nombres,
+            paterno=usuario.paterno,
+            rol=usuario.rol.nombre,
+            username=usuario.username,
+            permisos=permisos_codigos,
+            token=token
+        )
+class VerifyOtp(graphene.Mutation):
+    class Arguments:
+        email = graphene.String(required=True)
+        code  = graphene.String(required=True)
+    
+    success = graphene.Boolean()
+    message = graphene.String()
+    token   = graphene.String()
+    id_usuario = graphene.Int()
+    email_real = graphene.String()
+    nombres = graphene.String()
+    paterno = graphene.String()
+    rol = graphene.String()
+    username = graphene.String()
+    permisos = graphene.List(graphene.String)
+
+    def mutate(self, info, email, code):
+        from django.db.models import Q
+        from django.utils import timezone
+        import jwt
+        from django.conf import settings
         
         try:
             usuario = Usuario.objects.get(
@@ -2129,71 +2244,88 @@ class ValidateUser(graphene.Mutation):
                 activo=True
             )
         except Usuario.DoesNotExist:
-            return ValidateUser(success=False, message="Usuario o email no registrado.", email_real=None)
-        if not check_password(password, usuario.password):
-            return ValidateUser(success=False, message="Contraseña incorrecta.", email_real=None)
-        if not usuario.otp_secret:
-            usuario.otp_secret = pyotp.random_base32()
-            usuario.save()
+            return VerifyOtp(
+                success=False, 
+                message="Usuario no encontrado",
+                token=None,
+                id_usuario=None,
+                email_real=None,
+                nombres=None,
+                paterno=None,
+                rol=None,
+                username=None,
+                permisos=[]
+            )
         
-        return ValidateUser(success=True, message="Usuario validado.", email_real=usuario.email)
-
-
-class VerifyOtp(graphene.Mutation):
-    class Arguments:
-        email = graphene.String(required=True)
-        code  = graphene.String(required=True)
-    success = graphene.Boolean()
-    token   = graphene.String()
-
-    def mutate(self, info, email, code):
-        from django.db.models import Q
-        try:
-            usuario = Usuario.objects.get(
-                Q(email=email) | Q(username=email),  # también aquí
-                activo=True
-            )
-        except Usuario.DoesNotExist:
-            return VerifyOtp(success=False, token=None)
         if not usuario.otp_secret:
-            return VerifyOtp(success=False, token=None)
-        totp = pyotp.TOTP(usuario.otp_secret)
-        if totp.verify(code):
-            usuario.ultimo_acceso = datetime.now()
-            usuario.save()
-            token = f"token-{usuario.email}-{datetime.now().timestamp()}"
-            return VerifyOtp(success=True, token=token)
-        return VerifyOtp(success=False, token=None)
-
-class VerifyOtp(graphene.Mutation):
-    class Arguments:
-        email = graphene.String(required=True)
-        code  = graphene.String(required=True)
-    success = graphene.Boolean()
-    token   = graphene.String()
-
-    def mutate(self, info, email, code):
-        from django.db.models import Q
-        try:
-            usuario = Usuario.objects.get(
-                Q(email=email) | Q(username=email),  # también aquí
-                activo=True
+            return VerifyOtp(
+                success=False, 
+                message="No hay código OTP configurado",
+                token=None,
+                id_usuario=None,
+                email_real=None,
+                nombres=None,
+                paterno=None,
+                rol=None,
+                username=None,
+                permisos=[]
             )
-        except Usuario.DoesNotExist:
-            return VerifyOtp(success=False, token=None)
-        if not usuario.otp_secret:
-            return VerifyOtp(success=False, token=None)
+        
         totp = pyotp.TOTP(usuario.otp_secret)
+        
         if totp.verify(code):
-            usuario.ultimo_acceso = datetime.now()
+            # Actualizar último acceso
+            usuario.ultimo_acceso = timezone.now()
             usuario.save()
-            token = f"token-{usuario.email}-{datetime.now().timestamp()}"
-            return VerifyOtp(success=True, token=token)
-        return VerifyOtp(success=False, token=None)
+            
+            # ✅ Obtener permisos del rol del usuario
+            permisos_codigos = list(
+                usuario.rol.permisos_asignados.values_list('permiso__codigo', flat=True)
+            )
+            
+            # ✅ Generar token JWT
+            token = jwt.encode(
+                {
+                    'id_usuario': usuario.id_usuario,
+                    'email': usuario.email,
+                    'username': usuario.username,
+                    'rol': usuario.rol.nombre,
+                    'exp': timezone.now() + timezone.timedelta(hours=24)
+                },
+                settings.SECRET_KEY,
+                algorithm='HS256'
+            )
+            
+            return VerifyOtp(
+                success=True,
+                message="Código verificado correctamente",
+                token=token,
+                id_usuario=usuario.id_usuario,
+                email_real=usuario.email,
+                nombres=usuario.nombres,
+                paterno=usuario.paterno,
+                rol=usuario.rol.nombre,
+                username=usuario.username,
+                permisos=permisos_codigos
+            )
+        
+        return VerifyOtp(
+            success=False,
+            message="Código incorrecto",
+            token=None,
+            id_usuario=None,
+            email_real=None,
+            nombres=None,
+            paterno=None,
+            rol=None,
+            username=None,
+            permisos=[]
+        )
 
 
 class ObtenerQrResult(graphene.ObjectType):
     success   = graphene.Boolean()
+    message   = graphene.String()
     qr_base64 = graphene.String()
     es_nuevo  = graphene.Boolean()
 
@@ -2203,24 +2335,47 @@ class ObtenerQr(graphene.Mutation):
     Output = ObtenerQrResult
 
     def mutate(self, info, email):
+        from django.db.models import Q
+        
         try:
-            usuario = Usuario.objects.get(email=email, activo=True)
+            usuario = Usuario.objects.get(
+                Q(email=email) | Q(username=email),
+                activo=True
+            )
         except Usuario.DoesNotExist:
-            return ObtenerQrResult(success=False, qr_base64=None, es_nuevo=False)
+            return ObtenerQrResult(
+                success=False,
+                message="Usuario no encontrado",
+                qr_base64=None,
+                es_nuevo=False
+            )
+        
         es_nuevo = not bool(usuario.otp_secret)
+        
         if es_nuevo:
             usuario.otp_secret = pyotp.random_base32()
             usuario.save()
+        
         totp = pyotp.TOTP(usuario.otp_secret)
-        uri  = totp.provisioning_uri(name=email, issuer_name="Tribunal App")
-        import qrcode, io, base64
-        img    = qrcode.make(uri)
+        uri = totp.provisioning_uri(name=usuario.email, issuer_name="Tribunal App")
+        
+        # Generar QR
+        import qrcode
+        import io
+        import base64
+        
+        img = qrcode.make(uri)
         buffer = io.BytesIO()
         img.save(buffer, format="PNG")
         qr_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
-        return ObtenerQrResult(success=True, qr_base64=qr_b64, es_nuevo=es_nuevo)
-
-
+        
+        return ObtenerQrResult(
+            success=True,
+            message="QR generado correctamente",
+            qr_base64=qr_b64,
+            es_nuevo=es_nuevo
+        )
+    
 class RegenerarQrResult(graphene.ObjectType):
     success = graphene.Boolean()
     message = graphene.String()
@@ -2231,14 +2386,26 @@ class RegenerarQr(graphene.Mutation):
     Output = RegenerarQrResult
 
     def mutate(self, info, email):
+        from django.db.models import Q
+        
         try:
-            usuario = Usuario.objects.get(email=email, activo=True)
-            usuario.otp_secret = pyotp.random_base32()
-            usuario.save()
-            return RegenerarQrResult(success=True, message="QR regenerado correctamente")
+            usuario = Usuario.objects.get(
+                Q(email=email) | Q(username=email),
+                activo=True
+            )
         except Usuario.DoesNotExist:
-            return RegenerarQrResult(success=False, message="Usuario no encontrado")
-
+            return RegenerarQrResult(
+                success=False,
+                message="Usuario no encontrado"
+            )
+        
+        usuario.otp_secret = pyotp.random_base32()
+        usuario.save()
+        
+        return RegenerarQrResult(
+            success=True,
+            message="QR regenerado correctamente"
+        )
 
 
 import io

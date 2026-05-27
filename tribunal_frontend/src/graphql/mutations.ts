@@ -6,6 +6,13 @@ export const VALIDATE_USER = gql`
       success
       message
       emailReal
+      idUsuario
+      nombres
+      paterno
+      rol
+      username
+      permisos
+      token
     }
   }
 `;
@@ -14,7 +21,15 @@ export const VERIFY_OTP = gql`
   mutation VerifyOtp($email: String!, $code: String!) {
     verifyOtp(email: $email, code: $code) {
       success
+      message
       token
+      idUsuario
+      emailReal
+      nombres
+      paterno
+      rol
+      username
+      permisos
     }
   }
 `;
@@ -23,6 +38,7 @@ export const OBTENER_QR = gql`
   mutation ObtenerQr($email: String!) {
     obtenerQr(email: $email) {
       success
+      message
       qrBase64
       esNuevo
     }
