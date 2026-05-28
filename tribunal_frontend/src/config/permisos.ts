@@ -1,101 +1,138 @@
-// Definición de permisos del sistema
+// src/config/permisos.ts
+
 export const PERMISOS = {
-  // Expedientes
-  EXP_VER: "EXP_VER",
-  EXP_CREAR: "EXP_CREAR",
-  EXP_EDITAR: "EXP_EDITAR",
-  EXP_ELIM: "EXP_ELIM",
+  // ============================================================
+  // SEGURIDAD
+  // ============================================================
+  USUARIOS_VER: "USUARIOS_VER",
+  ROLES_VER: "ROLES_VER",
+  PERMISOS_VER: "PERMISOS_VER",
   
-  // Audiencias
-  AUD_VER: "AUD_VER",
-  AUD_GEST: "AUD_GEST",
+  // ============================================================
+  // TRIBUNAL
+  // ============================================================
+  TRIBUNALES_VER: "TRIBUNALES_VER",
+  SALAS_TRIBUNAL_VER: "SALAS_TRIBUNAL_VER",
+  SALAS_AUDIENCIA_VER: "SALAS_AUDIENCIA_VER",
+  VOCALES_VER: "VOCALES_VER",
+  CONFORMACIONES_VER: "CONFORMACIONES_VER",
   
-  // Resoluciones
-  RES_VER: "RES_VER",
-  RES_CREAR: "RES_CREAR",
+  // ============================================================
+  // EXPEDIENTES
+  // ============================================================
+  EXPEDIENTES_VER: "EXPEDIENTES_VER",
+  HISTORIAL_ESTADOS_VER: "HISTORIAL_ESTADOS_VER",
+  ACTUACIONES_VER: "ACTUACIONES_VER",
   
-  // Usuarios y Seguridad
-  USR_GEST: "USR_GEST",
-  ROL_GEST: "ROL_GEST",
+  // ============================================================
+  // AUDIENCIAS
+  // ============================================================
+  AUDIENCIAS_VER: "AUDIENCIAS_VER",
+  ASISTENCIAS_VER: "ASISTENCIAS_VER",
+  ACTAS_VER: "ACTAS_VER",
   
-  // Documentos
-  DOC_VER: "DOC_VER",
-  DOC_SUBIR: "DOC_SUBIR",
+  // ============================================================
+  // RESOLUCIONES
+  // ============================================================
+  RESOLUCIONES_VER: "RESOLUCIONES_VER",
+  RECURSOS_VER: "RECURSOS_VER",
   
-  // Personas
-  PER_GEST: "PER_GEST",
+  // ============================================================
+  // DOCUMENTOS
+  // ============================================================
+  DOCUMENTOS_VER: "DOCUMENTOS_VER",
+  NOTIFICACIONES_VER: "NOTIFICACIONES_VER",
+  SOLICITUDES_VER: "SOLICITUDES_VER",
   
-  // Notificaciones
-  NOT_VER: "NOT_VER",
-  NOT_EMIT: "NOT_EMIT",
+  // ============================================================
+  // PERSONAS
+  // ============================================================
+  PERSONAS_VER: "PERSONAS_VER",
+  CONTACTOS_VER: "CONTACTOS_VER",
+  ROLES_PROCESALES_VER: "ROLES_PROCESALES_VER",
+  PARTES_PROCESALES_VER: "PARTES_PROCESALES_VER",
+  
+  // ============================================================
+  // CATÁLOGOS
+  // ============================================================
+  TIPOS_PROCESO_VER: "TIPOS_PROCESO_VER",
+  TIPOS_AUDIENCIA_VER: "TIPOS_AUDIENCIA_VER",
+  TIPOS_RESOLUCION_VER: "TIPOS_RESOLUCION_VER",
+  TIPOS_RECURSO_VER: "TIPOS_RECURSO_VER",
+  TIPOS_DOCUMENTO_VER: "TIPOS_DOCUMENTO_VER",
+  TIPOS_ACTUACION_VER: "TIPOS_ACTUACION_VER",
+  ESTADOS_EXPEDIENTE_VER: "ESTADOS_EXPEDIENTE_VER",
+  
+  // ============================================================
+  // REPORTES
+  // ============================================================
+  REPORTES_VER: "REPORTES_VER",
 };
 
-// Relación de rutas con permisos requeridos
+// Permisos por ruta
 export const RUTAS_PERMISOS: Record<string, string[]> = {
-  // Expedientes
-  '/expedientes': [PERMISOS.EXP_VER],
-  '/historial': [PERMISOS.EXP_VER],
-  '/actuaciones': [PERMISOS.EXP_VER],
-  
-  // Audiencias
-  '/audiencias': [PERMISOS.AUD_VER],
-  '/tipos-audiencia': [PERMISOS.AUD_GEST],
-  '/salas-audiencia': [PERMISOS.AUD_GEST],
-  '/asistencias': [PERMISOS.AUD_VER],
-  '/actas': [PERMISOS.AUD_GEST],
-  
-  // Resoluciones
-  '/resoluciones': [PERMISOS.RES_VER],
-  '/tipos-resolucion': [PERMISOS.RES_CREAR],
-  '/tipos-recurso': [PERMISOS.RES_CREAR],
-  '/recursos': [PERMISOS.RES_VER],
-  
-  // Seguridad
-  '/usuarios': [PERMISOS.USR_GEST],
-  '/roles': [PERMISOS.ROL_GEST],
-  '/permisos': [PERMISOS.ROL_GEST],
-  
-  // Documentos
-  '/documentos': [PERMISOS.DOC_VER],
-  '/tipos-doc': [PERMISOS.DOC_SUBIR],
-  '/notificaciones': [PERMISOS.NOT_VER],
-  '/solicitudes': [PERMISOS.DOC_VER],
-  
-  // Personas
-  '/personas': [PERMISOS.PER_GEST],
-  '/contactos': [PERMISOS.PER_GEST],
-  '/roles-procesales': [PERMISOS.PER_GEST],
-  '/partes': [PERMISOS.PER_GEST],
-  
-  // Tribunal
-  '/tribunales': [PERMISOS.EXP_VER],
-  '/salas-tribunal': [PERMISOS.EXP_VER],
-  '/vocales': [PERMISOS.EXP_VER],
-  '/conformaciones': [PERMISOS.EXP_VER],
-  
-  // Reportes
-  '/reportes': [PERMISOS.EXP_VER],
-  
-  // Dashboard y Perfil (todos pueden ver)
   '/dashboard': [],
   '/perfil': [],
+  
+  // Seguridad
+  '/usuarios': [PERMISOS.USUARIOS_VER],
+  '/roles': [PERMISOS.ROLES_VER],
+  '/permisos': [PERMISOS.PERMISOS_VER],
+  
+  // Tribunal
+  '/tribunales': [PERMISOS.TRIBUNALES_VER],
+  '/salas-tribunal': [PERMISOS.SALAS_TRIBUNAL_VER],
+  '/vocales': [PERMISOS.VOCALES_VER],
+  '/conformaciones': [PERMISOS.CONFORMACIONES_VER],
+  '/salas-audiencia': [PERMISOS.SALAS_AUDIENCIA_VER],
+  
+  // Expedientes
+  '/expedientes': [PERMISOS.EXPEDIENTES_VER],
+  '/historial': [PERMISOS.HISTORIAL_ESTADOS_VER],
+  '/actuaciones': [PERMISOS.ACTUACIONES_VER],
+  
+  // Audiencias
+  '/audiencias': [PERMISOS.AUDIENCIAS_VER],
+  '/asistencias': [PERMISOS.ASISTENCIAS_VER],
+  '/actas': [PERMISOS.ACTAS_VER],
+  
+  // Resoluciones
+  '/resoluciones': [PERMISOS.RESOLUCIONES_VER],
+  '/recursos': [PERMISOS.RECURSOS_VER],
+  
+  // Documentos
+  '/documentos': [PERMISOS.DOCUMENTOS_VER],
+  '/notificaciones': [PERMISOS.NOTIFICACIONES_VER],
+  '/solicitudes': [PERMISOS.SOLICITUDES_VER],
+  
+  // Personas
+  '/personas': [PERMISOS.PERSONAS_VER],
+  '/contactos': [PERMISOS.CONTACTOS_VER],
+  '/roles-procesales': [PERMISOS.ROLES_PROCESALES_VER],
+  '/partes': [PERMISOS.PARTES_PROCESALES_VER],
+  
+  // Catálogos
+  '/tipos-proceso': [PERMISOS.TIPOS_PROCESO_VER],
+  '/tipos-audiencia': [PERMISOS.TIPOS_AUDIENCIA_VER],
+  '/tipos-resolucion': [PERMISOS.TIPOS_RESOLUCION_VER],
+  '/tipos-recurso': [PERMISOS.TIPOS_RECURSO_VER],
+  '/tipos-doc': [PERMISOS.TIPOS_DOCUMENTO_VER],
+  '/tipos-actuacion': [PERMISOS.TIPOS_ACTUACION_VER],
+  '/estados-expediente': [PERMISOS.ESTADOS_EXPEDIENTE_VER],
+  
+  // Reportes
+  '/reportes': [PERMISOS.REPORTES_VER],
 };
 
-// Relación de nombres de menú con permisos
-export const MENU_PERMISOS: Record<string, string[]> = {
-  'Dashboard': [],
-  'Expedientes': [PERMISOS.EXP_VER],
-  'Audiencias': [PERMISOS.AUD_VER],
-  'Resoluciones': [PERMISOS.RES_VER],
-  'Documentos': [PERMISOS.DOC_VER],
-  'Solicitudes': [PERMISOS.DOC_VER],
-  'Notificaciones': [PERMISOS.NOT_VER],
-  'Participantes': [PERMISOS.PER_GEST],
-  'Personas': [PERMISOS.PER_GEST],
-  'Usuarios': [PERMISOS.USR_GEST],
-  'Roles': [PERMISOS.ROL_GEST],
-  'Permisos': [PERMISOS.ROL_GEST],
-  'Tribunal': [PERMISOS.EXP_VER],
-  'Reportes': [PERMISOS.EXP_VER],
-  'Seguridad': [PERMISOS.USR_GEST, PERMISOS.ROL_GEST],
-};
+// Helper
+export function getPermisosRuta(pathname: string): string[] {
+  if (RUTAS_PERMISOS[pathname]) {
+    return RUTAS_PERMISOS[pathname];
+  }
+  for (const [ruta, permisos] of Object.entries(RUTAS_PERMISOS)) {
+    if (pathname.startsWith(ruta) && ruta !== '/') {
+      return permisos;
+    }
+  }
+  return [];
+}
