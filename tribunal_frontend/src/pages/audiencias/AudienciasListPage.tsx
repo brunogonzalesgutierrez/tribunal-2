@@ -14,13 +14,306 @@ import {
 import {
   Scale, Plus, Search, Edit, Trash2,
   Calendar, DoorOpen, Video, MoreVertical,
-  CheckCircle, Circle, AlertCircle,
+  CheckCircle, Circle, AlertCircle, X,
 } from "lucide-react";
 import {
   Audiencia, Expediente, TipoAudiencia, SalaAudiencia,
   fmt, EstadoBadge, Modal, Field, SelectField, TextareaField,
   ErrorBox, ModalFooter, StatCard, TablaDesktop, ActionBtns, Paginacion,
 } from "./shared";
+import { useCrudNotifications } from '../../hooks/useCrudNotifications';
+import { useToast } from '../../context/ToastContext';
+
+// ============================================================
+// COMPONENTE: Buscador de Expedientes (Modal)
+// ============================================================
+function BuscadorExpediente({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: number, nombre: string) => void;
+  onClose: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const { data, loading } = useQuery(GET_EXPEDIENTES_SIMPLE);
+
+  const expedientes: Expediente[] = data?.allExpedientes ?? [];
+
+  const filtrados = expedientes.filter(e =>
+    `${e.numeroExpediente} ${e.ano}`.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-blue-500" />
+            Seleccionar Expediente
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar expediente por número..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No se encontraron expedientes</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtrados.map((e, index) => (
+                <button
+                  key={e.idExpediente}
+                  onClick={() => {
+                    onSelect(e.idExpediente, `${e.numeroExpediente} (${e.ano})`);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 ${
+                    index === filtrados.length - 1 ? 'mb-0' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">{e.numeroExpediente}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Año: {e.ano}</p>
+                    </div>
+                    <div className="text-blue-500">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// COMPONENTE: Buscador de Tipos de Audiencia (Modal)
+// ============================================================
+function BuscadorTipoAudiencia({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: number, nombre: string) => void;
+  onClose: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const { data, loading } = useQuery(GET_TIPOS_AUDIENCIA);
+
+  const tipos: TipoAudiencia[] = data?.allTiposAudiencia ?? [];
+
+  const filtrados = tipos.filter(t =>
+    `${t.nombre} ${t.duracionEstimada}`.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-blue-500" />
+            Seleccionar Tipo de Audiencia
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar tipo de audiencia por nombre o duración..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No se encontraron tipos de audiencia</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtrados.map((t, index) => (
+                <button
+                  key={t.idTipoAudiencia}
+                  onClick={() => {
+                    onSelect(t.idTipoAudiencia, `${t.nombre} (${t.duracionEstimada} min)`);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 ${
+                    index === filtrados.length - 1 ? 'mb-0' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">{t.nombre}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Duración: {t.duracionEstimada} minutos</p>
+                    </div>
+                    <div className="text-blue-500">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// COMPONENTE: Buscador de Salas (Modal)
+// ============================================================
+function BuscadorSalaAudiencia({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: number, nombre: string) => void;
+  onClose: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const { data, loading } = useQuery(GET_SALAS_AUDIENCIA);
+
+  const salas: SalaAudiencia[] = data?.allSalasAudiencia ?? [];
+
+  const filtrados = salas.filter(s =>
+    `${s.nombreSala} ${s.capacidad}`.toLowerCase().includes(busqueda.toLowerCase()) && s.activa
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-blue-500" />
+            Seleccionar Sala
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar sala por nombre o capacidad..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No se encontraron salas</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtrados.map((s, index) => (
+                <button
+                  key={s.idSalaAud}
+                  onClick={() => {
+                    onSelect(s.idSalaAud, `${s.nombreSala} (Cap. ${s.capacidad})`);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 ${
+                    index === filtrados.length - 1 ? 'mb-0' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">{s.nombreSala}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Capacidad: {s.capacidad} personas</p>
+                    </div>
+                    <div className="text-blue-500">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── CARD MÓVIL ──────────────────────────────────────────
 function AudienciaCard({
@@ -108,9 +401,19 @@ export default function AudienciasListPage() {
   const [actualizarAudiencia] = useMutation(ACTUALIZAR_AUDIENCIA);
   const [eliminarAudiencia]   = useMutation(ELIMINAR_AUDIENCIA);
 
-  const [modal, setModal]   = useState(false);
+  // ✅ HOOK DE NOTIFICACIONES
+  const { executeCreate, executeUpdate, executeDelete } = useCrudNotifications('Audiencia');
+  const toast = useToast();
+
+  const [modal, setModal] = useState(false);
+  const [buscadorExpAbierto, setBuscadorExpAbierto] = useState(false);
+  const [buscadorTipoAbierto, setBuscadorTipoAbierto] = useState(false);
+  const [buscadorSalaAbierto, setBuscadorSalaAbierto] = useState(false);
   const [editando, setEdit] = useState<Audiencia | null>(null);
-  const [err, setErr]       = useState("");
+  const [expedienteSeleccionado, setExpedienteSeleccionado] = useState("");
+  const [tipoSeleccionado, setTipoSeleccionado] = useState("");
+  const [salaSeleccionada, setSalaSeleccionada] = useState("");
+  const [err, setErr] = useState("");
   const [busqueda, setBusq] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -123,10 +426,10 @@ export default function AudienciasListPage() {
   const [form, setForm] = useState(initForm);
   const f = (k: string) => (v: string) => setForm(p => ({ ...p, [k]: v }));
 
-  const audiencias: Audiencia[]       = data?.allAudiencias ?? [];
-  const expedientes: Expediente[]     = dExp?.allExpedientes ?? [];
-  const tipos: TipoAudiencia[]        = dTipo?.allTiposAudiencia ?? [];
-  const salas: SalaAudiencia[]        = dSala?.allSalasAudiencia ?? [];
+  const audiencias: Audiencia[] = data?.allAudiencias ?? [];
+  const expedientes: Expediente[] = dExp?.allExpedientes ?? [];
+  const tipos: TipoAudiencia[] = dTipo?.allTiposAudiencia ?? [];
+  const salas: SalaAudiencia[] = dSala?.allSalasAudiencia ?? [];
 
   const filtradas = audiencias.filter(a =>
     `${a.idExpediente.numeroExpediente} ${a.estadoAudiencia} ${a.idTipoAudiencia.nombre}`
@@ -135,14 +438,23 @@ export default function AudienciasListPage() {
 
   const totalPages = Math.ceil(filtradas.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginated  = filtradas.slice(startIndex, startIndex + itemsPerPage);
+  const paginated = filtradas.slice(startIndex, startIndex + itemsPerPage);
 
   const programadas = audiencias.filter(a => a.estadoAudiencia === "PROGRAMADA").length;
-  const enCurso     = audiencias.filter(a => a.estadoAudiencia === "EN_CURSO").length;
+  const enCurso = audiencias.filter(a => a.estadoAudiencia === "EN_CURSO").length;
   const finalizadas = audiencias.filter(a => a.estadoAudiencia === "FINALIZADA").length;
   const suspendidas = audiencias.filter(a => a.estadoAudiencia === "SUSPENDIDA").length;
 
-  const abrirCrear = () => { setEdit(null); setForm(initForm); setErr(""); setModal(true); };
+  const abrirCrear = () => {
+    setEdit(null);
+    setForm(initForm);
+    setExpedienteSeleccionado("");
+    setTipoSeleccionado("");
+    setSalaSeleccionada("");
+    setErr("");
+    setModal(true);
+  };
+
   const abrirEditar = (a: Audiencia) => {
     setEdit(a);
     setForm({
@@ -154,21 +466,55 @@ export default function AudienciasListPage() {
       estadoAudiencia: a.estadoAudiencia,
       motivoSuspension: a.motivoSuspension ?? "",
     });
-    setErr(""); setModal(true);
+    setExpedienteSeleccionado(`${a.idExpediente.numeroExpediente} (${a.idExpediente.ano})`);
+    setTipoSeleccionado(`${a.idTipoAudiencia.nombre} (${a.idTipoAudiencia.duracionEstimada} min)`);
+    setSalaSeleccionada(a.idSalaAud ? `${a.idSalaAud.nombreSala} (Cap. ${a.idSalaAud.capacidad})` : "");
+    setErr("");
+    setModal(true);
   };
 
+  const seleccionarExpediente = (id: number, nombre: string) => {
+    setForm(f => ({ ...f, idExpediente: id }));
+    setExpedienteSeleccionado(nombre);
+  };
+
+  const seleccionarTipo = (id: number, nombre: string) => {
+    setForm(f => ({ ...f, idTipoAudiencia: id }));
+    setTipoSeleccionado(nombre);
+  };
+
+  const seleccionarSala = (id: number, nombre: string) => {
+    setForm(f => ({ ...f, idSalaAud: id }));
+    setSalaSeleccionada(nombre);
+  };
+
+  // ✅ GUARDAR CON NOTIFICACIONES - VERSIÓN CORREGIDA
   const guardar = async () => {
+    // Validar campos obligatorios
     if (!form.idExpediente || !form.idTipoAudiencia || !form.fechaHoraProgramada) {
-      setErr("Expediente, tipo de audiencia y fecha son obligatorios."); return;
+      toast.error("Expediente, tipo de audiencia y fecha son obligatorios.");
+      return;
     }
-    try {
-      if (editando) {
+    
+    // 🔧 CORRECCIÓN: Normalizar idSalaAud (0 o falsy se convierte a undefined)
+    const salaId = form.idSalaAud && form.idSalaAud !== 0 ? Number(form.idSalaAud) : undefined;
+    
+    // Log para depuración
+    console.log("📤 Enviando:", {
+      idExpediente: form.idExpediente,
+      idTipoAudiencia: form.idTipoAudiencia,
+      fechaHoraProgramada: form.fechaHoraProgramada,
+      idSalaAud: salaId,  // ← Ahora será undefined en lugar de 0
+    });
+    
+    if (editando) {
+      await executeUpdate(async () => {
         await actualizarAudiencia({
           variables: {
             id: Number(editando.idAudiencia),
             input: {
               idTipoAudiencia: Number(form.idTipoAudiencia) || undefined,
-              idSalaAud: Number(form.idSalaAud) || undefined,
+              idSalaAud: salaId,  // ← CORREGIDO
               fechaHoraProgramada: form.fechaHoraProgramada,
               estadoAudiencia: form.estadoAudiencia || undefined,
               motivoSuspension: form.motivoSuspension || undefined,
@@ -176,30 +522,48 @@ export default function AudienciasListPage() {
             },
           },
         });
-      } else {
+        await refetch();
+        setModal(false);
+        return true;
+      });
+    } else {
+      await executeCreate(async () => {
         await crearAudiencia({
           variables: {
             input: {
               idExpediente: Number(form.idExpediente),
               idTipoAudiencia: Number(form.idTipoAudiencia),
               fechaHoraProgramada: form.fechaHoraProgramada,
-              idSalaAud: Number(form.idSalaAud) || undefined,
+              idSalaAud: salaId,  // ← CORREGIDO
               linkVideoconferencia: form.linkVideoconferencia || undefined,
             },
           },
         });
-      }
-      await refetch(); setModal(false);
-    } catch (e: any) { setErr(e.message ?? "Error al guardar."); }
+        await refetch();
+        setModal(false);
+        return true;
+      });
+    }
   };
 
+  // ✅ ELIMINAR CON NOTIFICACIONES
   const eliminar = async (a: Audiencia) => {
-    if (!window.confirm(`¿Eliminar la audiencia del expediente #${a.idExpediente.numeroExpediente}?`)) return;
-    const { data } = await eliminarAudiencia({ variables: { id: Number(a.idAudiencia) } });
-    if (!data?.eliminarAudiencia?.ok) {
-      alert(data?.eliminarAudiencia?.mensaje ?? "No se pudo eliminar."); return;
-    }
-    refetch();
+    await executeDelete(
+      async () => {
+        const { data } = await eliminarAudiencia({ variables: { id: Number(a.idAudiencia) } });
+        if (!data?.eliminarAudiencia?.ok) {
+          throw new Error(data?.eliminarAudiencia?.mensaje ?? "No se pudo eliminar.");
+        }
+        await refetch();
+        return true;
+      },
+      {
+        loading: `Eliminando audiencia del expediente #${a.idExpediente.numeroExpediente}...`,
+        success: `Audiencia eliminada exitosamente`,
+        error: `Error al eliminar la audiencia`,
+      },
+      `¿Eliminar la audiencia del expediente #${a.idExpediente.numeroExpediente}?`
+    );
   };
 
   return (
@@ -236,7 +600,7 @@ export default function AudienciasListPage() {
           icon={<AlertCircle className="w-6 h-6 text-amber-600 dark:text-amber-400" />} sub="Requieren reprogramación" />
       </div>
 
-      {/* Buscador */}
+      {/* Buscador de tabla */}
       <div className="relative max-w-md">
         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
@@ -321,30 +685,109 @@ export default function AudienciasListPage() {
           title={editando ? "Editar audiencia" : "Nueva audiencia"}
           icon={<Scale className="w-5 h-5 text-blue-500" />}
         >
+          {/* Expediente - Con buscador (solo en creación) */}
           {!editando && (
-            <SelectField label="Expediente" value={form.idExpediente} onChange={f("idExpediente")} required>
-              <option value={0}>— Seleccionar expediente —</option>
-              {expedientes.map(e => (
-                <option key={e.idExpediente} value={e.idExpediente}>#{e.numeroExpediente} ({e.ano})</option>
-              ))}
-            </SelectField>
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                Expediente <span className="text-red-500">*</span>
+              </label>
+              {expedienteSeleccionado ? (
+                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+                  <span className="flex-1 text-sm text-gray-800 dark:text-white">{expedienteSeleccionado}</span>
+                  <button
+                    onClick={() => {
+                      setForm(f => ({ ...f, idExpediente: 0 }));
+                      setExpedienteSeleccionado("");
+                    }}
+                    className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setBuscadorExpAbierto(true)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  Buscar y seleccionar expediente
+                </button>
+              )}
+            </div>
           )}
-          <SelectField label="Tipo de audiencia" value={form.idTipoAudiencia} onChange={f("idTipoAudiencia")} required>
-            <option value={0}>— Seleccionar tipo —</option>
-            {tipos.map(t => (
-              <option key={t.idTipoAudiencia} value={t.idTipoAudiencia}>
-                {t.nombre} ({t.duracionEstimada} min)
-              </option>
-            ))}
-          </SelectField>
+
+          {/* En edición, mostrar el expediente como texto */}
+          {editando && (
+            <div className="mb-4 p-2.5 rounded-xl bg-gray-100 dark:bg-slate-700/50 text-gray-700 dark:text-gray-300 text-sm">
+              Expediente: {expedienteSeleccionado}
+            </div>
+          )}
+
+          {/* Tipo de Audiencia - Con buscador */}
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+              Tipo de audiencia <span className="text-red-500">*</span>
+            </label>
+            {tipoSeleccionado ? (
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+                <span className="flex-1 text-sm text-gray-800 dark:text-white">{tipoSeleccionado}</span>
+                <button
+                  onClick={() => {
+                    setForm(f => ({ ...f, idTipoAudiencia: 0 }));
+                    setTipoSeleccionado("");
+                  }}
+                  className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setBuscadorTipoAbierto(true)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                Buscar y seleccionar tipo de audiencia
+              </button>
+            )}
+          </div>
+
           <Field label="Fecha y hora programada" value={form.fechaHoraProgramada} onChange={f("fechaHoraProgramada")} type="datetime-local" required />
-          <SelectField label="Sala de audiencia" value={form.idSalaAud} onChange={f("idSalaAud")}>
-            <option value={0}>— Sin sala asignada —</option>
-            {salas.filter(s => s.activa).map(s => (
-              <option key={s.idSalaAud} value={s.idSalaAud}>{s.nombreSala} (cap. {s.capacidad})</option>
-            ))}
-          </SelectField>
+
+          {/* Sala - Con buscador */}
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+              Sala de audiencia
+            </label>
+            {salaSeleccionada ? (
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700">
+                <span className="flex-1 text-sm text-gray-800 dark:text-white">{salaSeleccionada}</span>
+                <button
+                  onClick={() => {
+                    setForm(f => ({ ...f, idSalaAud: 0 }));
+                    setSalaSeleccionada("");
+                  }}
+                  className="p-1 rounded-lg text-gray-500 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setBuscadorSalaAbierto(true)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                Buscar y seleccionar sala
+              </button>
+            )}
+          </div>
+
           <Field label="Link videoconferencia" value={form.linkVideoconferencia} onChange={f("linkVideoconferencia")} placeholder="https://..." />
+
           {editando && (
             <>
               <SelectField label="Estado" value={form.estadoAudiencia} onChange={f("estadoAudiencia")}>
@@ -358,12 +801,34 @@ export default function AudienciasListPage() {
               )}
             </>
           )}
+
           <ErrorBox msg={err} />
           <ModalFooter
-            onCancel={() => setModal(false)} onSave={guardar}
+            onCancel={() => setModal(false)}
+            onSave={guardar}
             saveLabel={editando ? "Guardar cambios" : "Crear audiencia"}
           />
         </Modal>
+      )}
+
+      {/* Modales de buscadores */}
+      {buscadorExpAbierto && (
+        <BuscadorExpediente
+          onSelect={seleccionarExpediente}
+          onClose={() => setBuscadorExpAbierto(false)}
+        />
+      )}
+      {buscadorTipoAbierto && (
+        <BuscadorTipoAudiencia
+          onSelect={seleccionarTipo}
+          onClose={() => setBuscadorTipoAbierto(false)}
+        />
+      )}
+      {buscadorSalaAbierto && (
+        <BuscadorSalaAudiencia
+          onSelect={seleccionarSala}
+          onClose={() => setBuscadorSalaAbierto(false)}
+        />
       )}
     </div>
   );

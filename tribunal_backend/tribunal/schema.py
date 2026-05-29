@@ -12,7 +12,7 @@ import hashlib
 from django.core.mail import send_mail
 from django.conf import settings as django_settings
 from .models import *
-
+from django.utils import timezone 
 
 # ============================================================
 # TYPES
@@ -1230,46 +1230,85 @@ class EliminarTipoAudiencia(graphene.Mutation):
 class CrearAudiencia(graphene.Mutation):
     class Arguments:
         input = CrearAudienciaInput(required=True)
+    
     audiencia = graphene.Field(AudienciaType)
+    
     def mutate(root, info, input):
+        from datetime import datetime  # ← igual que en VocalTribunal
+        
         expediente = Expediente.objects.get(id_expediente=input.id_expediente)
-        tipo       = TipoAudiencia.objects.get(id_tipo_audiencia=input.id_tipo_audiencia)
+        tipo = TipoAudiencia.objects.get(id_tipo_audiencia=input.id_tipo_audiencia)
         sala = SalaAudiencia.objects.get(id_sala_aud=input.id_sala_aud) \
                if input.get('id_sala_aud') else None
-        return CrearAudiencia(audiencia=Audiencia.objects.create(
+        
+        # ✅ CORREGIDO: Usar strptime (igual que en VocalTribunal)
+        # El frontend envía: "2024-01-15T14:30:00"
+        fecha_hora = datetime.strptime(input.fecha_hora_programada, '%Y-%m-%dT%H:%M')
+        
+        audiencia = Audiencia.objects.create(
             id_expediente=expediente,
             id_tipo_audiencia=tipo,
             id_sala_aud=sala,
-            fecha_hora_programada=datetime.fromisoformat(input.fecha_hora_programada),
-            link_videoconferencia=input.get('link_videoconferencia')))
+            fecha_hora_programada=fecha_hora,
+            link_videoconferencia=input.get('link_videoconferencia', '')
+        )
+        
+        return CrearAudiencia(audiencia=audiencia)
+
 
 class ActualizarAudiencia(graphene.Mutation):
     class Arguments:
         id    = graphene.Int(required=True)
         input = ActualizarAudienciaInput(required=True)
+    
     audiencia = graphene.Field(AudienciaType)
+    
     def mutate(root, info, id, input):
+        from datetime import datetime  # ← igual que en VocalTribunal
+        
         try:
             obj = Audiencia.objects.get(id_audiencia=id)
+            
             if input.id_tipo_audiencia is not None:
-                obj.id_tipo_audiencia = TipoAudiencia.objects.get(id_tipo_audiencia=input.id_tipo_audiencia)
+                obj.id_tipo_audiencia = TipoAudiencia.objects.get(
+                    id_tipo_audiencia=input.id_tipo_audiencia
+                )
+            
             if input.id_sala_aud is not None:
-                obj.id_sala_aud = SalaAudiencia.objects.get(id_sala_aud=input.id_sala_aud) \
-                                  if input.id_sala_aud else None
+                obj.id_sala_aud = SalaAudiencia.objects.get(
+                    id_sala_aud=input.id_sala_aud
+                ) if input.id_sala_aud else None
+            
+            # ✅ CORREGIDO: Formato SIN segundos (solo hasta minutos)
             if input.fecha_hora_programada is not None:
-                obj.fecha_hora_programada = datetime.fromisoformat(input.fecha_hora_programada)
+                obj.fecha_hora_programada = datetime.strptime(
+                    input.fecha_hora_programada, '%Y-%m-%dT%H:%M'
+                )
+            
             if input.fecha_hora_inicio is not None:
-                obj.fecha_hora_inicio = datetime.fromisoformat(input.fecha_hora_inicio)
+                obj.fecha_hora_inicio = datetime.strptime(
+                    input.fecha_hora_inicio, '%Y-%m-%dT%H:%M'
+                )
+            
             if input.fecha_hora_fin is not None:
-                obj.fecha_hora_fin = datetime.fromisoformat(input.fecha_hora_fin)
-            if input.estado_audiencia is not None:    obj.estado_audiencia = input.estado_audiencia
-            if input.motivo_suspension is not None:   obj.motivo_suspension = input.motivo_suspension
-            if input.link_videoconferencia is not None: obj.link_videoconferencia = input.link_videoconferencia
+                obj.fecha_hora_fin = datetime.strptime(
+                    input.fecha_hora_fin, '%Y-%m-%dT%H:%M'
+                )
+            
+            if input.estado_audiencia is not None:
+                obj.estado_audiencia = input.estado_audiencia
+            
+            if input.motivo_suspension is not None:
+                obj.motivo_suspension = input.motivo_suspension
+            
+            if input.link_videoconferencia is not None:
+                obj.link_videoconferencia = input.link_videoconferencia
+            
             obj.save()
             return ActualizarAudiencia(audiencia=obj)
+            
         except Audiencia.DoesNotExist:
             return ActualizarAudiencia(audiencia=None)
-
 class EliminarAudiencia(graphene.Mutation):
     class Arguments:
         id = graphene.Int(required=True)
@@ -1837,7 +1876,7 @@ class RegistrarAsistencia(graphene.Mutation):
     asistencia = graphene.Field(AsistenciaAudienciaType)
     
     def mutate(self, info, id_audiencia, id_persona, rol_en_audiencia, asistio=True, hora_ingreso=None):
-        # Si no se envió hora_ingreso y asistió, usar la actual
+        # ✅ Esta lógica funciona
         if asistio and hora_ingreso is None:
             hora_ingreso = timezone.now()
         
@@ -1852,16 +1891,45 @@ class ActualizarAsistencia(graphene.Mutation):
     class Arguments:
         id    = graphene.Int(required=True)
         input = ActualizarAsistenciaInput(required=True)
+    
     asistencia = graphene.Field(AsistenciaAudienciaType)
+    
     def mutate(root, info, id, input):
         try:
             obj = AsistenciaAudiencia.objects.get(id_asistencia=id)
-            if input.asistio is not None:             obj.asistio = input.asistio
-            if input.motivo_inasistencia is not None: obj.motivo_inasistencia = input.motivo_inasistencia
+            
+            if input.asistio is not None:
+                obj.asistio = input.asistio
+            
+            if input.motivo_inasistencia is not None:
+                obj.motivo_inasistencia = input.motivo_inasistencia
+            
             if input.hora_ingreso is not None:
-                obj.hora_ingreso = datetime.fromisoformat(input.hora_ingreso)
+                # ✅ CORREGIDO: Usar strptime en lugar de fromisoformat
+                hora_str = input.hora_ingreso
+                if hora_str:
+                    # El frontend envía un ISO string, extraemos solo la hora
+                    if 'T' in hora_str:
+                        # Formato "2026-05-29T14:30:00.000Z" o "2026-05-29T14:30"
+                        # Extraemos solo HH:MM
+                        partes = hora_str.split('T')
+                        if len(partes) > 1:
+                            hora_part = partes[1].split(':')
+                            if len(hora_part) >= 2:
+                                horas = int(hora_part[0])
+                                minutos = int(hora_part[1])
+                                # Usamos la fecha actual + la hora ingresada
+                                from datetime import datetime
+                                ahora = datetime.now()
+                                obj.hora_ingreso = ahora.replace(hour=horas, minute=minutos, second=0, microsecond=0)
+                else:
+                    obj.hora_ingreso = None
+            elif input.asistio is False:
+                obj.hora_ingreso = None
+            
             obj.save()
             return ActualizarAsistencia(asistencia=obj)
+            
         except AsistenciaAudiencia.DoesNotExist:
             return ActualizarAsistencia(asistencia=None)
 

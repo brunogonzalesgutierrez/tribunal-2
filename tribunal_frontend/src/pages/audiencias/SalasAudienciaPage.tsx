@@ -7,13 +7,114 @@ import {
   ACTUALIZAR_SALA_AUDIENCIA,
   ELIMINAR_SALA_AUDIENCIA,
 } from "../../graphql/audiencias";
-import { DoorOpen, Plus, Edit, Trash2, CheckCircle, Circle, Video } from "lucide-react";
+import { DoorOpen, Plus, Edit, Trash2, CheckCircle, Circle, Video, Search, X } from "lucide-react";
 import {
   SalaAudiencia,
   Modal, Field, SelectField,
   ErrorBox, ModalFooter, StatCard, TablaDesktop, ActionBtns,
 } from "./shared";
+import { useCrudNotifications } from '../../hooks/useCrudNotifications';
+import { useToast } from '../../context/ToastContext';
 
+// ============================================================
+// COMPONENTE: Buscador de Tribunales (Modal)
+// ============================================================
+function BuscadorTribunal({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: number, nombre: string) => void;
+  onClose: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const { data, loading } = useQuery(GET_TRIBUNALES_SIMPLE);
+
+  const tribunales = data?.allTribunales ?? [];
+
+  const filtrados = tribunales.filter((t: any) =>
+    t.nombreTribunal.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-blue-500" />
+            Seleccionar Tribunal
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar tribunal por nombre..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No se encontraron tribunales</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtrados.map((t: any, index: number) => (
+                <button
+                  key={t.idTribunal}
+                  onClick={() => {
+                    onSelect(t.idTribunal, t.nombreTribunal);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 ${
+                    index === filtrados.length - 1 ? 'mb-0' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">{t.nombreTribunal}</p>
+                    </div>
+                    <div className="text-blue-500">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════
+// PÁGINA PRINCIPAL
+// ════════════════════════════════════════════════════════
 export default function SalasAudienciaPage() {
   const { data, loading, refetch } = useQuery(GET_SALAS_AUDIENCIA);
   const { data: dTrib }            = useQuery(GET_TRIBUNALES_SIMPLE);
@@ -21,7 +122,13 @@ export default function SalasAudienciaPage() {
   const [actualizarSala] = useMutation(ACTUALIZAR_SALA_AUDIENCIA);
   const [eliminarSala]   = useMutation(ELIMINAR_SALA_AUDIENCIA);
 
+  // ✅ HOOK DE NOTIFICACIONES
+  const { executeCreate, executeUpdate, executeDelete } = useCrudNotifications('Sala de Audiencia');
+  const toast = useToast();
+
   const [modal, setModal]   = useState(false);
+  const [buscadorTribunalAbierto, setBuscadorTribunalAbierto] = useState(false);
+  const [tribunalSeleccionado, setTribunalSeleccionado] = useState("");
   const [editando, setEdit] = useState<SalaAudiencia | null>(null);
   const [err, setErr]       = useState("");
 
@@ -38,7 +145,19 @@ export default function SalasAudienciaPage() {
   const activas   = salas.filter(s => s.activa).length;
   const videoconf = salas.filter(s => s.equipadaVideoconf).length;
 
-  const abrirCrear = () => { setEdit(null); setForm(initForm); setErr(""); setModal(true); };
+  const seleccionarTribunal = (id: number, nombre: string) => {
+    setForm(f => ({ ...f, idTribunal: id }));
+    setTribunalSeleccionado(nombre);
+  };
+
+  const abrirCrear = () => { 
+    setEdit(null); 
+    setForm(initForm); 
+    setTribunalSeleccionado("");
+    setErr(""); 
+    setModal(true); 
+  };
+
   const abrirEditar = (s: SalaAudiencia) => {
     setEdit(s);
     setForm({
@@ -46,44 +165,78 @@ export default function SalasAudienciaPage() {
       capacidad: String(s.capacidad), equipadaVideoconf: s.equipadaVideoconf,
       enlaceVirtual: s.enlaceVirtual ?? "", activa: s.activa,
     });
-    setErr(""); setModal(true);
+    setTribunalSeleccionado(s.idTribunal.nombreTribunal);
+    setErr(""); 
+    setModal(true);
   };
 
+  // ✅ GUARDAR CON NOTIFICACIONES
   const guardar = async () => {
-    if (!form.nombreSala || !form.capacidad) { setErr("Nombre y capacidad son obligatorios."); return; }
-    try {
-      if (editando) {
+    if (!form.nombreSala || !form.capacidad) { 
+      toast.error("Nombre y capacidad son obligatorios."); 
+      return; 
+    }
+    
+    if (editando) {
+      await executeUpdate(async () => {
         await actualizarSala({
           variables: {
             id: Number(editando.idSalaAud),
             input: {
-              nombreSala: form.nombreSala, capacidad: Number(form.capacidad),
+              nombreSala: form.nombreSala, 
+              capacidad: Number(form.capacidad),
               equipadaVideoconf: form.equipadaVideoconf,
-              enlaceVirtual: form.enlaceVirtual || undefined, activa: form.activa,
+              enlaceVirtual: form.enlaceVirtual || undefined, 
+              activa: form.activa,
             },
           },
         });
-      } else {
-        if (!form.idTribunal) { setErr("El tribunal es obligatorio."); return; }
+        await refetch();
+        setModal(false);
+        return true;
+      });
+    } else {
+      if (!form.idTribunal) { 
+        toast.error("El tribunal es obligatorio."); 
+        return; 
+      }
+      await executeCreate(async () => {
         await crearSala({
           variables: {
-            idTribunal: Number(form.idTribunal), nombreSala: form.nombreSala,
-            capacidad: Number(form.capacidad), equipadaVideoconf: form.equipadaVideoconf,
-            enlaceVirtual: form.enlaceVirtual || undefined, activa: form.activa,
+            idTribunal: Number(form.idTribunal), 
+            nombreSala: form.nombreSala,
+            capacidad: Number(form.capacidad), 
+            equipadaVideoconf: form.equipadaVideoconf,
+            enlaceVirtual: form.enlaceVirtual || undefined, 
+            activa: form.activa,
           },
         });
-      }
-      await refetch(); setModal(false);
-    } catch (e: any) { setErr(e.message ?? "Error."); }
+        await refetch();
+        setModal(false);
+        setTribunalSeleccionado("");
+        return true;
+      });
+    }
   };
 
+  // ✅ ELIMINAR CON NOTIFICACIONES
   const eliminar = async (s: SalaAudiencia) => {
-    if (!window.confirm(`¿Eliminar la sala "${s.nombreSala}"?`)) return;
-    const { data } = await eliminarSala({ variables: { id: Number(s.idSalaAud) } });
-    if (!data?.eliminarSalaAudiencia?.ok) {
-      alert(data?.eliminarSalaAudiencia?.mensaje ?? "No se pudo eliminar."); return;
-    }
-    refetch();
+    await executeDelete(
+      async () => {
+        const { data } = await eliminarSala({ variables: { id: Number(s.idSalaAud) } });
+        if (!data?.eliminarSalaAudiencia?.ok) {
+          throw new Error(data?.eliminarSalaAudiencia?.mensaje ?? "No se pudo eliminar.");
+        }
+        await refetch();
+        return true;
+      },
+      {
+        loading: `Eliminando sala "${s.nombreSala}"...`,
+        success: `Sala "${s.nombreSala}" eliminada exitosamente`,
+        error: `Error al eliminar la sala "${s.nombreSala}"`,
+      },
+      `¿Eliminar la sala "${s.nombreSala}"?`
+    );
   };
 
   return (
@@ -202,17 +355,49 @@ export default function SalasAudienciaPage() {
           title={editando ? "Editar sala" : "Nueva sala de audiencia"}
           icon={<DoorOpen className="w-5 h-5 text-blue-500" />}
         >
+          {/* Tribunal - Con buscador (solo en creación) */}
           {!editando && (
-            <SelectField label="Tribunal" value={form.idTribunal} onChange={f("idTribunal")} required>
-              <option value={0}>— Seleccionar tribunal —</option>
-              {tribunales.map((t: any) => (
-                <option key={t.idTribunal} value={t.idTribunal}>{t.nombreTribunal}</option>
-              ))}
-            </SelectField>
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                Tribunal <span className="text-red-500">*</span>
+              </label>
+              {tribunalSeleccionado ? (
+                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+                  <span className="flex-1 text-sm text-gray-800 dark:text-white">{tribunalSeleccionado}</span>
+                  <button
+                    onClick={() => {
+                      setForm(f => ({ ...f, idTribunal: 0 }));
+                      setTribunalSeleccionado("");
+                    }}
+                    className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setBuscadorTribunalAbierto(true)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  Buscar y seleccionar tribunal
+                </button>
+              )}
+            </div>
           )}
+
+          {/* En edición, mostrar el tribunal como texto */}
+          {editando && (
+            <div className="mb-4 p-2.5 rounded-xl bg-gray-100 dark:bg-slate-700/50 text-gray-700 dark:text-gray-300 text-sm">
+              Tribunal: {tribunalSeleccionado}
+            </div>
+          )}
+
           <Field label="Nombre de la sala" value={form.nombreSala} onChange={f("nombreSala")} required />
           <Field label="Capacidad (personas)" value={form.capacidad} onChange={f("capacidad")} type="number" required />
           <Field label="Enlace virtual" value={form.enlaceVirtual} onChange={f("enlaceVirtual")} placeholder="https://..." />
+          
           <div className="mb-4 flex gap-6">
             <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 cursor-pointer">
               <input type="checkbox" checked={form.equipadaVideoconf}
@@ -225,12 +410,22 @@ export default function SalasAudienciaPage() {
               Activa
             </label>
           </div>
+
           <ErrorBox msg={err} />
           <ModalFooter
-            onCancel={() => setModal(false)} onSave={guardar}
+            onCancel={() => setModal(false)} 
+            onSave={guardar}
             saveLabel={editando ? "Guardar cambios" : "Crear sala"}
           />
         </Modal>
+      )}
+
+      {/* Modal del buscador */}
+      {buscadorTribunalAbierto && (
+        <BuscadorTribunal
+          onSelect={seleccionarTribunal}
+          onClose={() => setBuscadorTribunalAbierto(false)}
+        />
       )}
     </div>
   );
