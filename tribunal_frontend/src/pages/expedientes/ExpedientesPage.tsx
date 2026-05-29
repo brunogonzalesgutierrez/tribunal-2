@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@apollo/client";
 import {
   GET_EXPEDIENTES,
@@ -11,12 +11,11 @@ import {
   ELIMINAR_EXPEDIENTE,
 } from "../../graphql/expediente";
 import { useCrudNotifications } from "../../hooks/useCrudNotifications";
-import { 
+import {
   FolderOpen, Plus, Search, Edit, Trash2, Eye,
   ChevronLeft, ChevronRight, Building2, FileText,
   Scale, X, CheckCircle, Sparkles,
 } from "lucide-react";
-import DetalleExpedienteModal from "./DetalleExpedienteModal";
 
 // ─── TIPOS ───────────────────────────────────────────────
 interface SalaTribunal {
@@ -71,9 +70,6 @@ function Modal({ children, onClose, title }: { children: React.ReactNode; onClos
   );
 }
 
-
-
-
 const Field = ({ label, value, onChange, type = "text", placeholder = "", required = false }: {
   label: string; value: string; onChange: (v: string) => void;
   type?: string; placeholder?: string; required?: boolean;
@@ -114,26 +110,23 @@ const fmtFecha = (iso?: string) => {
 
 // ─── PÁGINA PRINCIPAL ────────────────────────────────────
 export default function ExpedientesPage() {
+  const navigate = useNavigate();
+
   const [modalAbierto, setModalAbierto] = useState(false);
   const [editando, setEditando] = useState<Expediente | null>(null);
   const [form, setForm] = useState(initialForm);
   const [busqueda, setBusqueda] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [expedienteDetalle, setExpedienteDetalle] = useState<number | null>(null);
-  // ✅ Guarda el expediente recién creado para el banner y el highlight en tabla
   const [recienCreado, setRecienCreado] = useState<{ id: number; numero: string } | null>(null);
-  
+
   useEffect(() => {
     const id = sessionStorage.getItem("openExpedienteDetalle");
     if (id) {
-      setExpedienteDetalle(Number(id));
+      navigate(`/expedientes/${id}`);
       sessionStorage.removeItem("openExpedienteDetalle");
     }
   }, []);
-  
-  
-  
-  
+
   const itemsPerPage = 10;
 
   const { data, loading, refetch } = useQuery(GET_EXPEDIENTES);
@@ -211,7 +204,6 @@ export default function ExpedientesPage() {
         return true;
       });
     } else {
-      // ✅ FLUJO POST-CREACIÓN: cierra el form, abre el detalle directo
       await executeCreate(async () => {
         const result = await crearExp({ variables: { input } });
         await refetch();
@@ -223,7 +215,7 @@ export default function ExpedientesPage() {
 
         if (nuevoId) {
           setRecienCreado({ id: nuevoId, numero: nuevoNumero });
-          setExpedienteDetalle(nuevoId);  // abre el detalle inmediatamente
+          navigate(`/expedientes/${nuevoId}`);
         }
 
         return true;
@@ -271,8 +263,8 @@ export default function ExpedientesPage() {
         </button>
       </div>
 
-      {/* ✅ BANNER POST-CREACIÓN */}
-      {recienCreado && !expedienteDetalle && (
+      {/* BANNER POST-CREACIÓN */}
+      {recienCreado && (
         <div className="flex items-center justify-between gap-4 px-5 py-4 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border border-emerald-200 dark:border-emerald-800/50 shadow-sm animate-fade-in">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center shadow shadow-emerald-500/30 shrink-0">
@@ -289,7 +281,7 @@ export default function ExpedientesPage() {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={() => setExpedienteDetalle(recienCreado.id)}
+              onClick={() => navigate(`/expedientes/${recienCreado.id}`)}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold transition-colors shadow shadow-emerald-500/30"
             >
               <Eye className="w-3.5 h-3.5" />
@@ -308,9 +300,9 @@ export default function ExpedientesPage() {
       {/* ESTADÍSTICAS */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         {[
-          { label: "Total Expedientes", value: totalExpedientes, color: "blue",    Icon: FolderOpen,   sub: "Expedientes registrados" },
-          { label: "Activos",           value: activos,          color: "emerald", Icon: CheckCircle,  sub: "En proceso" },
-          { label: "Concluidos",        value: concluidos,       color: "purple",  Icon: Scale,        sub: "Expedientes finalizados" },
+          { label: "Total Expedientes", value: totalExpedientes, color: "blue",    Icon: FolderOpen,  sub: "Expedientes registrados" },
+          { label: "Activos",           value: activos,          color: "emerald", Icon: CheckCircle, sub: "En proceso" },
+          { label: "Concluidos",        value: concluidos,       color: "purple",  Icon: Scale,       sub: "Expedientes finalizados" },
         ].map(({ label, value, color, Icon, sub }) => (
           <div key={label} className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
             <div className="flex items-center justify-between">
@@ -431,7 +423,7 @@ export default function ExpedientesPage() {
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-end gap-1">
                           <button
-                            onClick={() => { setExpedienteDetalle(exp.idExpediente); }}
+                            onClick={() => navigate(`/expedientes/${exp.idExpediente}`)}
                             className={`p-2 rounded-lg transition-colors ${
                               esNuevo
                                 ? "text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50"
@@ -498,7 +490,6 @@ export default function ExpedientesPage() {
       {modalAbierto && (
         <Modal onClose={cerrarModal} title={editando ? "Editar expediente" : "Nuevo expediente"}>
           <div className="space-y-4">
-            {/* Banner informativo al crear */}
             {!editando && (
               <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/40 text-xs text-blue-700 dark:text-blue-400">
                 <Sparkles className="w-4 h-4 shrink-0 mt-0.5" />
@@ -547,13 +538,6 @@ export default function ExpedientesPage() {
         </Modal>
       )}
 
-      {/* MODAL DETALLE */}
-      {expedienteDetalle !== null && (
-        <DetalleExpedienteModal
-          idExpediente={expedienteDetalle}
-          onClose={() => setExpedienteDetalle(null)}
-        />
-      )}
     </div>
   );
 }

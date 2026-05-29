@@ -14,11 +14,12 @@ import {
   Modal, Field, SelectField, ErrorBox, ModalFooter,
   StatCard, TablaDesktop, ActionBtns, SearchBar,
 } from "./shared";
+import { useCrudNotifications } from '../../hooks/useCrudNotifications';
 
 const initForm = { idTribunal: "0", nombreSala: "", activa: "true" };
 
 // ============================================================
-// COMPONENTE: Buscador de Tribunales (Modal) - CORREGIDO
+// COMPONENTE: Buscador de Tribunales (Modal)
 // ============================================================
 function BuscadorTribunal({
   onSelect,
@@ -40,7 +41,6 @@ function BuscadorTribunal({
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
         
-        {/* Header - fijo */}
         <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
           <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
             <Search className="w-5 h-5 text-purple-500" />
@@ -51,7 +51,6 @@ function BuscadorTribunal({
           </button>
         </div>
         
-        {/* Buscador - fijo */}
         <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -66,7 +65,6 @@ function BuscadorTribunal({
           </div>
         </div>
 
-        {/* Lista de tribunales - scrollable */}
         <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
           {loading ? (
             <div className="flex justify-center py-12">
@@ -95,7 +93,7 @@ function BuscadorTribunal({
                       <p className="font-semibold text-gray-800 dark:text-white">{t.nombreTribunal}</p>
                       <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{t.instancia}</p>
                     </div>
-                    <div className="text-purple-500 opacity-0 group-hover:opacity-100">
+                    <div className="text-purple-500">
                       <Plus className="w-5 h-5" />
                     </div>
                   </div>
@@ -105,7 +103,6 @@ function BuscadorTribunal({
           )}
         </div>
 
-        {/* Footer con botón Cancelar - fijo */}
         <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
           <button
             onClick={onClose}
@@ -128,6 +125,9 @@ export default function SalasTribunalPage() {
   const [crearSala]      = useMutation(CREAR_SALA_TRIBUNAL);
   const [actualizarSala] = useMutation(ACTUALIZAR_SALA_TRIBUNAL);
   const [eliminarSala]   = useMutation(ELIMINAR_SALA_TRIBUNAL);
+
+  // ✅ HOOK DE NOTIFICACIONES
+  const { executeCreate, executeUpdate, executeDelete } = useCrudNotifications('Sala');
 
   const [modal, setModal]         = useState(false);
   const [buscadorAbierto, setBuscadorAbierto] = useState(false);
@@ -175,21 +175,28 @@ export default function SalasTribunalPage() {
     setTribunalSeleccionado(nombre);
   };
 
+  // ✅ GUARDAR CON NOTIFICACIONES
   const guardar = async () => {
     if (form.idTribunal === "0" || !form.nombreSala) {
       setErr("Tribunal y nombre son obligatorios.");
       return;
     }
-    try {
-      if (editando) {
+    
+    if (editando) {
+      await executeUpdate(async () => {
         await actualizarSala({
           variables: {
-            id:        Number(editando.idSala),
+            id:         Number(editando.idSala),
             nombreSala: form.nombreSala,
-            activa:    form.activa === "true",
+            activa:     form.activa === "true",
           },
         });
-      } else {
+        await refetch();
+        setModal(false);
+        return true;
+      });
+    } else {
+      await executeCreate(async () => {
         await crearSala({
           variables: {
             idTribunal: Number(form.idTribunal),
@@ -197,24 +204,34 @@ export default function SalasTribunalPage() {
             activa:     form.activa === "true",
           },
         });
-      }
-      await refetch();
-      setModal(false);
-    } catch (e: any) {
-      setErr(e.message ?? "Error al guardar.");
+        await refetch();
+        setModal(false);
+        return true;
+      });
     }
   };
 
+  // ✅ ELIMINAR CON NOTIFICACIONES
   const eliminar = async (s: SalaTribunal) => {
-    if (!window.confirm(`¿Eliminar la sala "${s.nombreSala}"?`)) return;
-    const { data } = await eliminarSala({ variables: { id: Number(s.idSala) } });
-    if (!data?.eliminarSalaTribunal?.ok) {
-      alert(data?.eliminarSalaTribunal?.mensaje ?? "No se pudo eliminar.");
-      return;
-    }
-    refetch();
+    await executeDelete(
+      async () => {
+        const { data } = await eliminarSala({ variables: { id: Number(s.idSala) } });
+        if (!data?.eliminarSalaTribunal?.ok) {
+          throw new Error(data?.eliminarSalaTribunal?.mensaje ?? "No se pudo eliminar.");
+        }
+        await refetch();
+        return true;
+      },
+      {
+        loading: `Eliminando sala ${s.nombreSala}...`,
+        success: `Sala ${s.nombreSala} eliminada exitosamente`,
+        error: `Error al eliminar la sala`,
+      },
+      `¿Eliminar la sala "${s.nombreSala}"?`
+    );
   };
 
+  // ✅ RESTE DEL COMPONENTE (EL JSX SE QUEDA IGUAL)
   return (
     <div className="space-y-6 animate-fade-in">
 
@@ -283,14 +300,13 @@ export default function SalasTribunalPage() {
         ))}
       </TablaDesktop>
 
-      {/* Modal CREAR/EDITAR con buscador de tribunales */}
+      {/* Modal */}
       {modal && (
         <Modal
           onClose={() => setModal(false)}
           title={editando ? "Editar sala" : "Nueva sala"}
           icon={<DoorOpen className="w-5 h-5 text-purple-500" />}
         >
-          {/* Selección de tribunal - Con buscador */}
           <div className="mb-4">
             <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
               Tribunal <span className="text-red-500">*</span>
@@ -323,7 +339,7 @@ export default function SalasTribunalPage() {
               </div>
             ) : (
               <div className="p-2.5 rounded-xl bg-gray-100 dark:bg-slate-700/50 text-gray-700 dark:text-gray-300 text-sm">
-                {tribunalSeleccionado || (tribunales.find(t => t.idTribunal === Number(form.idTribunal))?.nombreTribunal)}
+                {tribunalSeleccionado}
               </div>
             )}
           </div>
@@ -350,7 +366,6 @@ export default function SalasTribunalPage() {
         </Modal>
       )}
 
-      {/* Modal del buscador de tribunales */}
       {buscadorAbierto && (
         <BuscadorTribunal
           onSelect={seleccionarTribunal}

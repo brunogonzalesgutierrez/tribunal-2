@@ -1892,35 +1892,48 @@ class CrearVocalTribunal(graphene.Mutation):
         fecha_posesion = graphene.String(required=True)
         id_usuario     = graphene.Int(required=True)
     vocal = graphene.Field(VocalTribunalType)
+    
     def mutate(root, info, id_persona, cargo, fecha_posesion, id_usuario, id_sala=None):
+        from datetime import datetime
+        
         sala = SalaTribunal.objects.get(id_sala=id_sala) if id_sala else None
+        
+        # ✅ CORREGIDO: Usar strptime en lugar de fromisoformat
+        fecha = datetime.strptime(fecha_posesion, '%Y-%m-%d').date()
+        
         return CrearVocalTribunal(vocal=VocalTribunal.objects.create(
             id_persona=Persona.objects.get(id_persona=id_persona),
-            id_sala=sala, cargo=cargo,
-            fecha_posesion=datetime.fromisoformat(fecha_posesion).date(),
+            id_sala=sala,
+            cargo=cargo,
+            fecha_posesion=fecha,
             activo=True,
-            usuario=Usuario.objects.get(id_usuario=id_usuario)))
-
+            usuario=Usuario.objects.get(id_usuario=id_usuario)
+        ))
 class ActualizarVocal(graphene.Mutation):
     class Arguments:
         id    = graphene.Int(required=True)
         input = ActualizarVocalInput(required=True)
     vocal = graphene.Field(VocalTribunalType)
+    
     def mutate(root, info, id, input):
+        from datetime import datetime
+        
         try:
             obj = VocalTribunal.objects.get(id_vocal=id)
             if input.id_sala is not None:
                 obj.id_sala = SalaTribunal.objects.get(id_sala=input.id_sala) \
                               if input.id_sala else None
-            if input.cargo is not None:           obj.cargo = input.cargo
+            if input.cargo is not None:
+                obj.cargo = input.cargo
             if input.fecha_conclusion is not None:
-                obj.fecha_conclusion = datetime.fromisoformat(input.fecha_conclusion).date()
-            if input.activo is not None:          obj.activo = input.activo
+                # ✅ CORREGIDO
+                obj.fecha_conclusion = datetime.strptime(input.fecha_conclusion, '%Y-%m-%d').date()
+            if input.activo is not None:
+                obj.activo = input.activo
             obj.save()
             return ActualizarVocal(vocal=obj)
         except VocalTribunal.DoesNotExist:
             return ActualizarVocal(vocal=None)
-
 class EliminarVocal(graphene.Mutation):
     class Arguments:
         id = graphene.Int(required=True)

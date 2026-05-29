@@ -14,6 +14,8 @@ import {
   Modal, Field, TextAreaField, ErrorBox, ModalFooter,
   StatCard, TablaDesktop, ActionBtns, SearchBar,
 } from "./shared";
+import { useCrudNotifications } from '../../hooks/useCrudNotifications';
+import { useToast } from '../../context/ToastContext';
 
 const initForm = { nombreTribunal: "", instancia: "", normaCreacion: "" };
 
@@ -23,6 +25,10 @@ export default function TribunalesPage() {
   const [crearTribunal]  = useMutation(CREAR_TRIBUNAL);
   const [actualizarTrib] = useMutation(ACTUALIZAR_TRIBUNAL);
   const [eliminarTrib]   = useMutation(ELIMINAR_TRIBUNAL);
+
+  // ✅ HOOK DE NOTIFICACIONES
+  const { executeCreate, executeUpdate, executeDelete } = useCrudNotifications('Tribunal');
+  const toast = useToast();
 
   const [modal, setModal]   = useState(false);
   const [editando, setEdit] = useState<Tribunal | null>(null);
@@ -40,34 +46,71 @@ export default function TribunalesPage() {
 
   const p = (k: string) => (v: string) => setForm(f => ({ ...f, [k]: v }));
 
-  const abrirCrear = () => { setEdit(null); setForm(initForm); setErr(""); setModal(true); };
+  const abrirCrear = () => { 
+    setEdit(null); 
+    setForm(initForm); 
+    setErr(""); 
+    setModal(true); 
+  };
+  
   const abrirEditar = (t: Tribunal) => {
     setEdit(t);
-    setForm({ nombreTribunal: t.nombreTribunal, instancia: t.instancia, normaCreacion: t.normaCreacion });
-    setErr(""); setModal(true);
+    setForm({ 
+      nombreTribunal: t.nombreTribunal, 
+      instancia: t.instancia, 
+      normaCreacion: t.normaCreacion 
+    });
+    setErr(""); 
+    setModal(true);
   };
 
+  // ✅ GUARDAR CON NOTIFICACIONES
   const guardar = async () => {
     if (!form.nombreTribunal || !form.instancia || !form.normaCreacion) {
-      setErr("Todos los campos son obligatorios."); return;
+      toast.error("Todos los campos son obligatorios.");
+      return;
     }
-    try {
-      if (editando) {
-        await actualizarTrib({ variables: { id: Number(editando.idTribunal), ...form } });
-      } else {
+    
+    if (editando) {
+      await executeUpdate(async () => {
+        await actualizarTrib({ 
+          variables: { 
+            id: Number(editando.idTribunal), 
+            ...form 
+          } 
+        });
+        await refetch();
+        setModal(false);
+        return true;
+      });
+    } else {
+      await executeCreate(async () => {
         await crearTribunal({ variables: form });
-      }
-      await refetch(); setModal(false);
-    } catch (e: any) { setErr(e.message ?? "Error al guardar."); }
+        await refetch();
+        setModal(false);
+        return true;
+      });
+    }
   };
 
+  // ✅ ELIMINAR CON NOTIFICACIONES
   const eliminar = async (t: Tribunal) => {
-    if (!window.confirm(`¿Eliminar "${t.nombreTribunal}"? Se eliminarán todas sus salas.`)) return;
-    const { data } = await eliminarTrib({ variables: { id: Number(t.idTribunal) } });
-    if (!data?.eliminarTribunal?.ok) {
-      alert(data?.eliminarTribunal?.mensaje ?? "No se pudo eliminar."); return;
-    }
-    refetch();
+    await executeDelete(
+      async () => {
+        const { data } = await eliminarTrib({ variables: { id: Number(t.idTribunal) } });
+        if (!data?.eliminarTribunal?.ok) {
+          throw new Error(data?.eliminarTribunal?.mensaje ?? "No se pudo eliminar.");
+        }
+        await refetch();
+        return true;
+      },
+      {
+        loading: `Eliminando tribunal ${t.nombreTribunal}...`,
+        success: `Tribunal ${t.nombreTribunal} eliminado exitosamente`,
+        error: `Error al eliminar el tribunal`,
+      },
+      `¿Eliminar "${t.nombreTribunal}"? Se eliminarán todas sus salas.`
+    );
   };
 
   const salasPorTribunal = (idTribunal: number) =>
@@ -155,23 +198,30 @@ export default function TribunalesPage() {
           icon={<Building2 className="w-5 h-5 text-blue-500" />}
         >
           <Field
-            label="Nombre del tribunal" value={form.nombreTribunal}
-            onChange={p("nombreTribunal")} required
+            label="Nombre del tribunal"
+            value={form.nombreTribunal}
+            onChange={p("nombreTribunal")}
+            required
             placeholder="Ej: Tribunal Disciplinario Universitario"
           />
           <Field
-            label="Instancia" value={form.instancia}
-            onChange={p("instancia")} required
+            label="Instancia"
+            value={form.instancia}
+            onChange={p("instancia")}
+            required
             placeholder="Ej: Primera instancia"
           />
           <TextAreaField
-            label="Norma de creación" value={form.normaCreacion}
-            onChange={p("normaCreacion")} required
+            label="Norma de creación"
+            value={form.normaCreacion}
+            onChange={p("normaCreacion")}
+            required
             placeholder="Ej: Resolución HCU N° 001/2020"
           />
           <ErrorBox msg={err} />
           <ModalFooter
-            onCancel={() => setModal(false)} onSave={guardar}
+            onCancel={() => setModal(false)}
+            onSave={guardar}
             saveLabel={editando ? "Guardar cambios" : "Crear tribunal"}
           />
         </Modal>

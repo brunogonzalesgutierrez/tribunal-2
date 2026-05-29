@@ -8,7 +8,7 @@ import {
   ACTUALIZAR_VOCAL,
   ELIMINAR_VOCAL,
 } from "../../graphql/tribunal";
-import { Users, Plus, UserCheck, UserX } from "lucide-react";
+import { Users, Plus, UserCheck, UserX, Search, X } from "lucide-react";
 import {
   VocalTribunal, Persona, SalaTribunal,
   nombreCompleto, fmtFecha,
@@ -16,9 +16,210 @@ import {
   Modal, Field, SelectField, ErrorBox, ModalFooter,
   StatCard, TablaDesktop, ActionBtns, SearchBar,
 } from "./shared";
+import { useCrudNotifications } from '../../hooks/useCrudNotifications';
+import { useToast } from '../../context/ToastContext';
 
 const initForm = { idPersona: "0", idSala: "0", cargo: "", fechaPosesion: "", idUsuario: "1" };
 
+// ============================================================
+// COMPONENTE: Buscador de Personas (Modal)
+// ============================================================
+function BuscadorPersona({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: number, nombre: string) => void;
+  onClose: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const { data, loading } = useQuery(GET_PERSONAS);
+
+  const personas: Persona[] = data?.allPersonas ?? [];
+
+  const filtrados = personas.filter(p =>
+    `${p.nombre} ${p.primerApellido} ${p.numeroDocumento}`.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-emerald-500" />
+            Seleccionar Persona
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar por nombre, apellido o documento..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No se encontraron personas</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtrados.map((p, index) => (
+                <button
+                  key={p.idPersona}
+                  onClick={() => {
+                    onSelect(p.idPersona, `${p.nombre} ${p.primerApellido} - ${p.numeroDocumento}`);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-700 ${
+                    index === filtrados.length - 1 ? 'mb-0' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">{p.nombre} {p.primerApellido}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                        {p.numeroDocumento} {p.esAbogado && <span className="text-emerald-600 dark:text-emerald-400 ml-2">• Abogado</span>}
+                      </p>
+                    </div>
+                    <div className="text-emerald-500">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// COMPONENTE: Buscador de Salas (Modal)
+// ============================================================
+function BuscadorSala({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: number, nombre: string) => void;
+  onClose: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const { data, loading } = useQuery(GET_SALAS_TRIBUNAL);
+
+  const salas: SalaTribunal[] = data?.allSalasTribunal ?? [];
+
+  const filtrados = salas.filter(s =>
+    `${s.nombreSala} ${s.idTribunal.nombreTribunal} ${s.idTribunal.instancia}`.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-emerald-500" />
+            Seleccionar Sala
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar sala por nombre o tribunal..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No se encontraron salas</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtrados.map((s, index) => (
+                <button
+                  key={s.idSala}
+                  onClick={() => {
+                    onSelect(s.idSala, `${s.nombreSala} - ${s.idTribunal.nombreTribunal}`);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-700 ${
+                    index === filtrados.length - 1 ? 'mb-0' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">{s.nombreSala}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{s.idTribunal.nombreTribunal} - {s.idTribunal.instancia}</p>
+                    </div>
+                    <div className="text-emerald-500">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// COMPONENTE PRINCIPAL
+// ============================================================
 export default function VocalesPage() {
   const { data: dVoc,  loading, refetch } = useQuery(GET_VOCALES);
   const { data: dPers }                   = useQuery(GET_PERSONAS);
@@ -27,11 +228,19 @@ export default function VocalesPage() {
   const [actualizarVocal] = useMutation(ACTUALIZAR_VOCAL);
   const [eliminarVocal]   = useMutation(ELIMINAR_VOCAL);
 
-  const [modal, setModal]   = useState(false);
-  const [editando, setEdit] = useState<VocalTribunal | null>(null);
-  const [form, setForm]     = useState(initForm);
-  const [busqueda, setBusq] = useState("");
-  const [err, setErr]       = useState("");
+  // ✅ HOOK DE NOTIFICACIONES
+  const { executeCreate, executeUpdate, executeDelete, executeToggle } = useCrudNotifications('Vocal');
+  const toast = useToast();
+
+  const [modal, setModal]           = useState(false);
+  const [buscadorPersonaAbierto, setBuscadorPersonaAbierto] = useState(false);
+  const [buscadorSalaAbierto, setBuscadorSalaAbierto] = useState(false);
+  const [editando, setEdit]         = useState<VocalTribunal | null>(null);
+  const [form, setForm]             = useState(initForm);
+  const [personaSeleccionada, setPersonaSeleccionada] = useState("");
+  const [salaSeleccionada, setSalaSeleccionada] = useState("");
+  const [busqueda, setBusq]         = useState("");
+  const [err, setErr]               = useState("");
 
   const vocales:  VocalTribunal[] = dVoc?.allVocales        ?? [];
   const personas: Persona[]       = dPers?.allPersonas       ?? [];
@@ -47,7 +256,15 @@ export default function VocalesPage() {
 
   const p = (k: string) => (v: string) => setForm(f => ({ ...f, [k]: v }));
 
-  const abrirCrear = () => { setEdit(null); setForm(initForm); setErr(""); setModal(true); };
+  const abrirCrear = () => {
+    setEdit(null);
+    setForm(initForm);
+    setPersonaSeleccionada("");
+    setSalaSeleccionada("");
+    setErr("");
+    setModal(true);
+  };
+
   const abrirEditar = (v: VocalTribunal) => {
     setEdit(v);
     setForm({
@@ -57,15 +274,31 @@ export default function VocalesPage() {
       fechaPosesion: v.fechaPosesion?.slice(0, 10) ?? "",
       idUsuario:    v.usuario ? String(v.usuario.idUsuario) : "1",
     });
-    setErr(""); setModal(true);
+    setPersonaSeleccionada(nombreCompleto(v.idPersona));
+    setSalaSeleccionada(v.idSala ? `${v.idSala.nombreSala} - ${v.idSala.idTribunal.nombreTribunal}` : "");
+    setErr("");
+    setModal(true);
   };
 
+  const seleccionarPersona = (id: number, nombre: string) => {
+    setForm(f => ({ ...f, idPersona: String(id) }));
+    setPersonaSeleccionada(nombre);
+  };
+
+  const seleccionarSala = (id: number, nombre: string) => {
+    setForm(f => ({ ...f, idSala: String(id) }));
+    setSalaSeleccionada(nombre);
+  };
+
+  // ✅ GUARDAR CON NOTIFICACIONES (con sala editable en edición)
   const guardar = async () => {
     if (form.idPersona === "0" || !form.cargo || !form.fechaPosesion) {
-      setErr("Persona, cargo y fecha de posesión son obligatorios."); return;
+      toast.error("Persona, cargo y fecha de posesión son obligatorios.");
+      return;
     }
-    try {
-      if (editando) {
+    
+    if (editando) {
+      await executeUpdate(async () => {
         await actualizarVocal({
           variables: {
             id: Number(editando.idVocal),
@@ -75,7 +308,12 @@ export default function VocalesPage() {
             },
           },
         });
-      } else {
+        await refetch();
+        setModal(false);
+        return true;
+      });
+    } else {
+      await executeCreate(async () => {
         await crearVocal({
           variables: {
             idPersona:    Number(form.idPersona),
@@ -85,23 +323,53 @@ export default function VocalesPage() {
             idSala:       form.idSala !== "0" ? Number(form.idSala) : undefined,
           },
         });
-      }
-      await refetch(); setModal(false);
-    } catch (e: any) { setErr(e.message ?? "Error al guardar."); }
-  };
-
-  const toggleActivo = async (v: VocalTribunal) => {
-    await actualizarVocal({ variables: { id: Number(v.idVocal), input: { activo: !v.activo } } });
-    refetch();
-  };
-
-  const eliminar = async (v: VocalTribunal) => {
-    if (!window.confirm(`¿Eliminar al vocal ${nombreCompleto(v.idPersona)}?`)) return;
-    const { data } = await eliminarVocal({ variables: { id: Number(v.idVocal) } });
-    if (!data?.eliminarVocal?.ok) {
-      alert(data?.eliminarVocal?.mensaje ?? "No se pudo eliminar."); return;
+        await refetch();
+        setModal(false);
+        return true;
+      });
     }
-    refetch();
+  };
+
+  // ✅ TOGGLE ACTIVO CON NOTIFICACIONES
+  const toggleActivo = async (v: VocalTribunal) => {
+    await executeToggle(
+      async () => {
+        await actualizarVocal({ 
+          variables: { 
+            id: Number(v.idVocal), 
+            input: { activo: !v.activo } 
+          } 
+        });
+        await refetch();
+        return true;
+      },
+      !v.activo,
+      {
+        loading: `Cambiando estado de ${nombreCompleto(v.idPersona)}...`,
+        success: (isActive: boolean) => `${nombreCompleto(v.idPersona)} ha sido ${isActive ? 'activado' : 'desactivado'}`,
+        error: `Error al cambiar estado`,
+      }
+    );
+  };
+
+  // ✅ ELIMINAR CON NOTIFICACIONES
+  const eliminar = async (v: VocalTribunal) => {
+    await executeDelete(
+      async () => {
+        const { data } = await eliminarVocal({ variables: { id: Number(v.idVocal) } });
+        if (!data?.eliminarVocal?.ok) {
+          throw new Error(data?.eliminarVocal?.mensaje ?? "No se pudo eliminar.");
+        }
+        await refetch();
+        return true;
+      },
+      {
+        loading: `Eliminando a ${nombreCompleto(v.idPersona)}...`,
+        success: `${nombreCompleto(v.idPersona)} eliminado exitosamente`,
+        error: `Error al eliminar vocal`,
+      },
+      `¿Eliminar al vocal ${nombreCompleto(v.idPersona)}?`
+    );
   };
 
   return (
@@ -137,7 +405,7 @@ export default function VocalesPage() {
           icon={<UserX className="w-6 h-6 text-red-600 dark:text-red-400" />} sub="Con mandato concluido" />
       </div>
 
-      {/* Buscador */}
+      {/* Buscador de tabla */}
       <div className="flex justify-between items-center">
         <SearchBar value={busqueda} onChange={setBusq} placeholder="Buscar por nombre, cargo o sala..." />
         <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -196,47 +464,120 @@ export default function VocalesPage() {
         ))}
       </TablaDesktop>
 
-      {/* Modal */}
+      {/* Modal CREAR/EDITAR con buscadores */}
       {modal && (
         <Modal
           onClose={() => setModal(false)}
           title={editando ? "Editar vocal" : "Nuevo vocal"}
           icon={<Users className="w-5 h-5 text-emerald-500" />}
         >
-          {!editando && (
-            <SelectField label="Persona" value={form.idPersona} onChange={p("idPersona")} required>
-              <option value="0">— Seleccionar persona —</option>
-              {personas.map((per: Persona) => (
-                <option key={per.idPersona} value={per.idPersona}>
-                  {nombreCompleto(per)} — {per.numeroDocumento}
-                </option>
-              ))}
-            </SelectField>
-          )}
+          {/* Selección de Persona - Con buscador */}
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+              Persona <span className="text-red-500">*</span>
+            </label>
+            {!editando ? (
+              <div>
+                {personaSeleccionada ? (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800">
+                    <span className="flex-1 text-sm text-gray-800 dark:text-white">{personaSeleccionada}</span>
+                    <button
+                      onClick={() => {
+                        setForm(f => ({ ...f, idPersona: "0" }));
+                        setPersonaSeleccionada("");
+                      }}
+                      className="p-1 rounded-lg text-gray-500 hover:bg-emerald-200 dark:hover:bg-emerald-800 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setBuscadorPersonaAbierto(true)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-emerald-400 dark:hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Buscar y seleccionar persona
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="p-2.5 rounded-xl bg-gray-100 dark:bg-slate-700/50 text-gray-700 dark:text-gray-300 text-sm">
+                {personaSeleccionada}
+              </div>
+            )}
+          </div>
+
           <Field
-            label="Cargo" value={form.cargo} onChange={p("cargo")} required
+            label="Cargo"
+            value={form.cargo}
+            onChange={p("cargo")}
+            required
             placeholder="Ej: Vocal Titular"
           />
-          <SelectField label="Sala asignada" value={form.idSala} onChange={p("idSala")}>
-            <option value="0">— Sin asignar —</option>
-            {salas.filter(s => s.activa).map(s => (
-              <option key={s.idSala} value={s.idSala}>
-                {s.nombreSala} — {s.idTribunal.nombreTribunal}
-              </option>
-            ))}
-          </SelectField>
+
+          {/* ✅ Selección de Sala - Con buscador (editable también en edición) */}
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+              Sala asignada
+            </label>
+            {salaSeleccionada ? (
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700">
+                <span className="flex-1 text-sm text-gray-800 dark:text-white">{salaSeleccionada}</span>
+                <button
+                  onClick={() => {
+                    setForm(f => ({ ...f, idSala: "0" }));
+                    setSalaSeleccionada("");
+                  }}
+                  className="p-1 rounded-lg text-gray-500 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setBuscadorSalaAbierto(true)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-emerald-400 dark:hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                Buscar y seleccionar sala
+              </button>
+            )}
+          </div>
+
           {!editando && (
             <Field
-              label="Fecha de posesión" value={form.fechaPosesion}
-              onChange={p("fechaPosesion")} type="date" required
+              label="Fecha de posesión"
+              value={form.fechaPosesion}
+              onChange={p("fechaPosesion")}
+              type="date"
+              required
             />
           )}
+
           <ErrorBox msg={err} />
           <ModalFooter
-            onCancel={() => setModal(false)} onSave={guardar}
+            onCancel={() => setModal(false)}
+            onSave={guardar}
             saveLabel={editando ? "Guardar cambios" : "Registrar vocal"}
           />
         </Modal>
+      )}
+
+      {/* Modales de buscadores */}
+      {buscadorPersonaAbierto && (
+        <BuscadorPersona
+          onSelect={seleccionarPersona}
+          onClose={() => setBuscadorPersonaAbierto(false)}
+        />
+      )}
+      {buscadorSalaAbierto && (
+        <BuscadorSala
+          onSelect={seleccionarSala}
+          onClose={() => setBuscadorSalaAbierto(false)}
+        />
       )}
     </div>
   );
