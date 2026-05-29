@@ -130,6 +130,7 @@ for rol_nombre, perm_ids in asignaciones.items():
 print("\n📌 Creando usuarios...")
 
 usuarios_data = [
+    ("Wilian",    "torrico",    "jimenez",   "1234567",  "wilianxd474@gmail.com",    "wilianxd474",    "destructorgame8",  "Administrador",  "Director de Sistemas"),
     ("Carlos",    "Mamani",    "Quispe",   "1234567",  "cmamani@tribunal.bo",    "cmamani",    "Admin2024!",  "Administrador",  "Director de Sistemas"),
     ("Ana María", "Condori",   "Flores",   "2345678",  "acondori@tribunal.bo",   "acondori",   "Vocal2024!",  "Vocal",          "Vocal Titular"),
     ("Roberto",   "Vargas",    "Salinas",  "3456789",  "rvargas@tribunal.bo",    "rvargas",    "Vocal2024!",  "Vocal",          "Vocal Suplente"),

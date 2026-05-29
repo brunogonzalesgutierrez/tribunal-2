@@ -104,16 +104,9 @@ export default function PermisosPage() {
       {/* ============================================================ */}
       {/* FILTROS */}
       {/* ============================================================ */}
+      
       <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
-          <input
-            placeholder="Buscar permiso por nombre, código o módulo..."
-            value={busqueda}
-            onChange={e => setBusqueda(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all outline-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
-          />
-        </div>
+        
         <div className="flex gap-2 flex-wrap">
           {modulos.map(m => (
             <button
@@ -130,7 +123,16 @@ export default function PermisosPage() {
           ))}
         </div>
       </div>
-
+      {/* buscador por texto */}
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
+          <input
+            placeholder="Buscar permiso por nombre, código o módulo..."
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all outline-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
+          />
+        </div>
       {/* ============================================================ */}
       {/* LISTA DE PERMISOS AGRUPADOS POR MÓDULO */}
       {/* ============================================================ */}
