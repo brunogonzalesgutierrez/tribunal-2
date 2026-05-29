@@ -2158,16 +2158,22 @@ class EliminarHistorialEstado(graphene.Mutation):
 # --- ACTA ---
 class CrearActa(graphene.Mutation):
     class Arguments:
-        id_audiencia = graphene.Int(required=True)
-        id_usuario   = graphene.Int(required=True)
-        contenido    = graphene.String(required=True)
-        firmada      = graphene.Boolean()
+        id_audiencia   = graphene.Int(required=True)
+        id_usuario     = graphene.Int(required=True)
+        contenido      = graphene.String(required=True)
+        firmada        = graphene.Boolean()
+        url_grabacion  = graphene.String()  # ← AGREGAR este campo
+    
     acta = graphene.Field(ActaAudienciaType)
-    def mutate(root, info, id_audiencia, id_usuario, contenido, firmada=False):
+    
+    def mutate(root, info, id_audiencia, id_usuario, contenido, firmada=False, url_grabacion=None):
         return CrearActa(acta=ActaAudiencia.objects.create(
             id_audiencia=Audiencia.objects.get(id_audiencia=id_audiencia),
             usuario=Usuario.objects.get(id_usuario=id_usuario),
-            contenido=contenido, firmada=firmada))
+            contenido=contenido,
+            firmada=firmada,
+            url_grabacion=url_grabacion  # ← AGREGAR este campo
+        ))
 
 class ActualizarActa(graphene.Mutation):
     class Arguments:

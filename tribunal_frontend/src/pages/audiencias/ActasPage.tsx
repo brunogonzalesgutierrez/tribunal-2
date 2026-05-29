@@ -39,7 +39,7 @@ function BuscadorAudiencia({
   const idsConActa = new Set(actas.map(a => a.idAudiencia.idAudiencia));
 
   // ✅ Filtrar: solo audiencias que NO tienen acta
-  const audienciasDisponibles = audiencias.filter(a => !idsConActa.has(a.idAudiencia));
+  const audienciasDisponibles = audiencias.filter((a: any) => !idsConActa.has(a.idAudiencia));
 
   const filtrados = audienciasDisponibles.filter((a: any) =>
     `${a.idExpediente?.numeroExpediente || ''} ${a.idTipoAudiencia?.nombre || ''}`
@@ -334,6 +334,7 @@ export default function ActasPage() {
             idUsuario: Number(form.idUsuario),
             contenido: form.contenido,
             firmada: form.firmada,
+            urlGrabacion: form.urlGrabacion || undefined,
           },
         });
         await refetch();
