@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
 import { useQuery, useMutation } from "@apollo/client";
 import {
   GET_EXPEDIENTES,
@@ -11,10 +12,11 @@ import {
 } from "../../graphql/expediente";
 import { useCrudNotifications } from "../../hooks/useCrudNotifications";
 import { 
-  FolderOpen, Plus, Search, Edit, Trash2, 
+  FolderOpen, Plus, Search, Edit, Trash2, Eye,
   ChevronLeft, ChevronRight, Building2, FileText,
-  Calendar, Scale, X, CheckCircle, Circle
+  Scale, X, CheckCircle, Sparkles,
 } from "lucide-react";
+import DetalleExpedienteModal from "./DetalleExpedienteModal";
 
 // ─── TIPOS ───────────────────────────────────────────────
 interface SalaTribunal {
@@ -49,7 +51,7 @@ const initialForm = {
   idSala: "0", idTipoProceso: "0", idEstadoExpediente: "0", descripcion: "",
 };
 
-// ─── MODAL ───────────────────────────────────────────────
+// ─── MODAL CREAR/EDITAR ──────────────────────────────────
 function Modal({ children, onClose, title }: { children: React.ReactNode; onClose: () => void; title: string }) {
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4" onClick={onClose}>
@@ -69,7 +71,9 @@ function Modal({ children, onClose, title }: { children: React.ReactNode; onClos
   );
 }
 
-// ─── CAMPO DE FORMULARIO ─────────────────────────────────
+
+
+
 const Field = ({ label, value, onChange, type = "text", placeholder = "", required = false }: {
   label: string; value: string; onChange: (v: string) => void;
   type?: string; placeholder?: string; required?: boolean;
@@ -105,9 +109,7 @@ const SelectField = ({ label, value, onChange, children, required = false }: {
 
 const fmtFecha = (iso?: string) => {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("es-BO", {
-    day: "2-digit", month: "short", year: "numeric",
-  });
+  return new Date(iso).toLocaleDateString("es-BO", { day: "2-digit", month: "short", year: "numeric" });
 };
 
 // ─── PÁGINA PRINCIPAL ────────────────────────────────────
@@ -117,6 +119,21 @@ export default function ExpedientesPage() {
   const [form, setForm] = useState(initialForm);
   const [busqueda, setBusqueda] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [expedienteDetalle, setExpedienteDetalle] = useState<number | null>(null);
+  // ✅ Guarda el expediente recién creado para el banner y el highlight en tabla
+  const [recienCreado, setRecienCreado] = useState<{ id: number; numero: string } | null>(null);
+  
+  useEffect(() => {
+    const id = sessionStorage.getItem("openExpedienteDetalle");
+    if (id) {
+      setExpedienteDetalle(Number(id));
+      sessionStorage.removeItem("openExpedienteDetalle");
+    }
+  }, []);
+  
+  
+  
+  
   const itemsPerPage = 10;
 
   const { data, loading, refetch } = useQuery(GET_EXPEDIENTES);
@@ -151,11 +168,13 @@ export default function ExpedientesPage() {
   const abrirCrear = () => {
     setEditando(null);
     setForm(initialForm);
+    setRecienCreado(null);
     setModalAbierto(true);
   };
 
   const abrirEditar = (exp: Expediente) => {
     setEditando(exp);
+    setRecienCreado(null);
     setForm({
       numeroExpediente: exp.numeroExpediente,
       ano: String(exp.ano),
@@ -175,7 +194,6 @@ export default function ExpedientesPage() {
       toast.error("Número de expediente, sala y tipo de proceso son obligatorios.");
       return;
     }
-
     const input = {
       numeroExpediente: form.numeroExpediente,
       ano: Number(form.ano),
@@ -193,10 +211,21 @@ export default function ExpedientesPage() {
         return true;
       });
     } else {
+      // ✅ FLUJO POST-CREACIÓN: cierra el form, abre el detalle directo
       await executeCreate(async () => {
-        await crearExp({ variables: { input } });
+        const result = await crearExp({ variables: { input } });
         await refetch();
+
+        const nuevoId: number | undefined = result.data?.crearExpediente?.expediente?.idExpediente;
+        const nuevoNumero = form.numeroExpediente;
+
         cerrarModal();
+
+        if (nuevoId) {
+          setRecienCreado({ id: nuevoId, numero: nuevoNumero });
+          setExpedienteDetalle(nuevoId);  // abre el detalle inmediatamente
+        }
+
         return true;
       });
     }
@@ -206,9 +235,7 @@ export default function ExpedientesPage() {
     await executeDelete(
       async () => {
         const { data } = await eliminarExp({ variables: { id: Number(id) } });
-        if (!data?.eliminarExpediente?.ok) {
-          throw new Error(data?.eliminarExpediente?.mensaje ?? "No se pudo eliminar");
-        }
+        if (!data?.eliminarExpediente?.ok) throw new Error(data?.eliminarExpediente?.mensaje ?? "No se pudo eliminar");
         await refetch();
         return true;
       },
@@ -223,10 +250,8 @@ export default function ExpedientesPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      
-      {/* ============================================================ */}
+
       {/* ENCABEZADO */}
-      {/* ============================================================ */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
@@ -246,59 +271,65 @@ export default function ExpedientesPage() {
         </button>
       </div>
 
-      {/* ============================================================ */}
-      {/* TARJETAS DE ESTADÍSTICAS */}
-      {/* ============================================================ */}
+      {/* ✅ BANNER POST-CREACIÓN */}
+      {recienCreado && !expedienteDetalle && (
+        <div className="flex items-center justify-between gap-4 px-5 py-4 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border border-emerald-200 dark:border-emerald-800/50 shadow-sm animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center shadow shadow-emerald-500/30 shrink-0">
+              <Sparkles className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-emerald-800 dark:text-emerald-300">
+                Expediente <span className="font-mono">{recienCreado.numero}</span> creado exitosamente
+              </p>
+              <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">
+                Agrega partes procesales, audiencias, documentos y actuaciones desde el detalle.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setExpedienteDetalle(recienCreado.id)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold transition-colors shadow shadow-emerald-500/30"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              Completar expediente
+            </button>
+            <button
+              onClick={() => setRecienCreado(null)}
+              className="p-2 rounded-xl text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ESTADÍSTICAS */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Expedientes</p>
-              <p className="text-3xl font-bold text-gray-800 dark:text-white mt-2">{totalExpedientes}</p>
+        {[
+          { label: "Total Expedientes", value: totalExpedientes, color: "blue",    Icon: FolderOpen,   sub: "Expedientes registrados" },
+          { label: "Activos",           value: activos,          color: "emerald", Icon: CheckCircle,  sub: "En proceso" },
+          { label: "Concluidos",        value: concluidos,       color: "purple",  Icon: Scale,        sub: "Expedientes finalizados" },
+        ].map(({ label, value, color, Icon, sub }) => (
+          <div key={label} className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{label}</p>
+                <p className={`text-3xl font-bold mt-2 text-${color}-600 dark:text-${color}-400`}>{value}</p>
+              </div>
+              <div className={`w-12 h-12 rounded-xl bg-${color}-100 dark:bg-${color}-900/30 flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                <Icon className={`w-6 h-6 text-${color}-600 dark:text-${color}-400`} />
+              </div>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <FolderOpen className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            </div>
-          </div>
-          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
-            <p className="text-xs text-gray-500 dark:text-gray-400">Expedientes registrados</p>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Activos</p>
-              <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 mt-2">{activos}</p>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <CheckCircle className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+            <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+              <p className="text-xs text-gray-500 dark:text-gray-400">{sub}</p>
             </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
-            <p className="text-xs text-gray-500 dark:text-gray-400">En proceso</p>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Concluidos</p>
-              <p className="text-3xl font-bold text-purple-600 dark:text-purple-400 mt-2">{concluidos}</p>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Scale className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-            </div>
-          </div>
-          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
-            <p className="text-xs text-gray-500 dark:text-gray-400">Expedientes finalizados</p>
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* ============================================================ */}
       {/* BUSCADOR */}
-      {/* ============================================================ */}
       <div className="relative max-w-md">
         <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
@@ -309,20 +340,17 @@ export default function ExpedientesPage() {
         />
       </div>
 
-      {/* ============================================================ */}
-      {/* TABLA DE EXPEDIENTES */}
-      {/* ============================================================ */}
+      {/* TABLA */}
       <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-lg dark:shadow-slate-900/30 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-slate-900/50 border-b border-gray-200 dark:border-slate-700">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">N° Expediente</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Sala / Tribunal</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tipo de Proceso</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Estado</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">F. Ingreso</th>
-                <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Acciones</th>
+                {["N° Expediente", "Sala / Tribunal", "Tipo de Proceso", "Estado", "F. Ingreso", "Acciones"].map(h => (
+                  <th key={h} className={`px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${h === "Acciones" ? "text-right" : "text-left"}`}>
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
@@ -331,7 +359,7 @@ export default function ExpedientesPage() {
                   <tr key={i}>
                     {[...Array(6)].map((_, j) => (
                       <td key={j} className="px-6 py-4">
-                        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded-full animate-pulse w-20"></div>
+                        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded-full animate-pulse w-20" />
                       </td>
                     ))}
                   </tr>
@@ -346,66 +374,99 @@ export default function ExpedientesPage() {
                   </td>
                 </tr>
               ) : (
-                paginatedExpedientes.map((exp) => (
-                  <tr key={exp.idExpediente} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors group">
-                    <td className="px-6 py-4">
-                      <span className="font-mono font-semibold text-blue-600 dark:text-blue-400">
-                        {exp.numeroExpediente}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="w-4 h-4 text-gray-400" />
-                        <div>
-                          <p className="text-sm text-gray-800 dark:text-white">{exp.idSala?.nombreSala}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">{exp.idSala?.idTribunal?.nombreTribunal}</p>
+                paginatedExpedientes.map((exp) => {
+                  const esNuevo = recienCreado?.id === exp.idExpediente;
+                  return (
+                    <tr
+                      key={exp.idExpediente}
+                      className={`hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors group ${
+                        esNuevo ? "bg-emerald-50/60 dark:bg-emerald-900/10 ring-1 ring-inset ring-emerald-200 dark:ring-emerald-800/40" : ""
+                      }`}
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-semibold text-blue-600 dark:text-blue-400">
+                            {exp.numeroExpediente}
+                          </span>
+                          {esNuevo && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500 text-white">
+                              <Sparkles className="w-2.5 h-2.5" />
+                              Nuevo
+                            </span>
+                          )}
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
-                        <FileText className="w-3 h-3" />
-                        {exp.idTipoProceso?.nombre}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      {exp.idEstadoExpediente ? (
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-                          exp.idEstadoExpediente.esTerminal 
-                            ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'
-                            : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
-                        }`}>
-                          {exp.idEstadoExpediente.esTerminal ? <Scale className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
-                          {exp.idEstadoExpediente.nombreEstado}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-gray-400" />
+                          <div>
+                            <p className="text-sm text-gray-800 dark:text-white">{exp.idSala?.nombreSala}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{exp.idSala?.idTribunal?.nombreTribunal}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
+                          <FileText className="w-3 h-3" />
+                          {exp.idTipoProceso?.nombre}
                         </span>
-                      ) : (
-                        <span className="text-gray-500 dark:text-gray-400 text-sm">—</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                      {fmtFecha(exp.fechaIngreso)}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => abrirEditar(exp)} className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors" title="Editar">
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => eliminar(exp.idExpediente, exp.numeroExpediente)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors" title="Eliminar">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      <td className="px-6 py-4">
+                        {exp.idEstadoExpediente ? (
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                            exp.idEstadoExpediente.esTerminal
+                              ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'
+                              : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
+                          }`}>
+                            {exp.idEstadoExpediente.esTerminal ? <Scale className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
+                            {exp.idEstadoExpediente.nombreEstado}
+                          </span>
+                        ) : (
+                          <span className="text-gray-500 dark:text-gray-400 text-sm">—</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                        {fmtFecha(exp.fechaIngreso)}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => { setExpedienteDetalle(exp.idExpediente); }}
+                            className={`p-2 rounded-lg transition-colors ${
+                              esNuevo
+                                ? "text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50"
+                                : "text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
+                            }`}
+                            title={esNuevo ? "Completar expediente" : "Ver detalle completo"}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => abrirEditar(exp)}
+                            className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                            title="Editar"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => eliminar(exp.idExpediente, exp.numeroExpediente)}
+                            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* ============================================================ */}
       {/* PAGINACIÓN */}
-      {/* ============================================================ */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between pt-4">
           <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -433,36 +494,37 @@ export default function ExpedientesPage() {
         </div>
       )}
 
-      {/* ============================================================ */}
       {/* MODAL CREAR/EDITAR */}
-      {/* ============================================================ */}
       {modalAbierto && (
         <Modal onClose={cerrarModal} title={editando ? "Editar expediente" : "Nuevo expediente"}>
           <div className="space-y-4">
+            {/* Banner informativo al crear */}
+            {!editando && (
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/40 text-xs text-blue-700 dark:text-blue-400">
+                <Sparkles className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>Al crear el expediente se abrirá su detalle automáticamente para agregar partes, audiencias y documentos.</span>
+              </div>
+            )}
             <Field label="Número de expediente" value={form.numeroExpediente} onChange={f("numeroExpediente")} required placeholder="Ej: 001/2025" />
             <Field label="Año" value={form.ano} onChange={f("ano")} type="number" required />
-
             <SelectField label="Sala del tribunal" value={form.idSala} onChange={f("idSala")} required>
               <option value="0">— Selecciona una sala —</option>
               {salas.map(s => (
                 <option key={s.idSala} value={s.idSala}>{s.nombreSala} — {s.idTribunal?.nombreTribunal}</option>
               ))}
             </SelectField>
-
             <SelectField label="Tipo de proceso" value={form.idTipoProceso} onChange={f("idTipoProceso")} required>
               <option value="0">— Selecciona tipo de proceso —</option>
               {tiposProceso.map(t => (
                 <option key={t.idTipoProceso} value={t.idTipoProceso}>{t.nombre} ({t.codigo})</option>
               ))}
             </SelectField>
-
             <SelectField label="Estado inicial" value={form.idEstadoExpediente} onChange={f("idEstadoExpediente")}>
               <option value="0">— Sin estado —</option>
               {estados.map(e => (
                 <option key={e.idEstado} value={e.idEstado}>{e.nombreEstado}</option>
               ))}
             </SelectField>
-
             <div className="mb-4">
               <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Descripción</label>
               <textarea
@@ -473,17 +535,24 @@ export default function ExpedientesPage() {
                 placeholder="Descripción del expediente..."
               />
             </div>
-
             <div className="flex gap-3 justify-end pt-4">
               <button onClick={cerrarModal} className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium">
                 Cancelar
               </button>
               <button onClick={guardar} className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium text-sm shadow-md transition-all">
-                {editando ? "Guardar cambios" : "Crear expediente"}
+                {editando ? "Guardar cambios" : "Crear y ver detalle →"}
               </button>
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* MODAL DETALLE */}
+      {expedienteDetalle !== null && (
+        <DetalleExpedienteModal
+          idExpediente={expedienteDetalle}
+          onClose={() => setExpedienteDetalle(null)}
+        />
       )}
     </div>
   );

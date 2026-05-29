@@ -462,6 +462,22 @@ class Query(graphene.ObjectType):
     tribunal_by_id   = graphene.Field(TribunalType,   id=graphene.Int(required=True))
     expediente_by_id = graphene.Field(ExpedienteType, id=graphene.Int(required=True))
     persona_by_id    = graphene.Field(PersonaType,    id=graphene.Int(required=True))
+
+
+    partes_por_expediente         = graphene.List(ParteProcesalType,                id_expediente=graphene.Int(required=True))
+    audiencias_por_expediente     = graphene.List(AudienciaType,                    id_expediente=graphene.Int(required=True))
+    resoluciones_por_expediente   = graphene.List(ResolucionType,                   id_expediente=graphene.Int(required=True))
+    documentos_por_expediente     = graphene.List(DocumentoType,                    id_expediente=graphene.Int(required=True))
+    actuaciones_por_expediente    = graphene.List(ActuacionProcesalType,            id_expediente=graphene.Int(required=True))
+    historial_por_expediente      = graphene.List(HistorialEstadoType,              id_expediente=graphene.Int(required=True))
+    conformaciones_por_expediente = graphene.List(ConformacionSalaExpedienteType,   id_expediente=graphene.Int(required=True))
+    recursos_por_expediente       = graphene.List(RecursoType,                      id_expediente=graphene.Int(required=True))
+
+
+
+
+
+
     resolucion_by_id = graphene.Field(ResolucionType, id=graphene.Int(required=True))
     audiencia_by_id  = graphene.Field(AudienciaType,  id=graphene.Int(required=True))
     documento_by_id  = graphene.Field(DocumentoType,  id=graphene.Int(required=True))
@@ -511,6 +527,38 @@ class Query(graphene.ObjectType):
     def resolve_expediente_by_id(root, info, id):
         try: return Expediente.objects.get(id_expediente=id)
         except Expediente.DoesNotExist: return None
+
+    def resolve_expediente_by_id(root, info, id):
+        try: return Expediente.objects.get(id_expediente=id)
+        except Expediente.DoesNotExist: return None
+
+    # ← PEGA AQUÍ los resolvers:
+    def resolve_partes_por_expediente(root, info, id_expediente):
+        return ParteProcesal.objects.filter(id_expediente__id_expediente=id_expediente)
+
+    def resolve_audiencias_por_expediente(root, info, id_expediente):
+        return Audiencia.objects.filter(id_expediente__id_expediente=id_expediente)
+
+    def resolve_resoluciones_por_expediente(root, info, id_expediente):
+        return Resolucion.objects.filter(id_expediente__id_expediente=id_expediente)
+
+    def resolve_documentos_por_expediente(root, info, id_expediente):
+        return Documento.objects.filter(id_expediente__id_expediente=id_expediente)
+
+    def resolve_actuaciones_por_expediente(root, info, id_expediente):
+        return ActuacionProcesal.objects.filter(id_expediente__id_expediente=id_expediente)
+
+    def resolve_historial_por_expediente(root, info, id_expediente):
+        return HistorialEstado.objects.filter(id_expediente__id_expediente=id_expediente)
+
+    def resolve_conformaciones_por_expediente(root, info, id_expediente):
+        return ConformacionSalaExpediente.objects.filter(id_expediente__id_expediente=id_expediente)
+
+    def resolve_recursos_por_expediente(root, info, id_expediente):
+        return Recurso.objects.filter(
+            id_resolucion_impugnada__id_expediente__id_expediente=id_expediente
+        )
+
 
     def resolve_persona_by_id(root, info, id):
         try: return Persona.objects.get(id_persona=id)

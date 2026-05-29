@@ -4,7 +4,6 @@ enotra terminal
 
 cd tribunal_backend
 
-python -m venv venv
 venv\Scripts\activate
 
 python seed_graphql.py
@@ -27,3 +26,8 @@ u = Usuario.objects.create(
     rol=rol,
     activo=True
 )
+
+
+
+python permisosCRUD_seed.py
+python permisosTablas_seed.py
