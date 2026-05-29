@@ -2,12 +2,14 @@ import { useNavigate, NavLink } from "react-router-dom";
 import { useState, useEffect, useRef } from 'react';
 import { useQuery } from "@apollo/client";
 import { gql } from "@apollo/client";
+// BORRAR Bell de los imports de lucide-react
 import {
-  Bell, Search, Settings, Sun, Moon, User, HelpCircle,
+  Search, Settings, Sun, Moon, User, HelpCircle,
   LogOut, ChevronDown, FolderOpen, Users, Calendar,
   Scale, FileText, X, Loader2,
 } from 'lucide-react';
 import { useAuth } from "../context/AuthContext";
+import NotificacionesPanel from "./NotificacionesPanel";
 
 // ── Query de búsqueda global ──────────────────────────────
 const GLOBAL_SEARCH = gql`
@@ -350,25 +352,20 @@ export default function Header({
   const navigate = useNavigate();
 
   const [showUserMenu, setShowUserMenu]       = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState([
-    { id: 1, title: "Nuevo expediente",    message: "Se ha creado un nuevo expediente",    read: false, time: "hace 5 min"   },
-    { id: 2, title: "Audiencia programada", message: "Audiencia para mañana a las 10:00", read: false, time: "hace 1 hora"  },
-    { id: 3, title: "Resolución emitida",  message: "Resolución N° 123/2025 emitida",     read: true,  time: "hace 2 horas" },
-  ]);
+  
+ 
 
   const nombre   = usuario ? `${usuario.nombre} ${usuario.paterno}`.trim() || usuario.email?.split("@")[0] : "Usuario";
   const rol      = usuario?.rol ?? "Administrador";
   const iniciales = nombre.charAt(0).toUpperCase();
   const userEmail = usuario?.email ?? "usuario@tribunal.com";
-  const unreadCount = notifications.filter(n => !n.read).length;
+
 
   const handleLogout = () => { logout(); navigate("/"); };
-  const markAsRead   = (id: number) => setNotifications(ns => ns.map(n => n.id === id ? { ...n, read: true } : n));
-  const markAllAsRead = () => setNotifications(ns => ns.map(n => ({ ...n, read: true })));
+  
 
   useEffect(() => {
-    const close = () => { setShowUserMenu(false); setShowNotifications(false); };
+  const close = () => { setShowUserMenu(false); };
     document.addEventListener("click", close);
     return () => document.removeEventListener("click", close);
   }, []);
@@ -433,44 +430,8 @@ export default function Header({
         </button>
 
         {/* Notificaciones */}
-        <div className="relative">
-          <button
-            onClick={e => { e.stopPropagation(); setShowNotifications(!showNotifications); setShowUserMenu(false); }}
-            className={`relative p-2 rounded-lg transition-all duration-200 ${darkMode ? "text-gray-400 hover:bg-gray-700" : "text-gray-600 hover:bg-gray-100"}`}
-          >
-            <Bell className="w-5 h-5" />
-            {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-            )}
-          </button>
 
-          {showNotifications && (
-            <div
-              className={`absolute right-0 mt-2 w-80 ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"} border rounded-xl shadow-xl z-50 animate-fade-in`}
-              onClick={e => e.stopPropagation()}
-            >
-              <div className={`px-4 py-3 border-b ${darkMode ? "border-gray-700" : "border-gray-100"} flex justify-between items-center`}>
-                <h3 className={`font-semibold ${darkMode ? "text-white" : "text-gray-900"}`}>Notificaciones</h3>
-                {unreadCount > 0 && (
-                  <button onClick={markAllAsRead} className="text-xs text-blue-500 hover:text-blue-600">Marcar todas</button>
-                )}
-              </div>
-              <div className="max-h-80 overflow-y-auto">
-                {notifications.map(notif => (
-                  <div
-                    key={notif.id}
-                    onClick={() => markAsRead(notif.id)}
-                    className={`px-4 py-3 cursor-pointer transition-colors ${darkMode ? "hover:bg-gray-700" : "hover:bg-gray-50"} ${!notif.read ? (darkMode ? "bg-gray-700/50" : "bg-blue-50") : ""}`}
-                  >
-                    <p className={`text-sm font-medium ${darkMode ? "text-white" : "text-gray-900"}`}>{notif.title}</p>
-                    <p className={`text-xs mt-1 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>{notif.message}</p>
-                    <p className={`text-xs mt-1 ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{notif.time}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        <NotificacionesPanel darkMode={darkMode} />
 
         {/* Separador */}
         <div className={`w-px h-8 ${darkMode ? "bg-gray-700" : "bg-gray-200"}`} />
@@ -478,7 +439,7 @@ export default function Header({
         {/* Perfil */}
         <div className="relative">
           <button
-            onClick={e => { e.stopPropagation(); setShowUserMenu(!showUserMenu); setShowNotifications(false); }}
+            onClick={e => { e.stopPropagation(); setShowUserMenu(!showUserMenu); }}
             className={`flex items-center gap-3 pl-2 py-1 pr-3 rounded-lg transition-all duration-200 ${darkMode ? "hover:bg-gray-700" : "hover:bg-gray-100"}`}
           >
             <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-700 text-white font-bold flex items-center justify-center rounded-lg shadow-md text-sm">
