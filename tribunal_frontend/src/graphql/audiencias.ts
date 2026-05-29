@@ -271,12 +271,14 @@ export const CREAR_ACTA = gql`
     $idUsuario: Int!
     $contenido: String!
     $firmada: Boolean
+    $urlGrabacion: String
   ) {
     crearActa(
       idAudiencia: $idAudiencia
       idUsuario: $idUsuario
       contenido: $contenido
       firmada: $firmada
+      urlGrabacion: $urlGrabacion
     ) {
       acta {
         idActa

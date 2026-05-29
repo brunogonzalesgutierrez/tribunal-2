@@ -8,13 +8,224 @@ import {
   ACTUALIZAR_ACTA,
   ELIMINAR_ACTA,
 } from "../../graphql/audiencias";
-import { FileText, Plus, Edit, Trash2, CheckCircle, AlertCircle, Mic } from "lucide-react";
+import { FileText, Plus, Edit, Trash2, CheckCircle, AlertCircle, Mic, Search, X } from "lucide-react";
 import {
   Acta,
-  fmt, Modal, SelectField, Field, TextareaField,
+  fmt, Modal, Field, TextareaField,
   ErrorBox, ModalFooter, StatCard, TablaDesktop, ActionBtns,
 } from "./shared";
+import { useCrudNotifications } from '../../hooks/useCrudNotifications';
+import { useToast } from '../../context/ToastContext';
 
+// ============================================================
+// COMPONENTE: Buscador de Audiencias (Modal)
+// SOLO muestra audiencias que NO tienen acta asociada
+// ============================================================
+function BuscadorAudiencia({
+  onSelect,
+  onClose,
+  actas, // <- Recibimos las actas existentes para filtrar
+}: {
+  onSelect: (id: number, nombre: string) => void;
+  onClose: () => void;
+  actas: Acta[];
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const { data, loading } = useQuery(GET_AUDIENCIAS);
+
+  const audiencias = data?.allAudiencias ?? [];
+
+  // Obtener IDs de audiencias que YA tienen acta
+  const idsConActa = new Set(actas.map(a => a.idAudiencia.idAudiencia));
+
+  // ✅ Filtrar: solo audiencias que NO tienen acta
+  const audienciasDisponibles = audiencias.filter((a: any) => !idsConActa.has(a.idAudiencia));
+
+  const filtrados = audienciasDisponibles.filter((a: any) =>
+    `${a.idExpediente?.numeroExpediente || ''} ${a.idTipoAudiencia?.nombre || ''}`
+      .toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-blue-500" />
+            Seleccionar Audiencia (Sin acta registrada)
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar por expediente o tipo de audiencia..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+          <p className="text-xs text-gray-400 mt-2">⚠️ Solo se muestran audiencias que aún no tienen acta</p>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No hay audiencias disponibles para acta</p>
+              <p className="text-xs mt-2">Todas las audiencias ya tienen un acta registrada</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtrados.map((a: any, index: number) => (
+                <button
+                  key={a.idAudiencia}
+                  onClick={() => {
+                    onSelect(a.idAudiencia, `#${a.idExpediente.numeroExpediente} - ${a.idTipoAudiencia?.nombre || 'Tipo no especificado'} (${fmt(a.fechaHoraProgramada)})`);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 ${
+                    index === filtrados.length - 1 ? 'mb-0' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">#{a.idExpediente.numeroExpediente}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{a.idTipoAudiencia?.nombre || 'Tipo no especificado'}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{fmt(a.fechaHoraProgramada)}</p>
+                    </div>
+                    <div className="text-blue-500">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// COMPONENTE: Buscador de Usuarios (Modal)
+// ============================================================
+function BuscadorUsuario({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: number, nombre: string) => void;
+  onClose: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const { data, loading } = useQuery(GET_USUARIOS_SIMPLE);
+
+  const usuarios = data?.allUsuarios ?? [];
+
+  const filtrados = usuarios.filter((u: any) =>
+    `${u.nombres} ${u.paterno} ${u.materno || ''}`.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-blue-500" />
+            Seleccionar Usuario
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar por nombre o apellido..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No se encontraron usuarios</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtrados.map((u: any, index: number) => (
+                <button
+                  key={u.idUsuario}
+                  onClick={() => {
+                    onSelect(u.idUsuario, `${u.nombres} ${u.paterno}`);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 ${
+                    index === filtrados.length - 1 ? 'mb-0' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">{u.nombres} {u.paterno}</p>
+                    </div>
+                    <div className="text-blue-500">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════
+// PÁGINA PRINCIPAL
+// ════════════════════════════════════════════════════════
 export default function ActasPage() {
   const { data, loading, refetch } = useQuery(GET_ACTAS);
   const { data: dAud } = useQuery(GET_AUDIENCIAS);
@@ -23,9 +234,17 @@ export default function ActasPage() {
   const [actualizarAc] = useMutation(ACTUALIZAR_ACTA);
   const [eliminarAc]   = useMutation(ELIMINAR_ACTA);
 
-  const [modal, setModal]   = useState(false);
+  // ✅ HOOK DE NOTIFICACIONES
+  const { executeCreate, executeUpdate, executeDelete } = useCrudNotifications('Acta');
+  const toast = useToast();
+
+  const [modal, setModal] = useState(false);
+  const [buscadorAudAbierto, setBuscadorAudAbierto] = useState(false);
+  const [buscadorUsuAbierto, setBuscadorUsuAbierto] = useState(false);
   const [editando, setEdit] = useState<Acta | null>(null);
-  const [err, setErr]       = useState("");
+  const [audienciaSeleccionada, setAudienciaSeleccionada] = useState("");
+  const [usuarioSeleccionado, setUsuarioSeleccionado] = useState("");
+  const [err, setErr] = useState("");
 
   const initForm = { idAudiencia: 0, idUsuario: 0, contenido: "", firmada: false, urlGrabacion: "" };
   const [form, setForm] = useState(initForm);
@@ -38,51 +257,113 @@ export default function ActasPage() {
   const firmadas   = actas.filter(a => a.firmada).length;
   const pendientes = actas.filter(a => !a.firmada).length;
 
-  const abrirCrear = () => { setEdit(null); setForm(initForm); setErr(""); setModal(true); };
+  const seleccionarAudiencia = (id: number, nombre: string) => {
+    setForm(f => ({ ...f, idAudiencia: id }));
+    setAudienciaSeleccionada(nombre);
+  };
+
+  const seleccionarUsuario = (id: number, nombre: string) => {
+    setForm(f => ({ ...f, idUsuario: id }));
+    setUsuarioSeleccionado(nombre);
+  };
+
+  const abrirCrear = () => { 
+    setEdit(null); 
+    setForm(initForm); 
+    setAudienciaSeleccionada("");
+    setUsuarioSeleccionado("");
+    setErr(""); 
+    setModal(true); 
+  };
+
   const abrirEditar = (a: Acta) => {
     setEdit(a);
     setForm({
-      idAudiencia: a.idAudiencia.idAudiencia, idUsuario: a.usuario.idUsuario,
-      contenido: a.contenido, firmada: a.firmada, urlGrabacion: a.urlGrabacion ?? "",
+      idAudiencia: a.idAudiencia.idAudiencia,
+      idUsuario: a.usuario.idUsuario,
+      contenido: a.contenido,
+      firmada: a.firmada,
+      urlGrabacion: a.urlGrabacion ?? "",
     });
-    setErr(""); setModal(true);
+    setAudienciaSeleccionada(`#${a.idAudiencia.idExpediente.numeroExpediente} - ${fmt(a.idAudiencia.fechaHoraProgramada)}`);
+    setUsuarioSeleccionado(`${a.usuario.nombres} ${a.usuario.paterno}`);
+    setErr(""); 
+    setModal(true);
   };
 
+  // ✅ GUARDAR CON NOTIFICACIONES
   const guardar = async () => {
-    if (!form.contenido) { setErr("El contenido del acta es obligatorio."); return; }
-    try {
-      if (editando) {
+    if (!form.contenido) { 
+      toast.error("El contenido del acta es obligatorio."); 
+      return; 
+    }
+    
+    if (editando) {
+      await executeUpdate(async () => {
         await actualizarAc({
           variables: {
             id: Number(editando.idActa),
             input: {
-              contenido: form.contenido, firmada: form.firmada,
+              contenido: form.contenido,
+              firmada: form.firmada,
               urlGrabacion: form.urlGrabacion || undefined,
             },
           },
         });
-      } else {
-        if (!form.idAudiencia || !form.idUsuario) {
-          setErr("Audiencia y usuario son obligatorios."); return;
-        }
+        await refetch();
+        setModal(false);
+        return true;
+      });
+    } else {
+      if (!form.idAudiencia || !form.idUsuario) {
+        toast.error("Audiencia y usuario son obligatorios.");
+        return;
+      }
+      
+      // ✅ Validación extra: verificar que la audiencia no tenga ya un acta
+      const yaTieneActa = actas.some(a => a.idAudiencia.idAudiencia === form.idAudiencia);
+      if (yaTieneActa) {
+        toast.error("Esta audiencia ya tiene un acta registrada. Use la opción de edición.");
+        return;
+      }
+
+      await executeCreate(async () => {
         await crearActa({
           variables: {
-            idAudiencia: Number(form.idAudiencia), idUsuario: Number(form.idUsuario),
-            contenido: form.contenido, firmada: form.firmada,
+            idAudiencia: Number(form.idAudiencia),
+            idUsuario: Number(form.idUsuario),
+            contenido: form.contenido,
+            firmada: form.firmada,
+            urlGrabacion: form.urlGrabacion || undefined,
           },
         });
-      }
-      await refetch(); setModal(false);
-    } catch (e: any) { setErr(e.message ?? "Error."); }
+        await refetch();
+        setModal(false);
+        setAudienciaSeleccionada("");
+        setUsuarioSeleccionado("");
+        return true;
+      });
+    }
   };
 
+  // ✅ ELIMINAR CON NOTIFICACIONES
   const eliminar = async (a: Acta) => {
-    if (!window.confirm(`¿Eliminar el acta del expediente #${a.idAudiencia.idExpediente.numeroExpediente}?`)) return;
-    const { data } = await eliminarAc({ variables: { id: Number(a.idActa) } });
-    if (!data?.eliminarActa?.ok) {
-      alert(data?.eliminarActa?.mensaje ?? "No se pudo eliminar."); return;
-    }
-    refetch();
+    await executeDelete(
+      async () => {
+        const { data } = await eliminarAc({ variables: { id: Number(a.idActa) } });
+        if (!data?.eliminarActa?.ok) {
+          throw new Error(data?.eliminarActa?.mensaje ?? "No se pudo eliminar.");
+        }
+        await refetch();
+        return true;
+      },
+      {
+        loading: `Eliminando acta del expediente #${a.idAudiencia.idExpediente.numeroExpediente}...`,
+        success: `Acta eliminada exitosamente`,
+        error: `Error al eliminar el acta`,
+      },
+      `¿Eliminar el acta del expediente #${a.idAudiencia.idExpediente.numeroExpediente}?`
+    );
   };
 
   return (
@@ -200,24 +481,83 @@ export default function ActasPage() {
         >
           {!editando && (
             <>
-              <SelectField label="Audiencia" value={form.idAudiencia} onChange={f("idAudiencia")} required>
-                <option value={0}>— Seleccionar audiencia —</option>
-                {audiencias.map((a: any) => (
-                  <option key={a.idAudiencia} value={a.idAudiencia}>
-                    #{a.idExpediente.numeroExpediente} — {fmt(a.fechaHoraProgramada)}
-                  </option>
-                ))}
-              </SelectField>
-              <SelectField label="Usuario responsable" value={form.idUsuario} onChange={f("idUsuario")} required>
-                <option value={0}>— Seleccionar usuario —</option>
-                {usuarios.map((u: any) => (
-                  <option key={u.idUsuario} value={u.idUsuario}>{u.nombres} {u.paterno}</option>
-                ))}
-              </SelectField>
+              {/* Audiencia - Con buscador (ahora recibe actas) */}
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                  Audiencia <span className="text-red-500">*</span>
+                </label>
+                {audienciaSeleccionada ? (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+                    <span className="flex-1 text-sm text-gray-800 dark:text-white">{audienciaSeleccionada}</span>
+                    <button
+                      onClick={() => {
+                        setForm(f => ({ ...f, idAudiencia: 0 }));
+                        setAudienciaSeleccionada("");
+                      }}
+                      className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setBuscadorAudAbierto(true)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Buscar y seleccionar audiencia (sin acta)
+                  </button>
+                )}
+              </div>
+
+              {/* Usuario - Con buscador */}
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                  Usuario responsable <span className="text-red-500">*</span>
+                </label>
+                {usuarioSeleccionado ? (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+                    <span className="flex-1 text-sm text-gray-800 dark:text-white">{usuarioSeleccionado}</span>
+                    <button
+                      onClick={() => {
+                        setForm(f => ({ ...f, idUsuario: 0 }));
+                        setUsuarioSeleccionado("");
+                      }}
+                      className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setBuscadorUsuAbierto(true)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Buscar y seleccionar usuario
+                  </button>
+                )}
+              </div>
             </>
           )}
+
+          {/* En edición, mostrar la información como texto */}
+          {editando && (
+            <>
+              <div className="mb-4 p-2.5 rounded-xl bg-gray-100 dark:bg-slate-700/50 text-gray-700 dark:text-gray-300 text-sm">
+                Audiencia: {audienciaSeleccionada}
+              </div>
+              <div className="mb-4 p-2.5 rounded-xl bg-gray-100 dark:bg-slate-700/50 text-gray-700 dark:text-gray-300 text-sm">
+                Usuario: {usuarioSeleccionado}
+              </div>
+            </>
+          )}
+
           <TextareaField label="Contenido del acta" value={form.contenido} onChange={f("contenido")} rows={6} required />
           <Field label="URL de grabación" value={form.urlGrabacion} onChange={f("urlGrabacion")} placeholder="https://..." />
+          
           <div className="mb-4">
             <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 cursor-pointer">
               <input type="checkbox" checked={form.firmada}
@@ -225,12 +565,29 @@ export default function ActasPage() {
               Acta firmada
             </label>
           </div>
+
           <ErrorBox msg={err} />
           <ModalFooter
-            onCancel={() => setModal(false)} onSave={guardar}
+            onCancel={() => setModal(false)} 
+            onSave={guardar}
             saveLabel={editando ? "Guardar cambios" : "Crear acta"}
           />
         </Modal>
+      )}
+
+      {/* Modales de buscadores */}
+      {buscadorAudAbierto && (
+        <BuscadorAudiencia
+          onSelect={seleccionarAudiencia}
+          onClose={() => setBuscadorAudAbierto(false)}
+          actas={actas} // ✅ Pasamos las actas existentes para filtrar
+        />
+      )}
+      {buscadorUsuAbierto && (
+        <BuscadorUsuario
+          onSelect={seleccionarUsuario}
+          onClose={() => setBuscadorUsuAbierto(false)}
+        />
       )}
     </div>
   );

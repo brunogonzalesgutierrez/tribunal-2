@@ -8,12 +8,14 @@ import {
   ACTUALIZAR_ASISTENCIA,
   ELIMINAR_ASISTENCIA,
 } from "../../graphql/audiencias";
-import { Users, Plus, Edit, Trash2, CheckCircle, Circle } from "lucide-react";
+import { Users, Plus, Edit, Trash2, CheckCircle, Circle, Search, X } from "lucide-react";
 import {
   Asistencia,
-  fmt, Modal, SelectField, Field, TextareaField,
+  fmt, Modal, Field, TextareaField,
   ErrorBox, ModalFooter, StatCard, TablaDesktop, ActionBtns,
 } from "./shared";
+import { useCrudNotifications } from '../../hooks/useCrudNotifications';
+import { useToast } from '../../context/ToastContext';
 
 // ✅ Función auxiliar para mostrar solo la hora
 const fmtHora = (fecha?: string | null) => {
@@ -22,6 +24,211 @@ const fmtHora = (fecha?: string | null) => {
   return d.toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit" });
 };
 
+// ✅ Función para obtener la hora actual en formato HH:MM
+const getCurrentTime = () => {
+  const now = new Date();
+  return now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+};
+
+// ============================================================
+// COMPONENTE: Buscador de Audiencias (Modal)
+// ============================================================
+function BuscadorAudiencia({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: number, nombre: string) => void;
+  onClose: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const { data, loading } = useQuery(GET_AUDIENCIAS);
+
+  const audiencias = data?.allAudiencias ?? [];
+
+  const filtrados = audiencias.filter((a: any) =>
+    `${a.idExpediente?.numeroExpediente || ''} ${a.idTipoAudiencia?.nombre || ''}`
+      .toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-blue-500" />
+            Seleccionar Audiencia
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar por expediente o tipo de audiencia..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No se encontraron audiencias</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtrados.map((a: any, index: number) => (
+                <button
+                  key={a.idAudiencia}
+                  onClick={() => {
+                    onSelect(a.idAudiencia, `#${a.idExpediente.numeroExpediente} - ${a.idTipoAudiencia?.nombre || 'Tipo no especificado'} (${fmt(a.fechaHoraProgramada)})`);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 ${
+                    index === filtrados.length - 1 ? 'mb-0' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">#{a.idExpediente.numeroExpediente}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{a.idTipoAudiencia?.nombre || 'Tipo no especificado'}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{fmt(a.fechaHoraProgramada)}</p>
+                    </div>
+                    <div className="text-blue-500">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// COMPONENTE: Buscador de Personas (Modal)
+// ============================================================
+function BuscadorPersona({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: number, nombre: string) => void;
+  onClose: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const { data, loading } = useQuery(GET_PERSONAS_SIMPLE);
+
+  const personas = data?.allPersonas ?? [];
+
+  const filtrados = personas.filter((p: any) =>
+    `${p.nombre} ${p.primerApellido} ${p.numeroDocumento}`.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-blue-500" />
+            Seleccionar Persona
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar por nombre, apellido o documento..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No se encontraron personas</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtrados.map((p: any, index: number) => (
+                <button
+                  key={p.idPersona}
+                  onClick={() => {
+                    onSelect(p.idPersona, `${p.nombre} ${p.primerApellido} (${p.numeroDocumento})`);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 ${
+                    index === filtrados.length - 1 ? 'mb-0' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">{p.nombre} {p.primerApellido}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{p.numeroDocumento}</p>
+                    </div>
+                    <div className="text-blue-500">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════
+// PÁGINA PRINCIPAL
+// ════════════════════════════════════════════════════════
 export default function AsistenciasPage() {
   const { data, loading, refetch } = useQuery(GET_ASISTENCIAS);
   const { data: dAud }  = useQuery(GET_AUDIENCIAS);
@@ -30,9 +237,17 @@ export default function AsistenciasPage() {
   const [actualizar] = useMutation(ACTUALIZAR_ASISTENCIA);
   const [eliminarAs] = useMutation(ELIMINAR_ASISTENCIA);
 
-  const [modal, setModal]   = useState(false);
+  // ✅ HOOK DE NOTIFICACIONES
+  const { executeCreate, executeUpdate, executeDelete } = useCrudNotifications('Asistencia');
+  const toast = useToast();
+
+  const [modal, setModal] = useState(false);
+  const [buscadorAudAbierto, setBuscadorAudAbierto] = useState(false);
+  const [buscadorPersAbierto, setBuscadorPersAbierto] = useState(false);
   const [editando, setEdit] = useState<Asistencia | null>(null);
-  const [err, setErr]       = useState("");
+  const [audienciaSeleccionada, setAudienciaSeleccionada] = useState("");
+  const [personaSeleccionada, setPersonaSeleccionada] = useState("");
+  const [err, setErr] = useState("");
 
   const initForm = { 
     idAudiencia: 0, 
@@ -40,7 +255,7 @@ export default function AsistenciasPage() {
     rolEnAudiencia: "", 
     asistio: true, 
     motivoInasistencia: "",
-    horaIngreso: ""
+    horaIngreso: getCurrentTime()  // ← Prellenar con hora actual
   };
   const [form, setForm] = useState(initForm);
   const f = (k: string) => (v: string) => setForm(p => ({ ...p, [k]: v }));
@@ -52,9 +267,25 @@ export default function AsistenciasPage() {
   const asistieron   = asistencias.filter(a => a.asistio).length;
   const noAsistieron = asistencias.filter(a => !a.asistio).length;
 
+  const seleccionarAudiencia = (id: number, nombre: string) => {
+    setForm(f => ({ ...f, idAudiencia: id }));
+    setAudienciaSeleccionada(nombre);
+  };
+
+  const seleccionarPersona = (id: number, nombre: string) => {
+    setForm(f => ({ ...f, idPersona: id }));
+    setPersonaSeleccionada(nombre);
+  };
+
   const abrirCrear = () => { 
     setEdit(null); 
-    setForm({ ...initForm, horaIngreso: "" }); 
+    setForm({ 
+      ...initForm, 
+      horaIngreso: getCurrentTime(),
+      asistio: true 
+    }); 
+    setAudienciaSeleccionada("");
+    setPersonaSeleccionada("");
     setErr(""); 
     setModal(true); 
   };
@@ -69,21 +300,24 @@ export default function AsistenciasPage() {
       motivoInasistencia: a.motivoInasistencia ?? "",
       horaIngreso: a.horaIngreso ? new Date(a.horaIngreso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : "",
     });
+    setAudienciaSeleccionada(`#${a.idAudiencia.idExpediente.numeroExpediente}`);
+    setPersonaSeleccionada(`${a.idPersona.nombre} ${a.idPersona.primerApellido} (${a.idPersona.numeroDocumento})`);
     setErr(""); 
     setModal(true);
   };
 
+  // ✅ GUARDAR CON NOTIFICACIONES
   const guardar = async () => {
-    try {
-      const convertirHoraAIso = (horaStr: string) => {
-        if (!horaStr || horaStr.trim() === "") return null;
-        const hoy = new Date();
-        const [horas, minutos] = horaStr.split(':');
-        hoy.setHours(parseInt(horas), parseInt(minutos), 0, 0);
-        return hoy.toISOString();
-      };
+    const convertirHoraAIso = (horaStr: string) => {
+      if (!horaStr || horaStr.trim() === "") return null;
+      const hoy = new Date();
+      const [horas, minutos] = horaStr.split(':');
+      hoy.setHours(parseInt(horas), parseInt(minutos), 0, 0);
+      return hoy.toISOString();
+    };
 
-      if (editando) {
+    if (editando) {
+      await executeUpdate(async () => {
         await actualizar({
           variables: {
             id: Number(editando.idAsistencia),
@@ -94,11 +328,17 @@ export default function AsistenciasPage() {
             },
           },
         });
-      } else {
-        if (!form.idAudiencia || !form.idPersona || !form.rolEnAudiencia) {
-          setErr("Audiencia, persona y rol son obligatorios."); 
-          return;
-        }
+        await refetch();
+        setModal(false);
+        return true;
+      });
+    } else {
+      if (!form.idAudiencia || !form.idPersona || !form.rolEnAudiencia) {
+        toast.error("Audiencia, persona y rol son obligatorios."); 
+        return;
+      }
+      
+      await executeCreate(async () => {
         await registrar({
           variables: {
             idAudiencia: Number(form.idAudiencia),
@@ -108,22 +348,33 @@ export default function AsistenciasPage() {
             horaIngreso: form.asistio ? convertirHoraAIso(form.horaIngreso) : null
           },
         });
-      }
-      await refetch(); 
-      setModal(false);
-    } catch (e: any) { 
-      setErr(e.message ?? "Error."); 
+        await refetch();
+        setModal(false);
+        setAudienciaSeleccionada("");
+        setPersonaSeleccionada("");
+        return true;
+      });
     }
   };
 
+  // ✅ ELIMINAR CON NOTIFICACIONES
   const eliminar = async (a: Asistencia) => {
-    if (!window.confirm(`¿Eliminar el registro de ${a.idPersona.nombre} ${a.idPersona.primerApellido}?`)) return;
-    const { data } = await eliminarAs({ variables: { id: Number(a.idAsistencia) } });
-    if (!data?.eliminarAsistencia?.ok) {
-      alert(data?.eliminarAsistencia?.mensaje ?? "No se pudo eliminar."); 
-      return;
-    }
-    refetch();
+    await executeDelete(
+      async () => {
+        const { data } = await eliminarAs({ variables: { id: Number(a.idAsistencia) } });
+        if (!data?.eliminarAsistencia?.ok) {
+          throw new Error(data?.eliminarAsistencia?.mensaje ?? "No se pudo eliminar.");
+        }
+        await refetch();
+        return true;
+      },
+      {
+        loading: `Eliminando registro de ${a.idPersona.nombre} ${a.idPersona.primerApellido}...`,
+        success: `Registro eliminado exitosamente`,
+        error: `Error al eliminar el registro`,
+      },
+      `¿Eliminar el registro de ${a.idPersona.nombre} ${a.idPersona.primerApellido}?`
+    );
   };
 
   return (
@@ -160,7 +411,7 @@ export default function AsistenciasPage() {
           sub={`${Math.round((noAsistieron / (asistencias.length || 1)) * 100)}% del total`} />
       </div>
 
-      {/* Tabla Desktop - AÑADIDA COLUMNA "Motivo" */}
+      {/* Tabla Desktop */}
       <TablaDesktop
         headers={["Persona", "Audiencia", "Rol", "Asistió", "Hora ingreso", "Motivo", "Acciones"]}
         loading={loading}
@@ -199,7 +450,6 @@ export default function AsistenciasPage() {
             <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 font-mono">
               {fmtHora(a.horaIngreso)}
             </td>
-            {/* ✅ NUEVA COLUMNA: Motivo de inasistencia */}
             <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
               {!a.asistio && a.motivoInasistencia ? a.motivoInasistencia : "—"}
             </td>
@@ -210,7 +460,7 @@ export default function AsistenciasPage() {
         ))}
       </TablaDesktop>
 
-      {/* Cards Móvil - AÑADIDO MOTIVO */}
+      {/* Cards Móvil */}
       <div className="lg:hidden space-y-3">
         {asistencias.map(a => (
           <div key={a.idAsistencia} className="bg-white dark:bg-slate-800/90 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
@@ -235,7 +485,6 @@ export default function AsistenciasPage() {
               <span className="mx-2">•</span>
               <span>{fmtHora(a.horaIngreso)}</span>
             </div>
-            {/* ✅ Mostrar motivo si no asistió */}
             {!a.asistio && a.motivoInasistencia && (
               <div className="mt-2 text-xs text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-950/20 p-2 rounded-lg">
                 Motivo: {a.motivoInasistencia}
@@ -262,24 +511,81 @@ export default function AsistenciasPage() {
         >
           {!editando && (
             <>
-              <SelectField label="Audiencia" value={form.idAudiencia} onChange={f("idAudiencia")} required>
-                <option value={0}>— Seleccionar audiencia —</option>
-                {audiencias.map((a: any) => (
-                  <option key={a.idAudiencia} value={a.idAudiencia}>
-                    #{a.idExpediente.numeroExpediente} — {fmt(a.fechaHoraProgramada)}
-                  </option>
-                ))}
-              </SelectField>
-              <SelectField label="Persona" value={form.idPersona} onChange={f("idPersona")} required>
-                <option value={0}>— Seleccionar persona —</option>
-                {personas.map((p: any) => (
-                  <option key={p.idPersona} value={p.idPersona}>
-                    {p.nombre} {p.primerApellido} — {p.numeroDocumento}
-                  </option>
-                ))}
-              </SelectField>
+              {/* Audiencia - Con buscador */}
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                  Audiencia <span className="text-red-500">*</span>
+                </label>
+                {audienciaSeleccionada ? (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+                    <span className="flex-1 text-sm text-gray-800 dark:text-white">{audienciaSeleccionada}</span>
+                    <button
+                      onClick={() => {
+                        setForm(f => ({ ...f, idAudiencia: 0 }));
+                        setAudienciaSeleccionada("");
+                      }}
+                      className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setBuscadorAudAbierto(true)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Buscar y seleccionar audiencia
+                  </button>
+                )}
+              </div>
+
+              {/* Persona - Con buscador */}
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                  Persona <span className="text-red-500">*</span>
+                </label>
+                {personaSeleccionada ? (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+                    <span className="flex-1 text-sm text-gray-800 dark:text-white">{personaSeleccionada}</span>
+                    <button
+                      onClick={() => {
+                        setForm(f => ({ ...f, idPersona: 0 }));
+                        setPersonaSeleccionada("");
+                      }}
+                      className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setBuscadorPersAbierto(true)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Buscar y seleccionar persona
+                  </button>
+                )}
+              </div>
+
               <Field label="Rol en audiencia" value={form.rolEnAudiencia} onChange={f("rolEnAudiencia")}
                 placeholder="Ej: Demandante, Abogado defensor..." required />
+            </>
+          )}
+
+          {/* En edición, mostrar la información como texto */}
+          {editando && (
+            <>
+              <div className="mb-4 p-2.5 rounded-xl bg-gray-100 dark:bg-slate-700/50 text-gray-700 dark:text-gray-300 text-sm">
+                Audiencia: {audienciaSeleccionada}
+              </div>
+              <div className="mb-4 p-2.5 rounded-xl bg-gray-100 dark:bg-slate-700/50 text-gray-700 dark:text-gray-300 text-sm">
+                Persona: {personaSeleccionada}
+              </div>
+              <Field label="Rol en audiencia" value={form.rolEnAudiencia} onChange={f("rolEnAudiencia")} required />
             </>
           )}
 
@@ -326,6 +632,20 @@ export default function AsistenciasPage() {
             saveLabel={editando ? "Guardar" : "Registrar"}
           />
         </Modal>
+      )}
+
+      {/* Modales de buscadores */}
+      {buscadorAudAbierto && (
+        <BuscadorAudiencia
+          onSelect={seleccionarAudiencia}
+          onClose={() => setBuscadorAudAbierto(false)}
+        />
+      )}
+      {buscadorPersAbierto && (
+        <BuscadorPersona
+          onSelect={seleccionarPersona}
+          onClose={() => setBuscadorPersAbierto(false)}
+        />
       )}
     </div>
   );
