@@ -7,7 +7,7 @@ import {
   ACTUALIZAR_SALA_TRIBUNAL,
   ELIMINAR_SALA_TRIBUNAL,
 } from "../../graphql/tribunal";
-import { DoorOpen, Plus } from "lucide-react";
+import { DoorOpen, Plus, Search, X } from "lucide-react";
 import {
   SalaTribunal, Tribunal,
   InstanciaBadge, EstadoBadge,
@@ -17,6 +17,111 @@ import {
 
 const initForm = { idTribunal: "0", nombreSala: "", activa: "true" };
 
+// ============================================================
+// COMPONENTE: Buscador de Tribunales (Modal) - CORREGIDO
+// ============================================================
+function BuscadorTribunal({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: number, nombre: string) => void;
+  onClose: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const { data, loading } = useQuery(GET_TRIBUNALES);
+
+  const tribunales: Tribunal[] = data?.allTribunales ?? [];
+
+  const filtrados = tribunales.filter(t =>
+    `${t.nombreTribunal} ${t.instancia}`.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        
+        {/* Header - fijo */}
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-purple-500" />
+            Seleccionar Tribunal
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        {/* Buscador - fijo */}
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar tribunal por nombre o instancia..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        {/* Lista de tribunales - scrollable */}
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No se encontraron tribunales</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtrados.map((t, index) => (
+                <button
+                  key={t.idTribunal}
+                  onClick={() => {
+                    onSelect(t.idTribunal, t.nombreTribunal);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-purple-300 dark:hover:border-purple-700 ${
+                    index === filtrados.length - 1 ? 'mb-0' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">{t.nombreTribunal}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{t.instancia}</p>
+                    </div>
+                    <div className="text-purple-500 opacity-0 group-hover:opacity-100">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer con botón Cancelar - fijo */}
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// COMPONENTE PRINCIPAL
+// ============================================================
 export default function SalasTribunalPage() {
   const { data: dSala, loading, refetch } = useQuery(GET_SALAS_TRIBUNAL);
   const { data: dTrib }                   = useQuery(GET_TRIBUNALES);
@@ -24,11 +129,13 @@ export default function SalasTribunalPage() {
   const [actualizarSala] = useMutation(ACTUALIZAR_SALA_TRIBUNAL);
   const [eliminarSala]   = useMutation(ELIMINAR_SALA_TRIBUNAL);
 
-  const [modal, setModal]   = useState(false);
-  const [editando, setEdit] = useState<SalaTribunal | null>(null);
-  const [form, setForm]     = useState(initForm);
-  const [busqueda, setBusq] = useState("");
-  const [err, setErr]       = useState("");
+  const [modal, setModal]         = useState(false);
+  const [buscadorAbierto, setBuscadorAbierto] = useState(false);
+  const [editando, setEdit]       = useState<SalaTribunal | null>(null);
+  const [form, setForm]           = useState(initForm);
+  const [tribunalSeleccionado, setTribunalSeleccionado] = useState("");
+  const [busqueda, setBusq]       = useState("");
+  const [err, setErr]             = useState("");
 
   const salas:      SalaTribunal[] = dSala?.allSalasTribunal ?? [];
   const tribunales: Tribunal[]     = dTrib?.allTribunales    ?? [];
@@ -43,7 +150,14 @@ export default function SalasTribunalPage() {
 
   const p = (k: string) => (v: string) => setForm(f => ({ ...f, [k]: v }));
 
-  const abrirCrear = () => { setEdit(null); setForm(initForm); setErr(""); setModal(true); };
+  const abrirCrear = () => {
+    setEdit(null);
+    setForm(initForm);
+    setTribunalSeleccionado("");
+    setErr("");
+    setModal(true);
+  };
+
   const abrirEditar = (s: SalaTribunal) => {
     setEdit(s);
     setForm({
@@ -51,12 +165,20 @@ export default function SalasTribunalPage() {
       nombreSala: s.nombreSala,
       activa:     String(s.activa),
     });
-    setErr(""); setModal(true);
+    setTribunalSeleccionado(s.idTribunal.nombreTribunal);
+    setErr("");
+    setModal(true);
+  };
+
+  const seleccionarTribunal = (id: number, nombre: string) => {
+    setForm(f => ({ ...f, idTribunal: String(id) }));
+    setTribunalSeleccionado(nombre);
   };
 
   const guardar = async () => {
     if (form.idTribunal === "0" || !form.nombreSala) {
-      setErr("Tribunal y nombre son obligatorios."); return;
+      setErr("Tribunal y nombre son obligatorios.");
+      return;
     }
     try {
       if (editando) {
@@ -76,15 +198,19 @@ export default function SalasTribunalPage() {
           },
         });
       }
-      await refetch(); setModal(false);
-    } catch (e: any) { setErr(e.message ?? "Error al guardar."); }
+      await refetch();
+      setModal(false);
+    } catch (e: any) {
+      setErr(e.message ?? "Error al guardar.");
+    }
   };
 
   const eliminar = async (s: SalaTribunal) => {
     if (!window.confirm(`¿Eliminar la sala "${s.nombreSala}"?`)) return;
     const { data } = await eliminarSala({ variables: { id: Number(s.idSala) } });
     if (!data?.eliminarSalaTribunal?.ok) {
-      alert(data?.eliminarSalaTribunal?.mensaje ?? "No se pudo eliminar."); return;
+      alert(data?.eliminarSalaTribunal?.mensaje ?? "No se pudo eliminar.");
+      return;
     }
     refetch();
   };
@@ -122,7 +248,7 @@ export default function SalasTribunalPage() {
           icon={<DoorOpen className="w-6 h-6 text-red-600 dark:text-red-400" />} sub="Fuera de servicio" />
       </div>
 
-      {/* Buscador */}
+      {/* Buscador de tabla */}
       <div className="flex justify-between items-center">
         <SearchBar value={busqueda} onChange={setBusq} placeholder="Buscar por nombre, tribunal o instancia..." />
         <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -157,35 +283,79 @@ export default function SalasTribunalPage() {
         ))}
       </TablaDesktop>
 
-      {/* Modal */}
+      {/* Modal CREAR/EDITAR con buscador de tribunales */}
       {modal && (
         <Modal
           onClose={() => setModal(false)}
           title={editando ? "Editar sala" : "Nueva sala"}
           icon={<DoorOpen className="w-5 h-5 text-purple-500" />}
         >
-          {!editando && (
-            <SelectField label="Tribunal" value={form.idTribunal} onChange={p("idTribunal")} required>
-              <option value="0">— Seleccionar tribunal —</option>
-              {tribunales.map(t => (
-                <option key={t.idTribunal} value={t.idTribunal}>{t.nombreTribunal}</option>
-              ))}
-            </SelectField>
-          )}
+          {/* Selección de tribunal - Con buscador */}
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+              Tribunal <span className="text-red-500">*</span>
+            </label>
+            {!editando ? (
+              <div>
+                {tribunalSeleccionado ? (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800">
+                    <span className="flex-1 text-sm text-gray-800 dark:text-white">{tribunalSeleccionado}</span>
+                    <button
+                      onClick={() => {
+                        setForm(f => ({ ...f, idTribunal: "0" }));
+                        setTribunalSeleccionado("");
+                      }}
+                      className="p-1 rounded-lg text-gray-500 hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setBuscadorAbierto(true)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-purple-400 dark:hover:border-purple-500 hover:text-purple-600 dark:hover:text-purple-400 transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Buscar y seleccionar tribunal
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="p-2.5 rounded-xl bg-gray-100 dark:bg-slate-700/50 text-gray-700 dark:text-gray-300 text-sm">
+                {tribunalSeleccionado || (tribunales.find(t => t.idTribunal === Number(form.idTribunal))?.nombreTribunal)}
+              </div>
+            )}
+          </div>
+
           <Field
-            label="Nombre de sala" value={form.nombreSala}
-            onChange={p("nombreSala")} required placeholder="Ej: Sala A"
+            label="Nombre de sala"
+            value={form.nombreSala}
+            onChange={p("nombreSala")}
+            required
+            placeholder="Ej: Sala A"
           />
+
           <SelectField label="Estado" value={form.activa} onChange={p("activa")}>
             <option value="true">Activa</option>
             <option value="false">Inactiva</option>
           </SelectField>
+
           <ErrorBox msg={err} />
           <ModalFooter
-            onCancel={() => setModal(false)} onSave={guardar}
+            onCancel={() => setModal(false)}
+            onSave={guardar}
             saveLabel={editando ? "Guardar cambios" : "Crear sala"}
           />
         </Modal>
+      )}
+
+      {/* Modal del buscador de tribunales */}
+      {buscadorAbierto && (
+        <BuscadorTribunal
+          onSelect={seleccionarTribunal}
+          onClose={() => setBuscadorAbierto(false)}
+        />
       )}
     </div>
   );
