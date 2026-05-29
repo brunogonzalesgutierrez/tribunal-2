@@ -86,27 +86,303 @@ const Field = ({ label, value, onChange, type = "text", placeholder = "", requir
   </div>
 );
 
-const SelectField = ({ label, value, onChange, children, required = false }: {
-  label: string; value: string | number; onChange: (v: string) => void;
-  children: React.ReactNode; required?: boolean;
-}) => (
-  <div className="mb-4">
-    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
-      {label} {required && <span className="text-red-500">*</span>}
-    </label>
-    <select
-      value={value} onChange={e => onChange(e.target.value)}
-      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
-    >
-      {children}
-    </select>
-  </div>
-);
-
 const fmtFecha = (iso?: string) => {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("es-BO", { day: "2-digit", month: "short", year: "numeric" });
 };
+
+// ============================================================
+// COMPONENTE: Buscador de Salas (Modal)
+// ============================================================
+function BuscadorSala({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: number, nombre: string) => void;
+  onClose: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const { data, loading } = useQuery(GET_SALAS_TRIBUNAL);
+
+  const salas: SalaTribunal[] = data?.allSalasTribunal ?? [];
+
+  const filtrados = salas.filter(s =>
+    `${s.nombreSala} ${s.idTribunal?.nombreTribunal || ''}`.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-blue-500" />
+            Seleccionar Sala
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar sala por nombre o tribunal..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No se encontraron salas</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtrados.map((s: SalaTribunal, index: number) => (
+                <button
+                  key={s.idSala}
+                  onClick={() => {
+                    onSelect(s.idSala, `${s.nombreSala} — ${s.idTribunal?.nombreTribunal || ''}`);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 ${
+                    index === filtrados.length - 1 ? 'mb-0' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">{s.nombreSala}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{s.idTribunal?.nombreTribunal}</p>
+                    </div>
+                    <div className="text-blue-500">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// COMPONENTE: Buscador de Tipos de Proceso (Modal)
+// ============================================================
+function BuscadorTipoProceso({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: number, nombre: string) => void;
+  onClose: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const { data, loading } = useQuery(GET_TIPOS_PROCESO);
+
+  const tipos: TipoProceso[] = data?.allTiposProceso ?? [];
+
+  const filtrados = tipos.filter(t =>
+    `${t.nombre} ${t.codigo}`.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-blue-500" />
+            Seleccionar Tipo de Proceso
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar tipo de proceso..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No se encontraron tipos de proceso</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtrados.map((t: TipoProceso, index: number) => (
+                <button
+                  key={t.idTipoProceso}
+                  onClick={() => {
+                    onSelect(t.idTipoProceso, `${t.nombre} (${t.codigo})`);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 ${
+                    index === filtrados.length - 1 ? 'mb-0' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">{t.nombre}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Código: {t.codigo}</p>
+                    </div>
+                    <div className="text-blue-500">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// COMPONENTE: Buscador de Estados (Modal)
+// ============================================================
+function BuscadorEstado({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: number, nombre: string) => void;
+  onClose: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const { data, loading } = useQuery(GET_ESTADOS_EXPEDIENTE);
+
+  const estados: EstadoExpediente[] = data?.allEstadosExpediente ?? [];
+
+  const filtrados = estados.filter(e =>
+    e.nombreEstado.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-blue-500" />
+            Seleccionar Estado
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar estado..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No se encontraron estados</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtrados.map((e: EstadoExpediente, index: number) => (
+                <button
+                  key={e.idEstado}
+                  onClick={() => {
+                    onSelect(e.idEstado, e.nombreEstado);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 ${
+                    index === filtrados.length - 1 ? 'mb-0' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">{e.nombreEstado}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                        {e.esTerminal ? '📌 Estado terminal' : '🔄 En proceso'}
+                      </p>
+                    </div>
+                    <div className="text-blue-500">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── PÁGINA PRINCIPAL ────────────────────────────────────
 export default function ExpedientesPage() {
@@ -118,6 +394,15 @@ export default function ExpedientesPage() {
   const [busqueda, setBusqueda] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [recienCreado, setRecienCreado] = useState<{ id: number; numero: string } | null>(null);
+
+  // Estados para buscadores modales
+  const [buscadorSalaAbierto, setBuscadorSalaAbierto] = useState(false);
+  const [buscadorTipoProcAbierto, setBuscadorTipoProcAbierto] = useState(false);
+  const [buscadorEstadoAbierto, setBuscadorEstadoAbierto] = useState(false);
+  
+  const [salaSeleccionada, setSalaSeleccionada] = useState("");
+  const [tipoProcSeleccionado, setTipoProcSeleccionado] = useState("");
+  const [estadoSeleccionado, setEstadoSeleccionado] = useState("");
 
   useEffect(() => {
     const id = sessionStorage.getItem("openExpedienteDetalle");
@@ -158,10 +443,30 @@ export default function ExpedientesPage() {
   const activos = expedientes.filter(e => !e.idEstadoExpediente?.esTerminal).length;
   const concluidos = expedientes.filter(e => e.idEstadoExpediente?.esTerminal).length;
 
+  const f = (field: string) => (v: string) => setForm(prev => ({ ...prev, [field]: v }));
+
+  const seleccionarSala = (id: number, nombre: string) => {
+    setForm(prev => ({ ...prev, idSala: String(id) }));
+    setSalaSeleccionada(nombre);
+  };
+
+  const seleccionarTipoProceso = (id: number, nombre: string) => {
+    setForm(prev => ({ ...prev, idTipoProceso: String(id) }));
+    setTipoProcSeleccionado(nombre);
+  };
+
+  const seleccionarEstado = (id: number, nombre: string) => {
+    setForm(prev => ({ ...prev, idEstadoExpediente: String(id) }));
+    setEstadoSeleccionado(nombre);
+  };
+
   const abrirCrear = () => {
     setEditando(null);
     setForm(initialForm);
     setRecienCreado(null);
+    setSalaSeleccionada("");
+    setTipoProcSeleccionado("");
+    setEstadoSeleccionado("");
     setModalAbierto(true);
   };
 
@@ -176,11 +481,13 @@ export default function ExpedientesPage() {
       idEstadoExpediente: exp.idEstadoExpediente ? String(exp.idEstadoExpediente.idEstado) : "0",
       descripcion: exp.descripcion ?? "",
     });
+    setSalaSeleccionada(`${exp.idSala.nombreSala} — ${exp.idSala.idTribunal?.nombreTribunal || ''}`);
+    setTipoProcSeleccionado(`${exp.idTipoProceso.nombre} (${exp.idTipoProceso.codigo})`);
+    setEstadoSeleccionado(exp.idEstadoExpediente?.nombreEstado || "");
     setModalAbierto(true);
   };
 
   const cerrarModal = () => { setModalAbierto(false); setEditando(null); };
-  const f = (field: string) => (v: string) => setForm(prev => ({ ...prev, [field]: v }));
 
   const guardar = async () => {
     if (!form.numeroExpediente || form.idSala === "0" || form.idTipoProceso === "0") {
@@ -486,7 +793,7 @@ export default function ExpedientesPage() {
         </div>
       )}
 
-      {/* MODAL CREAR/EDITAR */}
+      {/* MODAL CREAR/EDITAR CON BUSCADORES */}
       {modalAbierto && (
         <Modal onClose={cerrarModal} title={editando ? "Editar expediente" : "Nuevo expediente"}>
           <div className="space-y-4">
@@ -498,24 +805,97 @@ export default function ExpedientesPage() {
             )}
             <Field label="Número de expediente" value={form.numeroExpediente} onChange={f("numeroExpediente")} required placeholder="Ej: 001/2025" />
             <Field label="Año" value={form.ano} onChange={f("ano")} type="number" required />
-            <SelectField label="Sala del tribunal" value={form.idSala} onChange={f("idSala")} required>
-              <option value="0">— Selecciona una sala —</option>
-              {salas.map(s => (
-                <option key={s.idSala} value={s.idSala}>{s.nombreSala} — {s.idTribunal?.nombreTribunal}</option>
-              ))}
-            </SelectField>
-            <SelectField label="Tipo de proceso" value={form.idTipoProceso} onChange={f("idTipoProceso")} required>
-              <option value="0">— Selecciona tipo de proceso —</option>
-              {tiposProceso.map(t => (
-                <option key={t.idTipoProceso} value={t.idTipoProceso}>{t.nombre} ({t.codigo})</option>
-              ))}
-            </SelectField>
-            <SelectField label="Estado inicial" value={form.idEstadoExpediente} onChange={f("idEstadoExpediente")}>
-              <option value="0">— Sin estado —</option>
-              {estados.map(e => (
-                <option key={e.idEstado} value={e.idEstado}>{e.nombreEstado}</option>
-              ))}
-            </SelectField>
+            
+            {/* Sala - Con buscador */}
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                Sala del tribunal <span className="text-red-500">*</span>
+              </label>
+              {salaSeleccionada ? (
+                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+                  <span className="flex-1 text-sm text-gray-800 dark:text-white">{salaSeleccionada}</span>
+                  <button
+                    onClick={() => {
+                      setForm(prev => ({ ...prev, idSala: "0" }));
+                      setSalaSeleccionada("");
+                    }}
+                    className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setBuscadorSalaAbierto(true)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  Buscar y seleccionar sala
+                </button>
+              )}
+            </div>
+
+            {/* Tipo de Proceso - Con buscador */}
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                Tipo de proceso <span className="text-red-500">*</span>
+              </label>
+              {tipoProcSeleccionado ? (
+                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+                  <span className="flex-1 text-sm text-gray-800 dark:text-white">{tipoProcSeleccionado}</span>
+                  <button
+                    onClick={() => {
+                      setForm(prev => ({ ...prev, idTipoProceso: "0" }));
+                      setTipoProcSeleccionado("");
+                    }}
+                    className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setBuscadorTipoProcAbierto(true)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  Buscar y seleccionar tipo de proceso
+                </button>
+              )}
+            </div>
+
+            {/* Estado - Con buscador */}
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                Estado inicial
+              </label>
+              {estadoSeleccionado ? (
+                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700">
+                  <span className="flex-1 text-sm text-gray-800 dark:text-white">{estadoSeleccionado}</span>
+                  <button
+                    onClick={() => {
+                      setForm(prev => ({ ...prev, idEstadoExpediente: "0" }));
+                      setEstadoSeleccionado("");
+                    }}
+                    className="p-1 rounded-lg text-gray-500 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setBuscadorEstadoAbierto(true)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  Buscar y seleccionar estado
+                </button>
+              )}
+            </div>
+
             <div className="mb-4">
               <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Descripción</label>
               <textarea
@@ -536,6 +916,26 @@ export default function ExpedientesPage() {
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* Modales de buscadores */}
+      {buscadorSalaAbierto && (
+        <BuscadorSala
+          onSelect={seleccionarSala}
+          onClose={() => setBuscadorSalaAbierto(false)}
+        />
+      )}
+      {buscadorTipoProcAbierto && (
+        <BuscadorTipoProceso
+          onSelect={seleccionarTipoProceso}
+          onClose={() => setBuscadorTipoProcAbierto(false)}
+        />
+      )}
+      {buscadorEstadoAbierto && (
+        <BuscadorEstado
+          onSelect={seleccionarEstado}
+          onClose={() => setBuscadorEstadoAbierto(false)}
+        />
       )}
 
     </div>
