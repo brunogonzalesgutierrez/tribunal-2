@@ -34,6 +34,9 @@ import ExpedientesPage from "./pages/expedientes/ExpedientesPage";
 import HistorialEstadosPage from "./pages/expedientes/HistorialEstadosPage";
 import ActuacionesPage from "./pages/expedientes/ActuacionesPage";
 import ReportesPage from "./pages/reportes/ReportesPage";
+
+
+import ExpedienteDetallePage from "./pages/expedientes/ExpedienteDetallePage";
 // import TiposProcesoPage from "./pages/catalogos/TiposProcesoPage";
 // import TiposActuacionPage from "./pages/expedientes/TiposActuacionPage";
 // import EstadosExpedientePage from "./pages/expedientes/EstadosExpedientePage";
@@ -95,6 +98,9 @@ function App() {
           </Route>
           <Route element={<ProtectedRoute requiredPermissions={[PERMISOS.ACTUACIONES_VER]} />}>
             <Route path="/actuaciones" element={<ActuacionesPage />} />
+          </Route>
+          <Route element={<ProtectedRoute requiredPermissions={[PERMISOS.EXPEDIENTES_VER]} />}>
+            <Route path="/expedientes/:id" element={<ExpedienteDetallePage />} />
           </Route>
 
           {/* ============================================================ */}
