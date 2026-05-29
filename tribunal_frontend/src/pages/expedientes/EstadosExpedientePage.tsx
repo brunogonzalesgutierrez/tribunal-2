@@ -97,7 +97,7 @@ export default function EstadosExpedientePage() {
     if (!form.nombreEstado) { toast.error("El nombre del estado es obligatorio."); return; }
     if (editando) {
       await executeUpdate(async () => {
-        await actualizarEstado({ variables: { id: editando.idEstado, nombreEstado: form.nombreEstado, esTerminal: form.esTerminal } });
+        await actualizarEstado({ variables: { id: Number(editando.idEstado), nombreEstado: form.nombreEstado, esTerminal: form.esTerminal } });
         await refetch(); cerrar(); return true;
       });
     } else {
@@ -111,7 +111,7 @@ export default function EstadosExpedientePage() {
   const eliminar = async (id: number, nombre: string) => {
     await executeDelete(
       async () => {
-        const { data } = await eliminarEstado({ variables: { id } });
+         const { data } = await eliminarEstado({ variables: { id: Number(id) } });
         if (!data?.eliminarEstadoExpediente?.ok) throw new Error(data?.eliminarEstadoExpediente?.mensaje ?? "Error");
         await refetch(); return true;
       },

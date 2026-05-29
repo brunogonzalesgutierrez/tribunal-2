@@ -97,7 +97,7 @@ export default function TiposActuacionPage() {
   const eliminar = async (id: number, nombre: string) => {
     await executeDelete(
       async () => {
-        const { data } = await eliminarTipo({ variables: { id } });
+        const { data } = await eliminarTipo({ variables: { id: Number(id) } });
         if (!data?.eliminarTipoActuacion?.ok) throw new Error(data?.eliminarTipoActuacion?.mensaje ?? "Error");
         await refetch(); return true;
       },

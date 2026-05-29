@@ -98,7 +98,7 @@ export default function TiposProcesoPage() {
     }
     if (editando) {
       await executeUpdate(async () => {
-        await actualizarTipo({ variables: { id: editando.idTipoProceso, nombre: form.nombre, codigo: form.codigo } });
+        await actualizarTipo({ variables: { id: Number(editando.idTipoProceso), nombre: form.nombre, codigo: form.codigo } });
         await refetch(); cerrar(); return true;
       });
     } else {
@@ -112,7 +112,7 @@ export default function TiposProcesoPage() {
   const eliminar = async (id: number, nombre: string) => {
     await executeDelete(
       async () => {
-        const { data } = await eliminarTipo({ variables: { id } });
+        const { data } = await eliminarTipo({ variables: { id: Number(id) } });
         if (!data?.eliminarTipoProceso?.ok) throw new Error(data?.eliminarTipoProceso?.mensaje ?? "Error");
         await refetch(); return true;
       },

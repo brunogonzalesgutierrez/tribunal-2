@@ -2328,7 +2328,7 @@ class ValidateUser(graphene.Mutation):
                 'email': usuario.email,
                 'username': usuario.username,
                 'rol': usuario.rol.nombre,
-                'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24)
+                'exp': datetime.utcnow() + timedelta(hours=24)
             },
             settings.SECRET_KEY,
             algorithm='HS256'
