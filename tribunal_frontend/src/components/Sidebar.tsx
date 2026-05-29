@@ -13,7 +13,8 @@ import {
   History, ClipboardList, DoorOpen, Tag, Bell, Phone, Building2, Link2,
   UserCircle
 } from 'lucide-react';
-import { LucideIcon } from 'lucide-react';
+import { LucideIcon, Flag, Layers,  // ← agregar estos dos
+} from 'lucide-react';
 import { PERMISOS } from '../config/permisos';
 
 // ── Query de badges ────────────────────────────────────────
@@ -219,11 +220,13 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
     { 
       name: 'Expedientes', icon: Folder, type: 'dropdown',
       description: 'Gestión de expedientes',
-      active: isSubmenuActive(['/expedientes', '/historial', '/actuaciones']),
+      active: isSubmenuActive(['/expedientes', '/historial', '/actuaciones', '/tipos-actuacion', '/estados-expediente']),
       submenu: [
-        { name: 'Lista de Expedientes', path: '/expedientes', icon: Folder,      requiredPermissions: [PERMISOS.EXPEDIENTES_VER], badgeKey: 'expedientesActivos' },
-        { name: 'Historial de Estados', path: '/historial',   icon: History,     requiredPermissions: [PERMISOS.EXPEDIENTES_VER] },
-        { name: 'Actuaciones',          path: '/actuaciones', icon: FileText,    requiredPermissions: [PERMISOS.EXPEDIENTES_VER] },
+        { name: 'Lista de Expedientes', path: '/expedientes',        icon: Folder,        requiredPermissions: [PERMISOS.EXPEDIENTES_VER],        badgeKey: 'expedientesActivos' },
+        { name: 'Historial de Estados', path: '/historial',          icon: History,       requiredPermissions: [PERMISOS.HISTORIAL_ESTADOS_VER]   },
+        { name: 'Actuaciones',          path: '/actuaciones',        icon: FileText,      requiredPermissions: [PERMISOS.ACTUACIONES_VER]         },
+        { name: 'Tipos de Actuación',   path: '/tipos-actuacion',    icon: ClipboardList, requiredPermissions: [PERMISOS.TIPOS_ACTUACION_VER]     },
+        { name: 'Estados',              path: '/estados-expediente', icon: Flag,          requiredPermissions: [PERMISOS.ESTADOS_EXPEDIENTE_VER]  },
       ],
     },
     {
@@ -280,6 +283,14 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
         { name: 'Tipos de Resolución',path: '/tipos-resolucion',icon: Tag,  requiredPermissions: [PERMISOS.TIPOS_RESOLUCION_VER]},
         { name: 'Tipos de Recurso',  path: '/tipos-recurso',   icon: Tag,  requiredPermissions: [PERMISOS.TIPOS_RECURSO_VER]   },
         { name: 'Recursos',          path: '/recursos',        icon: Gavel,requiredPermissions: [PERMISOS.RECURSOS_VER]        },
+      ],
+    },
+    {
+      name: 'Catálogos', icon: Layers, type: 'dropdown',
+      description: 'Tablas de configuración',
+      active: isSubmenuActive(['/tipos-proceso']),
+      submenu: [
+        { name: 'Tipos de Proceso', path: '/tipos-proceso', icon: Layers, requiredPermissions: [PERMISOS.TIPOS_PROCESO_VER] },
       ],
     },
     { 

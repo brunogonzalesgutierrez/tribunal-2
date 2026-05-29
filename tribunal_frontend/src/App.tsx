@@ -34,12 +34,12 @@ import ExpedientesPage from "./pages/expedientes/ExpedientesPage";
 import HistorialEstadosPage from "./pages/expedientes/HistorialEstadosPage";
 import ActuacionesPage from "./pages/expedientes/ActuacionesPage";
 import ReportesPage from "./pages/reportes/ReportesPage";
-
-
 import ExpedienteDetallePage from "./pages/expedientes/ExpedienteDetallePage";
-// import TiposProcesoPage from "./pages/catalogos/TiposProcesoPage";
-// import TiposActuacionPage from "./pages/expedientes/TiposActuacionPage";
-// import EstadosExpedientePage from "./pages/expedientes/EstadosExpedientePage";
+
+// ── Nuevas páginas de catálogos ──────────────────────────
+import TiposProcesoPage     from "./pages/catalogos/TiposProcesoPage";
+import TiposActuacionPage   from "./pages/expedientes/TiposActuacionPage";
+import EstadosExpedientePage from "./pages/expedientes/EstadosExpedientePage";
 
 function App() {
   return (
@@ -56,7 +56,7 @@ function App() {
           <Route path="/perfil" element={<PerfilPage />} />
 
           {/* ============================================================ */}
-          {/* SEGURIDAD - Cada ruta con su propio permiso */}
+          {/* SEGURIDAD */}
           {/* ============================================================ */}
           <Route element={<ProtectedRoute requiredPermissions={[PERMISOS.USUARIOS_VER]} />}>
             <Route path="/usuarios" element={<UsuariosPage />} />
@@ -69,7 +69,7 @@ function App() {
           </Route>
 
           {/* ============================================================ */}
-          {/* TRIBUNAL - Cada ruta con su propio permiso */}
+          {/* TRIBUNAL */}
           {/* ============================================================ */}
           <Route element={<ProtectedRoute requiredPermissions={[PERMISOS.TRIBUNALES_VER]} />}>
             <Route path="/tribunales" element={<TribunalesPage />} />
@@ -88,10 +88,13 @@ function App() {
           </Route>
 
           {/* ============================================================ */}
-          {/* EXPEDIENTES - Cada ruta con su propio permiso */}
+          {/* EXPEDIENTES */}
           {/* ============================================================ */}
           <Route element={<ProtectedRoute requiredPermissions={[PERMISOS.EXPEDIENTES_VER]} />}>
             <Route path="/expedientes" element={<ExpedientesPage />} />
+          </Route>
+          <Route element={<ProtectedRoute requiredPermissions={[PERMISOS.EXPEDIENTES_VER]} />}>
+            <Route path="/expedientes/:id" element={<ExpedienteDetallePage />} />
           </Route>
           <Route element={<ProtectedRoute requiredPermissions={[PERMISOS.HISTORIAL_ESTADOS_VER]} />}>
             <Route path="/historial" element={<HistorialEstadosPage />} />
@@ -99,12 +102,9 @@ function App() {
           <Route element={<ProtectedRoute requiredPermissions={[PERMISOS.ACTUACIONES_VER]} />}>
             <Route path="/actuaciones" element={<ActuacionesPage />} />
           </Route>
-          <Route element={<ProtectedRoute requiredPermissions={[PERMISOS.EXPEDIENTES_VER]} />}>
-            <Route path="/expedientes/:id" element={<ExpedienteDetallePage />} />
-          </Route>
 
           {/* ============================================================ */}
-          {/* AUDIENCIAS - Cada ruta con su propio permiso */}
+          {/* AUDIENCIAS */}
           {/* ============================================================ */}
           <Route element={<ProtectedRoute requiredPermissions={[PERMISOS.AUDIENCIAS_VER]} />}>
             <Route path="/audiencias" element={<AudienciasListPage />} />
@@ -120,7 +120,7 @@ function App() {
           </Route>
 
           {/* ============================================================ */}
-          {/* RESOLUCIONES - Cada ruta con su propio permiso */}
+          {/* RESOLUCIONES */}
           {/* ============================================================ */}
           <Route element={<ProtectedRoute requiredPermissions={[PERMISOS.RESOLUCIONES_VER]} />}>
             <Route path="/resoluciones" element={<ResolucionesListPage />} />
@@ -136,7 +136,7 @@ function App() {
           </Route>
 
           {/* ============================================================ */}
-          {/* DOCUMENTOS - Cada ruta con su propio permiso */}
+          {/* DOCUMENTOS */}
           {/* ============================================================ */}
           <Route element={<ProtectedRoute requiredPermissions={[PERMISOS.DOCUMENTOS_VER]} />}>
             <Route path="/documentos" element={<DocumentosListPage />} />
@@ -152,7 +152,7 @@ function App() {
           </Route>
 
           {/* ============================================================ */}
-          {/* PERSONAS - Cada ruta con su propio permiso */}
+          {/* PERSONAS */}
           {/* ============================================================ */}
           <Route element={<ProtectedRoute requiredPermissions={[PERMISOS.PERSONAS_VER]} />}>
             <Route path="/personas" element={<PersonasListPage />} />
@@ -168,9 +168,9 @@ function App() {
           </Route>
 
           {/* ============================================================ */}
-          {/* CATÁLOGOS - Cada ruta con su propio permiso */}
+          {/* CATÁLOGOS */}
           {/* ============================================================ */}
-          {/* <Route element={<ProtectedRoute requiredPermissions={[PERMISOS.TIPOS_PROCESO_VER]} />}>
+          <Route element={<ProtectedRoute requiredPermissions={[PERMISOS.TIPOS_PROCESO_VER]} />}>
             <Route path="/tipos-proceso" element={<TiposProcesoPage />} />
           </Route>
           <Route element={<ProtectedRoute requiredPermissions={[PERMISOS.TIPOS_ACTUACION_VER]} />}>
@@ -178,7 +178,7 @@ function App() {
           </Route>
           <Route element={<ProtectedRoute requiredPermissions={[PERMISOS.ESTADOS_EXPEDIENTE_VER]} />}>
             <Route path="/estados-expediente" element={<EstadosExpedientePage />} />
-          </Route> */}
+          </Route>
 
           {/* ============================================================ */}
           {/* REPORTES */}
