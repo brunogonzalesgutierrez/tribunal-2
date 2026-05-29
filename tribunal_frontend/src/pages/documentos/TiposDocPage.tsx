@@ -13,6 +13,8 @@ import {
   Modal, Field, CheckboxField, ErrorBox, ModalFooter,
   StatCard, TablaDesktop, ActionBtns, SearchBar,
 } from "./shared";
+import { useCrudNotifications } from "../../hooks/useCrudNotifications";
+import { useToast } from "../../context/ToastContext";
 
 const initForm = {
   codigo: "",
@@ -27,6 +29,9 @@ export default function TiposDocPage() {
   const [crearTipoDoc]      = useMutation(CREAR_TIPO_DOC);
   const [actualizarTipoDoc] = useMutation(ACTUALIZAR_TIPO_DOC);
   const [eliminarTipoDoc]   = useMutation(ELIMINAR_TIPO_DOC);
+
+  // ✅ HOOK DE NOTIFICACIONES
+  const { executeCreate, executeUpdate, executeDelete, toast } = useCrudNotifications("Tipo de Documento");
 
   const [modal, setModal]   = useState(false);
   const [editando, setEdit] = useState<TipoDoc | null>(null);
@@ -46,7 +51,13 @@ export default function TiposDocPage() {
   const f = (k: string) => (v: string) => setForm(p => ({ ...p, [k]: v }));
   const fb = (k: string) => (v: boolean) => setForm(p => ({ ...p, [k]: v }));
 
-  const abrirCrear = () => { setEdit(null); setForm(initForm); setErr(""); setModal(true); };
+  const abrirCrear = () => { 
+    setEdit(null); 
+    setForm(initForm); 
+    setErr(""); 
+    setModal(true); 
+  };
+  
   const abrirEditar = (t: TipoDoc) => {
     setEdit(t);
     setForm({
@@ -56,47 +67,75 @@ export default function TiposDocPage() {
       requiereFirma: t.requiereFirma,
       esPublico:    t.esPublico,
     });
-    setErr(""); setModal(true);
+    setErr(""); 
+    setModal(true);
   };
 
+  // ✅ GUARDAR CON NOTIFICACIONES
   const guardar = async () => {
-    if (!form.codigo || !form.nombre) { setErr("Código y nombre son obligatorios."); return; }
+    if (!form.codigo || !form.nombre) { 
+      toast.error("Código y nombre son obligatorios."); 
+      return; 
+    }
+    
     try {
       if (editando) {
-        await actualizarTipoDoc({
-          variables: {
-            id: Number(editando.idTipoDoc),
-            input: {
+        await executeUpdate(async () => {
+          await actualizarTipoDoc({
+            variables: {
+              id: Number(editando.idTipoDoc),
+              input: {
+                codigo:       form.codigo,
+                nombre:       form.nombre,
+                descripcion:  form.descripcion || undefined,
+                requiereFirma: form.requiereFirma,
+                esPublico:    form.esPublico,
+              },
+            },
+          });
+          await refetch(); 
+          setModal(false);
+          return true;
+        });
+      } else {
+        await executeCreate(async () => {
+          await crearTipoDoc({
+            variables: {
               codigo:       form.codigo,
               nombre:       form.nombre,
               descripcion:  form.descripcion || undefined,
               requiereFirma: form.requiereFirma,
               esPublico:    form.esPublico,
             },
-          },
-        });
-      } else {
-        await crearTipoDoc({
-          variables: {
-            codigo:       form.codigo,
-            nombre:       form.nombre,
-            descripcion:  form.descripcion || undefined,
-            requiereFirma: form.requiereFirma,
-            esPublico:    form.esPublico,
-          },
+          });
+          await refetch(); 
+          setModal(false);
+          return true;
         });
       }
-      await refetch(); setModal(false);
-    } catch (e: any) { setErr(e.message ?? "Error."); }
+    } catch (e: any) { 
+      setErr(e.message ?? "Error."); 
+    }
   };
 
+  // ✅ ELIMINAR CON NOTIFICACIONES
   const eliminar = async (t: TipoDoc) => {
-    if (!window.confirm(`¿Eliminar el tipo "${t.nombre}"?`)) return;
-    const { data } = await eliminarTipoDoc({ variables: { id: Number(t.idTipoDoc) } });
-    if (!data?.eliminarTipoDoc?.ok) {
-      alert(data?.eliminarTipoDoc?.mensaje ?? "No se pudo eliminar."); return;
-    }
-    refetch();
+    await executeDelete(
+      async () => {
+        const { data } = await eliminarTipoDoc({ variables: { id: Number(t.idTipoDoc) } });
+        if (!data?.eliminarTipoDoc?.ok) {
+          throw new Error(data?.eliminarTipoDoc?.mensaje ?? "No se pudo eliminar.");
+        }
+        await refetch();
+        return true;
+      },
+      {
+        loading: `Eliminando tipo "${t.nombre}"...`,
+        success: `Tipo "${t.nombre}" eliminado exitosamente`,
+        error: `Error al eliminar el tipo "${t.nombre}"`,
+      },
+      `¿Eliminar el tipo de documento "${t.nombre}"?`
+    );
   };
 
   return (
@@ -212,7 +251,8 @@ export default function TiposDocPage() {
           <CheckboxField label="Es público" value={form.esPublico} onChange={fb("esPublico")} />
           <ErrorBox msg={err} />
           <ModalFooter
-            onCancel={() => setModal(false)} onSave={guardar}
+            onCancel={() => setModal(false)} 
+            onSave={guardar}
             saveLabel={editando ? "Guardar cambios" : "Crear tipo"}
           />
         </Modal>

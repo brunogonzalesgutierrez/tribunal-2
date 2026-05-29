@@ -18,6 +18,8 @@ import {
   Modal, Field, SelectField, ErrorBox, ModalFooter,
   StatCard, TablaDesktop, ActionBtns, SearchBar,
 } from "./shared";
+import { useCrudNotifications } from "../../hooks/useCrudNotifications";
+import { useToast } from "../../context/ToastContext";
 
 // ─── URL base del backend ─────────────────────────────────
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api";
@@ -112,7 +114,201 @@ function DropZone({ archivo, onArchivo }: DropZoneProps) {
   );
 }
 
-// ─── MODAL SUBIR DOCUMENTO ────────────────────────────────
+// ============================================================
+// COMPONENTE: Buscador de Expedientes (Modal)
+// ============================================================
+function BuscadorExpediente({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: number, nombre: string) => void;
+  onClose: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const { data, loading } = useQuery(GET_EXPEDIENTES_SIMPLE);
+
+  const expedientes: Expediente[] = data?.allExpedientes ?? [];
+
+  const filtrados = expedientes.filter(e =>
+    `${e.numeroExpediente} ${e.ano}`.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-blue-500" />
+            Seleccionar Expediente
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar expediente por número..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No se encontraron expedientes</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtrados.map((e: Expediente, index: number) => (
+                <button
+                  key={e.idExpediente}
+                  onClick={() => {
+                    onSelect(e.idExpediente, `${e.numeroExpediente} (${e.ano})`);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 ${
+                    index === filtrados.length - 1 ? 'mb-0' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">{e.numeroExpediente}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Año: {e.ano}</p>
+                    </div>
+                    <div className="text-blue-500">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// COMPONENTE: Buscador de Tipos de Documento (Modal)
+// ============================================================
+function BuscadorTipoDocumento({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: number, nombre: string) => void;
+  onClose: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const { data, loading } = useQuery(GET_TIPOS_DOC);
+
+  const tipos: TipoDoc[] = data?.allTiposDoc ?? [];
+
+  const filtrados = tipos.filter(t =>
+    `${t.codigo} ${t.nombre}`.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-blue-500" />
+            Seleccionar Tipo de Documento
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar tipo de documento..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No se encontraron tipos de documento</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtrados.map((t: TipoDoc, index: number) => (
+                <button
+                  key={t.idTipoDoc}
+                  onClick={() => {
+                    onSelect(t.idTipoDoc, `${t.codigo} - ${t.nombre}`);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 ${
+                    index === filtrados.length - 1 ? 'mb-0' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">{t.nombre}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Código: {t.codigo}</p>
+                    </div>
+                    <div className="text-blue-500">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── MODAL SUBIR DOCUMENTO (ACTUALIZADO CON BUSCADORES) ───
 interface ModalSubirProps {
   expedientes: Expediente[];
   tipos: TipoDoc[];
@@ -128,8 +324,22 @@ function ModalSubirDocumento({ expedientes, tipos, onClose, onExito }: ModalSubi
   const [subiendo, setSubiendo] = useState(false);
   const [progreso, setProgreso] = useState(0);
   const [err, setErr] = useState("");
+  const [buscadorExpAbierto, setBuscadorExpAbierto] = useState(false);
+  const [buscadorTipoAbierto, setBuscadorTipoAbierto] = useState(false);
+  const [expedienteSeleccionado, setExpedienteSeleccionado] = useState("");
+  const [tipoSeleccionado, setTipoSeleccionado] = useState("");
 
   const f = (k: string) => (v: string) => setForm(p => ({ ...p, [k]: v }));
+
+  const seleccionarExpediente = (id: number, nombre: string) => {
+    setForm(p => ({ ...p, idExpediente: String(id) }));
+    setExpedienteSeleccionado(nombre);
+  };
+
+  const seleccionarTipo = (id: number, nombre: string) => {
+    setForm(p => ({ ...p, idTipoDoc: String(id) }));
+    setTipoSeleccionado(nombre);
+  };
 
   const handleSubir = async () => {
     if (!form.titulo.trim()) { setErr("El título es obligatorio."); return; }
@@ -147,7 +357,6 @@ function ModalSubirDocumento({ expedientes, tipos, onClose, onExito }: ModalSubi
       formData.append("idTipoDoc",     form.idTipoDoc);
       if (form.numeroFolio) formData.append("numeroFolio", form.numeroFolio);
 
-      // XHR para mostrar progreso real
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open("POST", `${API_URL}/subir-documento/`);
@@ -180,23 +389,65 @@ function ModalSubirDocumento({ expedientes, tipos, onClose, onExito }: ModalSubi
       <Field label="Título del documento" value={form.titulo} onChange={f("titulo")} required
         placeholder="Ej: Demanda inicial, Resolución 04..." />
 
-      <SelectField label="Expediente" value={form.idExpediente} onChange={f("idExpediente")} required>
-        <option value="">— Seleccionar expediente —</option>
-        {expedientes.map(e => (
-          <option key={e.idExpediente} value={e.idExpediente}>
-            {e.numeroExpediente} ({e.ano})
-          </option>
-        ))}
-      </SelectField>
+      {/* Expediente - Con buscador */}
+      <div className="mb-4">
+        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+          Expediente <span className="text-red-500">*</span>
+        </label>
+        {expedienteSeleccionado ? (
+          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+            <span className="flex-1 text-sm text-gray-800 dark:text-white">{expedienteSeleccionado}</span>
+            <button
+              onClick={() => {
+                setForm(p => ({ ...p, idExpediente: "" }));
+                setExpedienteSeleccionado("");
+              }}
+              className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setBuscadorExpAbierto(true)}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            Buscar y seleccionar expediente
+          </button>
+        )}
+      </div>
 
-      <SelectField label="Tipo de documento" value={form.idTipoDoc} onChange={f("idTipoDoc")} required>
-        <option value="">— Seleccionar tipo —</option>
-        {tipos.map(t => (
-          <option key={t.idTipoDoc} value={t.idTipoDoc}>
-            {t.codigo} - {t.nombre}
-          </option>
-        ))}
-      </SelectField>
+      {/* Tipo de documento - Con buscador */}
+      <div className="mb-4">
+        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+          Tipo de documento <span className="text-red-500">*</span>
+        </label>
+        {tipoSeleccionado ? (
+          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+            <span className="flex-1 text-sm text-gray-800 dark:text-white">{tipoSeleccionado}</span>
+            <button
+              onClick={() => {
+                setForm(p => ({ ...p, idTipoDoc: "" }));
+                setTipoSeleccionado("");
+              }}
+              className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setBuscadorTipoAbierto(true)}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            Buscar y seleccionar tipo de documento
+          </button>
+        )}
+      </div>
 
       <Field label="Número de folio" value={form.numeroFolio} onChange={f("numeroFolio")} type="number" />
 
@@ -237,6 +488,20 @@ function ModalSubirDocumento({ expedientes, tipos, onClose, onExito }: ModalSubi
           {subiendo ? "Subiendo..." : "Subir a bóveda"}
         </button>
       </div>
+
+      {/* Modales de buscadores internos */}
+      {buscadorExpAbierto && (
+        <BuscadorExpediente
+          onSelect={seleccionarExpediente}
+          onClose={() => setBuscadorExpAbierto(false)}
+        />
+      )}
+      {buscadorTipoAbierto && (
+        <BuscadorTipoDocumento
+          onSelect={seleccionarTipo}
+          onClose={() => setBuscadorTipoAbierto(false)}
+        />
+      )}
     </Modal>
   );
 }
@@ -256,6 +521,9 @@ export default function DocumentosListPage() {
   const { data: dataTipo }         = useQuery(GET_TIPOS_DOC);
   const [actualizarDocumento] = useMutation(ACTUALIZAR_DOCUMENTO);
   const [eliminarDocumento]   = useMutation(ELIMINAR_DOCUMENTO);
+
+  // ✅ HOOK DE NOTIFICACIONES
+  const { executeUpdate, executeDelete, toast } = useCrudNotifications("Documento");
 
   // Modales
   const [modalSubir, setModalSubir]   = useState(false);
@@ -297,9 +565,14 @@ export default function DocumentosListPage() {
     setErr(""); setModalEditar(true);
   };
 
+  // ✅ GUARDAR EDICIÓN CON NOTIFICACIONES
   const guardarEdicion = async () => {
-    if (!formEditar.titulo.trim()) { setErr("El título es obligatorio."); return; }
-    try {
+    if (!formEditar.titulo.trim()) { 
+      toast.error("El título es obligatorio."); 
+      return; 
+    }
+    
+    await executeUpdate(async () => {
       await actualizarDocumento({
         variables: {
           id: Number(editando!.idDocumento),
@@ -310,21 +583,37 @@ export default function DocumentosListPage() {
           },
         },
       });
-      await refetch(); setModalEditar(false);
-    } catch (e: any) { setErr(e.message ?? "Error."); }
+      await refetch(); 
+      setModalEditar(false);
+      return true;
+    });
   };
 
+  // ✅ ELIMINAR CON NOTIFICACIONES
   const eliminar = async (d: Documento) => {
-    if (!window.confirm(`¿Eliminar el documento "${d.titulo}"?`)) return;
-    const { data } = await eliminarDocumento({ variables: { id: Number(d.idDocumento) } });
-    if (!data?.eliminarDocumento?.ok) {
-      alert(data?.eliminarDocumento?.mensaje ?? "No se pudo eliminar."); return;
-    }
-    refetch();
+    await executeDelete(
+      async () => {
+        const { data } = await eliminarDocumento({ variables: { id: Number(d.idDocumento) } });
+        if (!data?.eliminarDocumento?.ok) {
+          throw new Error(data?.eliminarDocumento?.mensaje ?? "No se pudo eliminar.");
+        }
+        await refetch();
+        return true;
+      },
+      {
+        loading: `Eliminando documento "${d.titulo}"...`,
+        success: `Documento "${d.titulo}" eliminado exitosamente`,
+        error: `Error al eliminar el documento`,
+      },
+      `¿Eliminar el documento "${d.titulo}"?`
+    );
   };
 
   const verArchivo = (d: Documento) => {
-    if (!d.rutaArchivo) { alert("Este documento no tiene archivo adjunto."); return; }
+    if (!d.rutaArchivo) { 
+      toast.error("Este documento no tiene archivo adjunto."); 
+      return; 
+    }
     window.open(`${API_URL}/documento/${d.idDocumento}/descargar/`, "_blank");
   };
 
@@ -414,7 +703,6 @@ export default function DocumentosListPage() {
             <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 font-mono">
               {fmtFecha(d.fechaPresentacion)}
             </td>
-            {/* Columna archivo — nueva */}
             <td className="px-6 py-4">
               {d.rutaArchivo ? (
                 <div className="flex items-center gap-1.5">

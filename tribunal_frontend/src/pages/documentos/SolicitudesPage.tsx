@@ -7,8 +7,10 @@ import {
   ELIMINAR_SOLICITUD,
 } from "../../graphql/solicitudes";
 import {
-  ClipboardList, Plus, Eye, Trash2, Clock, CheckCircle, XCircle, X, AlertCircle,
+  ClipboardList, Plus, Eye, Trash2, Clock, CheckCircle, XCircle, X, AlertCircle, Search,
 } from "lucide-react";
+import { useCrudNotifications } from "../../hooks/useCrudNotifications";
+import { useToast } from "../../context/ToastContext";
 
 // ════════════════════════════════════════════════════════
 // TIPOS
@@ -170,25 +172,6 @@ const Field = ({
   </div>
 );
 
-const SelectField = ({
-  label, value, onChange, children, required = false,
-}: {
-  label: string; value: string; onChange: (v: string) => void;
-  children: React.ReactNode; required?: boolean;
-}) => (
-  <div className="mb-4">
-    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
-      {label} {required && <span className="text-red-500">*</span>}
-    </label>
-    <select
-      value={value} onChange={e => onChange(e.target.value)}
-      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
-    >
-      {children}
-    </select>
-  </div>
-);
-
 const TextareaField = ({
   label, value, onChange, placeholder = "",
 }: {
@@ -211,6 +194,104 @@ const ErrorBox = ({ msg }: { msg: string }) =>
     </div>
   ) : null;
 
+// ============================================================
+// COMPONENTE: Buscador de Usuarios (Modal)
+// ============================================================
+function BuscadorUsuario({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: number, nombre: string) => void;
+  onClose: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const { data, loading } = useQuery(GET_USUARIOS_SIMPLE);
+
+  const usuarios: Usuario[] = data?.allUsuarios ?? [];
+
+  const filtrados = usuarios.filter(u =>
+    u.activo &&
+    `${u.nombres} ${u.paterno} ${u.email}`.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-blue-500" />
+            Seleccionar Usuario
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar por nombre, apellido o email..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No se encontraron usuarios</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtrados.map((u: Usuario, index: number) => (
+                <button
+                  key={u.idUsuario}
+                  onClick={() => {
+                    onSelect(u.idUsuario, `${u.nombres} ${u.paterno} (${u.email})`);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 ${
+                    index === filtrados.length - 1 ? 'mb-0' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">{u.nombres} {u.paterno}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{u.email}</p>
+                    </div>
+                    <div className="text-blue-500">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ════════════════════════════════════════════════════════
 // MODAL DETALLE (solo lectura)
 // ════════════════════════════════════════════════════════
@@ -222,12 +303,10 @@ function DetalleModal({ solicitud, onClose }: { solicitud: Solicitud; onClose: (
       title={`Solicitud #${solicitud.idSolicitud}`}
       icon={<ClipboardList className="w-5 h-5 text-blue-500" />}
     >
-      {/* Estado */}
       <div className="flex justify-end mb-4">
         <EstadoBadge estado={solicitud.estadoSolicitud} />
       </div>
 
-      {/* Códigos */}
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div className="bg-gray-50 dark:bg-slate-900/60 rounded-xl border border-gray-200 dark:border-slate-700 p-3">
           <p className="text-xs text-gray-400 mb-1">Código IANUS</p>
@@ -239,7 +318,6 @@ function DetalleModal({ solicitud, onClose }: { solicitud: Solicitud; onClose: (
         </div>
       </div>
 
-      {/* Usuario */}
       <div className="bg-gray-50 dark:bg-slate-900/60 rounded-xl border border-gray-200 dark:border-slate-700 p-3 mb-4">
         <p className="text-xs text-gray-400 mb-1">Usuario solicitante</p>
         <p className="font-semibold text-gray-800 dark:text-white text-sm">
@@ -248,7 +326,6 @@ function DetalleModal({ solicitud, onClose }: { solicitud: Solicitud; onClose: (
         <p className="text-xs text-gray-400 mt-0.5">{solicitud.usuario.email}</p>
       </div>
 
-      {/* Fechas */}
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div>
           <p className="text-xs text-gray-400 mb-1">Fecha de solicitud</p>
@@ -260,7 +337,6 @@ function DetalleModal({ solicitud, onClose }: { solicitud: Solicitud; onClose: (
         </div>
       </div>
 
-      {/* Observación */}
       {solicitud.observacion && (
         <div className="bg-gray-50 dark:bg-slate-900/60 rounded-xl border border-gray-200 dark:border-slate-700 p-3 mb-4">
           <p className="text-xs text-gray-400 mb-1">Observación</p>
@@ -281,7 +357,7 @@ function DetalleModal({ solicitud, onClose }: { solicitud: Solicitud; onClose: (
 }
 
 // ════════════════════════════════════════════════════════
-// MODAL NUEVA SOLICITUD
+// MODAL NUEVA SOLICITUD (con buscador de usuarios)
 // ════════════════════════════════════════════════════════
 
 const initForm = { idUsuario: "", codigoIanus: "", codigoSala: "", observacion: "" };
@@ -293,15 +369,25 @@ function NuevaSolicitudModal({
 }) {
   const [form, setForm]   = useState(initForm);
   const [err, setErr]     = useState("");
+  const [buscadorUsuarioAbierto, setBuscadorUsuarioAbierto] = useState(false);
+  const [usuarioSeleccionado, setUsuarioSeleccionado] = useState("");
   const [crearSolicitud]  = useMutation(CREAR_SOLICITUD);
+  const { executeCreate, toast } = useCrudNotifications("Solicitud");
 
   const f = (k: string) => (v: string) => setForm(p => ({ ...p, [k]: v }));
 
+  const seleccionarUsuario = (id: number, nombre: string) => {
+    setForm(p => ({ ...p, idUsuario: String(id) }));
+    setUsuarioSeleccionado(nombre);
+  };
+
   const guardar = async () => {
     if (!form.idUsuario || !form.codigoIanus || !form.codigoSala) {
-      setErr("Usuario, código IANUS y código de sala son obligatorios."); return;
+      toast.error("Usuario, código IANUS y código de sala son obligatorios.");
+      return;
     }
-    try {
+    
+    await executeCreate(async () => {
       await crearSolicitud({
         variables: {
           idUsuario:   Number(form.idUsuario),
@@ -311,7 +397,9 @@ function NuevaSolicitudModal({
         },
       });
       onGuardado();
-    } catch (e: any) { setErr(e.message ?? "Error al guardar."); }
+      setUsuarioSeleccionado("");
+      return true;
+    });
   };
 
   return (
@@ -320,17 +408,40 @@ function NuevaSolicitudModal({
       title="Nueva solicitud de actualización"
       icon={<ClipboardList className="w-5 h-5 text-blue-500" />}
     >
-      <SelectField label="Usuario solicitante" value={form.idUsuario} onChange={f("idUsuario")} required>
-        <option value="">— Seleccionar usuario —</option>
-        {usuarios.filter(u => u.activo).map(u => (
-          <option key={u.idUsuario} value={u.idUsuario}>
-            {u.nombres} {u.paterno} — {u.email}
-          </option>
-        ))}
-      </SelectField>
+      {/* Usuario - Con buscador */}
+      <div className="mb-4">
+        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+          Usuario solicitante <span className="text-red-500">*</span>
+        </label>
+        {usuarioSeleccionado ? (
+          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+            <span className="flex-1 text-sm text-gray-800 dark:text-white">{usuarioSeleccionado}</span>
+            <button
+              onClick={() => {
+                setForm(p => ({ ...p, idUsuario: "" }));
+                setUsuarioSeleccionado("");
+              }}
+              className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setBuscadorUsuarioAbierto(true)}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            Buscar y seleccionar usuario
+          </button>
+        )}
+      </div>
+
       <Field label="Código IANUS"   value={form.codigoIanus} onChange={f("codigoIanus")} required placeholder="ej: IANUS-2024-001" />
       <Field label="Código de sala" value={form.codigoSala}  onChange={f("codigoSala")}  required placeholder="ej: SALA-A1" />
       <TextareaField label="Observación" value={form.observacion} onChange={f("observacion")} placeholder="Descripción opcional de la solicitud..." />
+      
       <ErrorBox msg={err} />
       <div className="flex gap-3 justify-end pt-2">
         <button
@@ -346,6 +457,14 @@ function NuevaSolicitudModal({
           Crear solicitud
         </button>
       </div>
+
+      {/* Modal buscador de usuarios */}
+      {buscadorUsuarioAbierto && (
+        <BuscadorUsuario
+          onSelect={seleccionarUsuario}
+          onClose={() => setBuscadorUsuarioAbierto(false)}
+        />
+      )}
     </Modal>
   );
 }
@@ -370,6 +489,7 @@ export default function SolicitudesPage() {
   const { data, loading, refetch } = useQuery(GET_SOLICITUDES);
   const { data: dataUsuarios }     = useQuery(GET_USUARIOS_SIMPLE);
   const [eliminarSolicitud]        = useMutation(ELIMINAR_SOLICITUD);
+  const { executeDelete, toast } = useCrudNotifications("Solicitud");
 
   const solicitudes: Solicitud[] = data?.allSolicitudes   ?? [];
   const usuarios:    Usuario[]   = dataUsuarios?.allUsuarios ?? [];
@@ -386,13 +506,24 @@ export default function SolicitudesPage() {
     return matchEstado && matchBusqueda;
   });
 
+  // ✅ ELIMINAR CON NOTIFICACIONES
   const eliminar = async (s: Solicitud) => {
-    if (!window.confirm(`¿Eliminar la solicitud ${s.codigoIanus}?`)) return;
-    const { data } = await eliminarSolicitud({ variables: { id: Number(s.idSolicitud) } });
-    if (!data?.eliminarSolicitud?.ok) {
-      alert(data?.eliminarSolicitud?.mensaje ?? "No se pudo eliminar."); return;
-    }
-    refetch();
+    await executeDelete(
+      async () => {
+        const { data } = await eliminarSolicitud({ variables: { id: Number(s.idSolicitud) } });
+        if (!data?.eliminarSolicitud?.ok) {
+          throw new Error(data?.eliminarSolicitud?.mensaje ?? "No se pudo eliminar.");
+        }
+        await refetch();
+        return true;
+      },
+      {
+        loading: `Eliminando solicitud ${s.codigoIanus}...`,
+        success: `Solicitud ${s.codigoIanus} eliminada exitosamente`,
+        error: `Error al eliminar la solicitud`,
+      },
+      `¿Eliminar la solicitud ${s.codigoIanus}?`
+    );
   };
 
   return (
@@ -434,7 +565,6 @@ export default function SolicitudesPage() {
 
       {/* Filtros + búsqueda */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-        {/* Filtro por estado */}
         <div className="flex gap-1 bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-1">
           {FILTROS.map(fil => (
             <button
@@ -451,7 +581,6 @@ export default function SolicitudesPage() {
           ))}
         </div>
 
-        {/* Búsqueda */}
         <input
           value={busqueda}
           onChange={e => setBusqueda(e.target.value)}
