@@ -13,12 +13,18 @@ import {
   Modal, Field, ErrorBox, ModalFooter,
   StatCard, TablaDesktop, ActionBtns, SearchBar,
 } from "./shared";
+import { useCrudNotifications } from '../../hooks/useCrudNotifications';
+import { useToast } from '../../context/ToastContext';
 
 export default function RolesProcesalesPage() {
   const { data, loading, refetch } = useQuery(GET_ROLES_PROCESAL);
   const [crearRolProcesal]      = useMutation(CREAR_ROL_PROCESAL);
   const [actualizarRolProcesal] = useMutation(ACTUALIZAR_ROL_PROCESAL);
   const [eliminarRolProcesal]   = useMutation(ELIMINAR_ROL_PROCESAL);
+
+  // ✅ HOOK DE NOTIFICACIONES
+  const { executeCreate, executeUpdate, executeDelete } = useCrudNotifications('Rol Procesal');
+  const toast = useToast();
 
   const [modal, setModal]    = useState(false);
   const [editando, setEdit]  = useState<RolProcesal | null>(null);
@@ -31,28 +37,70 @@ export default function RolesProcesalesPage() {
     r.nombreRol.toLowerCase().includes(busqueda.toLowerCase())
   );
 
-  const abrirCrear = () => { setEdit(null); setNombre(""); setErr(""); setModal(true); };
-  const abrirEditar = (r: RolProcesal) => { setEdit(r); setNombre(r.nombreRol); setErr(""); setModal(true); };
-
-  const guardar = async () => {
-    if (!nombreRol.trim()) { setErr("El nombre del rol es obligatorio."); return; }
-    try {
-      if (editando) {
-        await actualizarRolProcesal({ variables: { id: Number(editando.idRol), input: { nombreRol } } });
-      } else {
-        await crearRolProcesal({ variables: { nombreRol } });
-      }
-      await refetch(); setModal(false);
-    } catch (e: any) { setErr(e.message ?? "Error."); }
+  const abrirCrear = () => { 
+    setEdit(null); 
+    setNombre(""); 
+    setErr(""); 
+    setModal(true); 
   };
 
-  const eliminar = async (r: RolProcesal) => {
-    if (!window.confirm(`¿Eliminar el rol "${r.nombreRol}"?`)) return;
-    const { data } = await eliminarRolProcesal({ variables: { id: Number(r.idRol) } });
-    if (!data?.eliminarRolProcesal?.ok) {
-      alert(data?.eliminarRolProcesal?.mensaje ?? "No se pudo eliminar."); return;
+  const abrirEditar = (r: RolProcesal) => { 
+    setEdit(r); 
+    setNombre(r.nombreRol); 
+    setErr(""); 
+    setModal(true); 
+  };
+
+  // ✅ GUARDAR CON NOTIFICACIONES
+  const guardar = async () => {
+    if (!nombreRol.trim()) { 
+      toast.error("El nombre del rol es obligatorio."); 
+      return; 
     }
-    refetch();
+    try {
+      if (editando) {
+        await executeUpdate(async () => {
+          await actualizarRolProcesal({ 
+            variables: { 
+              id: Number(editando.idRol), 
+              input: { nombreRol } 
+            } 
+          });
+          await refetch();
+          setModal(false);
+          return true;
+        });
+      } else {
+        await executeCreate(async () => {
+          await crearRolProcesal({ variables: { nombreRol } });
+          await refetch();
+          setModal(false);
+          return true;
+        });
+      }
+    } catch (e: any) { 
+      setErr(e.message ?? "Error."); 
+    }
+  };
+
+  // ✅ ELIMINAR CON NOTIFICACIONES
+  const eliminar = async (r: RolProcesal) => {
+    await executeDelete(
+      async () => {
+        const { data } = await eliminarRolProcesal({ variables: { id: Number(r.idRol) } });
+        if (!data?.eliminarRolProcesal?.ok) {
+          throw new Error(data?.eliminarRolProcesal?.mensaje ?? "No se pudo eliminar.");
+        }
+        await refetch();
+        return true;
+      },
+      {
+        loading: `Eliminando rol "${r.nombreRol}"...`,
+        success: `Rol "${r.nombreRol}" eliminado exitosamente`,
+        error: `Error al eliminar el rol "${r.nombreRol}"`,
+      },
+      `¿Eliminar el rol "${r.nombreRol}"?`
+    );
   };
 
   return (
@@ -144,12 +192,16 @@ export default function RolesProcesalesPage() {
           icon={<Shield className="w-5 h-5 text-purple-500" />}
         >
           <Field
-            label="Nombre del rol" value={nombreRol} onChange={setNombre} required
+            label="Nombre del rol" 
+            value={nombreRol} 
+            onChange={setNombre} 
+            required
             placeholder="ej: Demandante, Demandado, Abogado defensor..."
           />
           <ErrorBox msg={err} />
           <ModalFooter
-            onCancel={() => setModal(false)} onSave={guardar}
+            onCancel={() => setModal(false)} 
+            onSave={guardar}
             saveLabel={editando ? "Guardar cambios" : "Crear rol"}
           />
         </Modal>

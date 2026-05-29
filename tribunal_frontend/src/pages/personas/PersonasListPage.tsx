@@ -13,6 +13,8 @@ import {
   Modal, Field, CheckboxField, ErrorBox, ModalFooter,
   StatCard, TablaDesktop, ActionBtns, SearchBar,
 } from "./shared";
+import { useCrudNotifications } from '../../hooks/useCrudNotifications';
+import { useToast } from '../../context/ToastContext';
 
 const initForm = {
   nombre: "", primerApellido: "", segundoApellido: "",
@@ -25,6 +27,10 @@ export default function PersonasListPage() {
   const [crearPersona]      = useMutation(CREAR_PERSONA);
   const [actualizarPersona] = useMutation(ACTUALIZAR_PERSONA);
   const [eliminarPersona]   = useMutation(ELIMINAR_PERSONA);
+
+  // ✅ HOOK DE NOTIFICACIONES
+  const { executeCreate, executeUpdate, executeDelete } = useCrudNotifications('Persona');
+  const toast = useToast();
 
   const [modal, setModal]   = useState(false);
   const [editando, setEdit] = useState<Persona | null>(null);
@@ -42,7 +48,13 @@ export default function PersonasListPage() {
 
   const f = (k: string) => (v: string) => setForm(p => ({ ...p, [k]: v }));
 
-  const abrirCrear = () => { setEdit(null); setForm(initForm); setErr(""); setModal(true); };
+  const abrirCrear = () => { 
+    setEdit(null); 
+    setForm(initForm); 
+    setErr(""); 
+    setModal(true); 
+  };
+
   const abrirEditar = (p: Persona) => {
     setEdit(p);
     setForm({
@@ -55,57 +67,82 @@ export default function PersonasListPage() {
       titularA:             p.titularA ?? "",
       esAbogado:            p.esAbogado,
     });
-    setErr(""); setModal(true);
+    setErr(""); 
+    setModal(true);
   };
 
+  // ✅ GUARDAR CON NOTIFICACIONES
   const guardar = async () => {
     if (!form.nombre || !form.primerApellido || !form.numeroDocumento) {
-      setErr("Nombre, primer apellido y documento son obligatorios."); return;
+      toast.error("Nombre, primer apellido y documento son obligatorios.");
+      return;
     }
     try {
       if (editando) {
-        await actualizarPersona({
-          variables: {
-            id: Number(editando.idPersona),
-            input: {
-              nombre:               form.nombre,
-              primerApellido:       form.primerApellido,
-              segundoApellido:      form.segundoApellido || undefined,
-              estamento:            form.estamento || undefined,
-              registroUniversitario: form.registroUniversitario || undefined,
-              titularA:             form.titularA || undefined,
-              esAbogado:            form.esAbogado,
-              numeroDocumento:      form.numeroDocumento,
+        await executeUpdate(async () => {
+          await actualizarPersona({
+            variables: {
+              id: Number(editando.idPersona),
+              input: {
+                nombre:               form.nombre,
+                primerApellido:       form.primerApellido,
+                segundoApellido:      form.segundoApellido || undefined,
+                estamento:            form.estamento || undefined,
+                registroUniversitario: form.registroUniversitario || undefined,
+                titularA:             form.titularA || undefined,
+                esAbogado:            form.esAbogado,
+                numeroDocumento:      form.numeroDocumento,
+              },
             },
-          },
+          });
+          await refetch();
+          setModal(false);
+          return true;
         });
       } else {
-        await crearPersona({
-          variables: {
-            input: {
-              numeroDocumento:      form.numeroDocumento,
-              nombre:               form.nombre,
-              primerApellido:       form.primerApellido,
-              segundoApellido:      form.segundoApellido || undefined,
-              estamento:            form.estamento || undefined,
-              registroUniversitario: form.registroUniversitario || undefined,
-              titularA:             form.titularA || undefined,
-              esAbogado:            form.esAbogado,
+        await executeCreate(async () => {
+          await crearPersona({
+            variables: {
+              input: {
+                numeroDocumento:      form.numeroDocumento,
+                nombre:               form.nombre,
+                primerApellido:       form.primerApellido,
+                segundoApellido:      form.segundoApellido || undefined,
+                estamento:            form.estamento || undefined,
+                registroUniversitario: form.registroUniversitario || undefined,
+                titularA:             form.titularA || undefined,
+                esAbogado:            form.esAbogado,
+              },
             },
-          },
+          });
+          await refetch();
+          setModal(false);
+          return true;
         });
       }
-      await refetch(); setModal(false);
-    } catch (e: any) { setErr(e.message ?? "Error."); }
+    } catch (e: any) { 
+      setErr(e.message ?? "Error."); 
+    }
   };
 
+  // ✅ ELIMINAR CON NOTIFICACIONES
   const eliminar = async (p: Persona) => {
-    if (!window.confirm(`¿Eliminar a ${nombreCompleto(p)}?`)) return;
-    const { data } = await eliminarPersona({ variables: { id: Number(p.idPersona) } });
-    if (!data?.eliminarPersona?.ok) {
-      alert(data?.eliminarPersona?.mensaje ?? "No se pudo eliminar."); return;
-    }
-    refetch();
+    await executeDelete(
+      async () => {
+        const { data } = await eliminarPersona({ variables: { id: Number(p.idPersona) } });
+        if (!data?.eliminarPersona?.ok) {
+          throw new Error(data?.eliminarPersona?.mensaje ?? "No se pudo eliminar.");
+        }
+        await refetch();
+        return true;
+      },
+      {
+        loading: `Eliminando a ${nombreCompleto(p)}...`,
+        success: `Persona eliminada exitosamente`,
+        error: `Error al eliminar la persona`,
+      },
+      `¿Eliminar a ${nombreCompleto(p)}?`
+    );
   };
 
   return (
@@ -229,7 +266,8 @@ export default function PersonasListPage() {
           <CheckboxField label="Es abogado" value={form.esAbogado} onChange={v => setForm(p => ({ ...p, esAbogado: v }))} />
           <ErrorBox msg={err} />
           <ModalFooter
-            onCancel={() => setModal(false)} onSave={guardar}
+            onCancel={() => setModal(false)} 
+            onSave={guardar}
             saveLabel={editando ? "Guardar cambios" : "Crear persona"}
           />
         </Modal>

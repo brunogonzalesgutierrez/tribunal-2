@@ -7,13 +7,15 @@ import {
   ACTUALIZAR_CONTACTO,
   ELIMINAR_CONTACTO,
 } from "../../graphql/personas";
-import { Phone, Plus, Edit, Trash2, Mail, Smartphone, Home, CheckCircle } from "lucide-react";
+import { Phone, Plus, Edit, Trash2, Mail, Smartphone, Home, CheckCircle, Search, X } from "lucide-react";
 import {
   Contacto, Persona, nombreCompleto,
   TipoContactoBadge, PrincipalBadge, ValidadoBadge,
   Modal, Field, SelectField, CheckboxField, ErrorBox, ModalFooter,
   StatCard, TablaDesktop, ActionBtns, SearchBar,
 } from "./shared";
+import { useCrudNotifications } from '../../hooks/useCrudNotifications';
+import { useToast } from '../../context/ToastContext';
 
 const TIPO_CONTACTO_OPTS = [
   { value: "EMAIL",     label: "📧 Email" },
@@ -24,6 +26,107 @@ const TIPO_CONTACTO_OPTS = [
 
 const initForm = { idPersona: "", tipoContacto: "", valor: "", esPrincipal: false };
 
+// ============================================================
+// COMPONENTE: Buscador de Personas (Modal)
+// ============================================================
+function BuscadorPersona({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: number, nombre: string) => void;
+  onClose: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const { data, loading } = useQuery(GET_PERSONAS);
+
+  const personas: Persona[] = data?.allPersonas ?? [];
+
+  const filtrados = personas.filter(p =>
+    `${p.nombre} ${p.primerApellido} ${p.numeroDocumento}`
+      .toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-emerald-500" />
+            Seleccionar Persona
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar por nombre, apellido o documento..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No se encontraron personas</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtrados.map((p: Persona, index: number) => (
+                <button
+                  key={p.idPersona}
+                  onClick={() => {
+                    onSelect(p.idPersona, `${p.nombre} ${p.primerApellido} (${p.numeroDocumento})`);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-700 ${
+                    index === filtrados.length - 1 ? 'mb-0' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">{p.nombre} {p.primerApellido}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{p.numeroDocumento}</p>
+                    </div>
+                    <div className="text-emerald-500">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════
+// PÁGINA PRINCIPAL
+// ════════════════════════════════════════════════════════
 export default function ContactosPage() {
   const { data, loading, refetch }   = useQuery(GET_CONTACTOS);
   const { data: dataPersonas }       = useQuery(GET_PERSONAS);
@@ -31,7 +134,13 @@ export default function ContactosPage() {
   const [actualizarContacto] = useMutation(ACTUALIZAR_CONTACTO);
   const [eliminarContacto]   = useMutation(ELIMINAR_CONTACTO);
 
+  // ✅ HOOK DE NOTIFICACIONES
+  const { executeCreate, executeUpdate, executeDelete } = useCrudNotifications('Contacto');
+  const toast = useToast();
+
   const [modal, setModal]   = useState(false);
+  const [buscadorPersonaAbierto, setBuscadorPersonaAbierto] = useState(false);
+  const [personaSeleccionada, setPersonaSeleccionada] = useState("");
   const [editando, setEdit] = useState<Contacto | null>(null);
   const [form, setForm]     = useState(initForm);
   const [busqueda, setBusq] = useState("");
@@ -51,7 +160,19 @@ export default function ContactosPage() {
 
   const f = (k: string) => (v: string) => setForm(p => ({ ...p, [k]: v }));
 
-  const abrirCrear = () => { setEdit(null); setForm(initForm); setErr(""); setModal(true); };
+  const seleccionarPersona = (id: number, nombre: string) => {
+    setForm(p => ({ ...p, idPersona: String(id) }));
+    setPersonaSeleccionada(nombre);
+  };
+
+  const abrirCrear = () => { 
+    setEdit(null); 
+    setForm(initForm); 
+    setPersonaSeleccionada("");
+    setErr(""); 
+    setModal(true); 
+  };
+
   const abrirEditar = (c: Contacto) => {
     setEdit(c);
     setForm({
@@ -60,21 +181,36 @@ export default function ContactosPage() {
       valor:         c.valor,
       esPrincipal:   c.esPrincipal,
     });
-    setErr(""); setModal(true);
+    setPersonaSeleccionada(`${c.idPersona?.nombre} ${c.idPersona?.primerApellido} (${c.idPersona?.numeroDocumento})`);
+    setErr(""); 
+    setModal(true);
   };
 
+  // ✅ GUARDAR CON NOTIFICACIONES
   const guardar = async () => {
-    if (!form.valor || !form.tipoContacto) { setErr("Tipo y valor son obligatorios."); return; }
-    try {
-      if (editando) {
+    if (!form.valor || !form.tipoContacto) { 
+      toast.error("Tipo y valor son obligatorios."); 
+      return; 
+    }
+    
+    if (editando) {
+      await executeUpdate(async () => {
         await actualizarContacto({
           variables: {
             id: Number(editando.idContacto),
             input: { valor: form.valor, esPrincipal: form.esPrincipal, validado: false },
           },
         });
-      } else {
-        if (!form.idPersona) { setErr("Seleccioná una persona."); return; }
+        await refetch();
+        setModal(false);
+        return true;
+      });
+    } else {
+      if (!form.idPersona) { 
+        toast.error("Seleccioná una persona."); 
+        return; 
+      }
+      await executeCreate(async () => {
         await crearContacto({
           variables: {
             idPersona:    Number(form.idPersona),
@@ -83,25 +219,47 @@ export default function ContactosPage() {
             esPrincipal:  form.esPrincipal,
           },
         });
-      }
-      await refetch(); setModal(false);
-    } catch (e: any) { setErr(e.message ?? "Error."); }
+        await refetch();
+        setModal(false);
+        setPersonaSeleccionada("");
+        return true;
+      });
+    }
   };
 
+  // ✅ ELIMINAR CON NOTIFICACIONES
   const eliminar = async (c: Contacto) => {
-    if (!window.confirm("¿Eliminar este contacto?")) return;
-    const { data } = await eliminarContacto({ variables: { id: Number(c.idContacto) } });
-    if (!data?.eliminarContacto?.ok) {
-      alert(data?.eliminarContacto?.mensaje ?? "No se pudo eliminar."); return;
-    }
-    refetch();
+    await executeDelete(
+      async () => {
+        const { data } = await eliminarContacto({ variables: { id: Number(c.idContacto) } });
+        if (!data?.eliminarContacto?.ok) {
+          throw new Error(data?.eliminarContacto?.mensaje ?? "No se pudo eliminar.");
+        }
+        await refetch();
+        return true;
+      },
+      {
+        loading: `Eliminando contacto ${c.valor}...`,
+        success: `Contacto eliminado exitosamente`,
+        error: `Error al eliminar el contacto`,
+      },
+      `¿Eliminar el contacto "${c.valor}"?`
+    );
   };
 
   const toggleValidado = async (c: Contacto) => {
-    await actualizarContacto({
-      variables: { id: Number(c.idContacto), input: { validado: !c.validado } },
-    });
-    refetch();
+    try {
+      await actualizarContacto({
+        variables: { 
+          id: Number(c.idContacto), 
+          input: { validado: !c.validado } 
+        },
+      });
+      await refetch();
+      toast.success(`Contacto ${!c.validado ? 'validado' : 'invalidado'} correctamente`);
+    } catch (error: any) {
+      toast.error(error.message ?? "Error al cambiar estado");
+    }
   };
 
   return (
@@ -190,7 +348,7 @@ export default function ContactosPage() {
                 <p className="text-sm text-gray-700 dark:text-gray-200 mt-0.5">{c.valor}</p>
               </div>
               <div className="flex gap-1">
-                <button onClick={() => abrirEditar(c)} className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30">
+                <button onClick={() => abrirEditar(c)} className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/30">
                   <Edit className="w-4 h-4" />
                 </button>
                 <button onClick={() => eliminar(c)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
@@ -215,32 +373,72 @@ export default function ContactosPage() {
           icon={<Phone className="w-5 h-5 text-emerald-500" />}
         >
           {!editando && (
-            <SelectField label="Persona" value={form.idPersona} onChange={f("idPersona")} required>
-              <option value="">— Seleccionar persona —</option>
-              {personas.map((p: Persona) => (
-                <option key={p.idPersona} value={p.idPersona}>
-                  {nombreCompleto(p)} — {p.numeroDocumento}
-                </option>
-              ))}
-            </SelectField>
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                Persona <span className="text-red-500">*</span>
+              </label>
+              {personaSeleccionada ? (
+                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800">
+                  <span className="flex-1 text-sm text-gray-800 dark:text-white">{personaSeleccionada}</span>
+                  <button
+                    onClick={() => {
+                      setForm(p => ({ ...p, idPersona: "" }));
+                      setPersonaSeleccionada("");
+                    }}
+                    className="p-1 rounded-lg text-gray-500 hover:bg-emerald-200 dark:hover:bg-emerald-800 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setBuscadorPersonaAbierto(true)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-emerald-400 dark:hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  Buscar y seleccionar persona
+                </button>
+              )}
+            </div>
           )}
+
+          {/* En edición, mostrar la persona como texto */}
+          {editando && (
+            <div className="mb-4 p-2.5 rounded-xl bg-gray-100 dark:bg-slate-700/50 text-gray-700 dark:text-gray-300 text-sm">
+              Persona: {personaSeleccionada}
+            </div>
+          )}
+
           <SelectField label="Tipo de contacto" value={form.tipoContacto} onChange={f("tipoContacto")} required>
             <option value="">— Seleccionar tipo —</option>
             {TIPO_CONTACTO_OPTS.map(o => (
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </SelectField>
+          
           <Field
             label="Valor" value={form.valor} onChange={f("valor")} required
             placeholder="ej: correo@ejemplo.com / +591 71234567"
           />
+          
           <CheckboxField label="Es contacto principal" value={form.esPrincipal} onChange={v => setForm(p => ({ ...p, esPrincipal: v }))} />
+          
           <ErrorBox msg={err} />
           <ModalFooter
-            onCancel={() => setModal(false)} onSave={guardar}
+            onCancel={() => setModal(false)} 
+            onSave={guardar}
             saveLabel={editando ? "Guardar cambios" : "Crear contacto"}
           />
         </Modal>
+      )}
+
+      {/* Modal del buscador de personas */}
+      {buscadorPersonaAbierto && (
+        <BuscadorPersona
+          onSelect={seleccionarPersona}
+          onClose={() => setBuscadorPersonaAbierto(false)}
+        />
       )}
     </div>
   );

@@ -9,18 +9,314 @@ import {
   ACTUALIZAR_PARTE_PROCESAL,
   ELIMINAR_PARTE_PROCESAL,
 } from "../../graphql/personas";
-import { Users, Plus, Edit, Trash2, UserCheck, UserX } from "lucide-react";
+import { Users, Plus, Edit, Trash2, UserCheck, UserX, Search, X } from "lucide-react";
 import {
   ParteProcesal, Persona, RolProcesal, Expediente, nombreCompleto, fmtFecha,
   AbogadoBadge, RolBadge, EstadoBadge,
-  Modal, Field, SelectField, ErrorBox, ModalFooter,
-  StatCard, TablaDesktop, ActionBtns, SearchBar,
+  Modal, Field, ErrorBox, ModalFooter,
+  StatCard, SearchBar,
 } from "./shared";
+import { useCrudNotifications } from '../../hooks/useCrudNotifications';
+import { useToast } from '../../context/ToastContext';
 
 type FiltroActivo = "TODOS" | "ACTIVO" | "INACTIVO";
 
 const initForm = { idExpediente: "", idPersona: "", idRol: "", fechaExclusion: "" };
 
+// ============================================================
+// COMPONENTE: Buscador de Expedientes (Modal)
+// ============================================================
+function BuscadorExpediente({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: number, nombre: string) => void;
+  onClose: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const { data, loading } = useQuery(GET_EXPEDIENTES_SIMPLE);
+
+  const expedientes: Expediente[] = data?.allExpedientes ?? [];
+
+  const filtrados = expedientes.filter(e =>
+    `${e.numeroExpediente} ${e.ano}`.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-amber-500" />
+            Seleccionar Expediente
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar expediente por número..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No se encontraron expedientes</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtrados.map((e: Expediente, index: number) => (
+                <button
+                  key={e.idExpediente}
+                  onClick={() => {
+                    onSelect(e.idExpediente, `${e.numeroExpediente} (${e.ano})`);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-700 ${
+                    index === filtrados.length - 1 ? 'mb-0' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">{e.numeroExpediente}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Año: {e.ano}</p>
+                    </div>
+                    <div className="text-amber-500">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// COMPONENTE: Buscador de Personas (Modal)
+// ============================================================
+function BuscadorPersona({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: number, nombre: string) => void;
+  onClose: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const { data, loading } = useQuery(GET_PERSONAS);
+
+  const personas: Persona[] = data?.allPersonas ?? [];
+
+  const filtrados = personas.filter(p =>
+    `${p.nombre} ${p.primerApellido} ${p.numeroDocumento}`
+      .toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-amber-500" />
+            Seleccionar Persona
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar por nombre, apellido o documento..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No se encontraron personas</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtrados.map((p: Persona, index: number) => (
+                <button
+                  key={p.idPersona}
+                  onClick={() => {
+                    onSelect(p.idPersona, `${p.nombre} ${p.primerApellido} (${p.numeroDocumento})`);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-700 ${
+                    index === filtrados.length - 1 ? 'mb-0' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">{p.nombre} {p.primerApellido}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{p.numeroDocumento}</p>
+                    </div>
+                    <div className="text-amber-500">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// COMPONENTE: Buscador de Roles (Modal)
+// ============================================================
+function BuscadorRol({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: number, nombre: string) => void;
+  onClose: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const { data, loading } = useQuery(GET_ROLES_PROCESAL);
+
+  const roles: RolProcesal[] = data?.allRolesProcesal ?? [];
+
+  const filtrados = roles.filter(r =>
+    r.nombreRol.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-amber-500" />
+            Seleccionar Rol Procesal
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar rol por nombre..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No se encontraron roles</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtrados.map((r: RolProcesal, index: number) => (
+                <button
+                  key={r.idRol}
+                  onClick={() => {
+                    onSelect(r.idRol, r.nombreRol);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-700 ${
+                    index === filtrados.length - 1 ? 'mb-0' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">{r.nombreRol}</p>
+                    </div>
+                    <div className="text-amber-500">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════
+// PÁGINA PRINCIPAL
+// ════════════════════════════════════════════════════════
 export default function PartesPage() {
   const { data, loading, refetch } = useQuery(GET_PARTES_PROCESALES);
   const { data: dataPersonas }     = useQuery(GET_PERSONAS);
@@ -30,12 +326,22 @@ export default function PartesPage() {
   const [actualizarParte] = useMutation(ACTUALIZAR_PARTE_PROCESAL);
   const [eliminarParte]   = useMutation(ELIMINAR_PARTE_PROCESAL);
 
+  // ✅ HOOK DE NOTIFICACIONES
+  const { executeCreate, executeUpdate, executeDelete } = useCrudNotifications('Parte Procesal');
+  const toast = useToast();
+
   const [modal, setModal]        = useState(false);
+  const [buscadorExpAbierto, setBuscadorExpAbierto] = useState(false);
+  const [buscadorPersonaAbierto, setBuscadorPersonaAbierto] = useState(false);
+  const [buscadorRolAbierto, setBuscadorRolAbierto] = useState(false);
   const [editando, setEdit]      = useState<ParteProcesal | null>(null);
   const [form, setForm]          = useState(initForm);
   const [busqueda, setBusq]      = useState("");
   const [filtroActivo, setFiltro] = useState<FiltroActivo>("TODOS");
   const [err, setErr]            = useState("");
+  const [expedienteSeleccionado, setExpedienteSeleccionado] = useState("");
+  const [personaSeleccionada, setPersonaSeleccionada] = useState("");
+  const [rolSeleccionado, setRolSeleccionado] = useState("");
 
   const partes: ParteProcesal[] = data?.allPartesProcesales ?? [];
   const personas: Persona[]     = dataPersonas?.allPersonas ?? [];
@@ -57,7 +363,31 @@ export default function PartesPage() {
 
   const f = (k: string) => (v: string) => setForm(p => ({ ...p, [k]: v }));
 
-  const abrirCrear = () => { setEdit(null); setForm(initForm); setErr(""); setModal(true); };
+  const seleccionarExpediente = (id: number, nombre: string) => {
+    setForm(p => ({ ...p, idExpediente: String(id) }));
+    setExpedienteSeleccionado(nombre);
+  };
+
+  const seleccionarPersona = (id: number, nombre: string) => {
+    setForm(p => ({ ...p, idPersona: String(id) }));
+    setPersonaSeleccionada(nombre);
+  };
+
+  const seleccionarRol = (id: number, nombre: string) => {
+    setForm(p => ({ ...p, idRol: String(id) }));
+    setRolSeleccionado(nombre);
+  };
+
+  const abrirCrear = () => { 
+    setEdit(null); 
+    setForm(initForm); 
+    setExpedienteSeleccionado("");
+    setPersonaSeleccionada("");
+    setRolSeleccionado("");
+    setErr(""); 
+    setModal(true); 
+  };
+
   const abrirEditar = (p: ParteProcesal) => {
     setEdit(p);
     setForm({
@@ -66,54 +396,95 @@ export default function PartesPage() {
       idRol:         String(p.idRol?.idRol ?? ""),
       fechaExclusion: p.fechaExclusion ?? "",
     });
-    setErr(""); setModal(true);
+    setExpedienteSeleccionado(`${p.idExpediente?.numeroExpediente} (${p.idExpediente?.ano})`);
+    setPersonaSeleccionada(`${p.idPersona?.nombre} ${p.idPersona?.primerApellido} (${p.idPersona?.numeroDocumento})`);
+    setRolSeleccionado(p.idRol?.nombreRol ?? "");
+    setErr(""); 
+    setModal(true);
   };
 
+  // ✅ GUARDAR CON NOTIFICACIONES
   const guardar = async () => {
     if (!editando && (!form.idExpediente || !form.idPersona || !form.idRol)) {
-      setErr("Expediente, persona y rol son obligatorios."); return;
+      toast.error("Expediente, persona y rol son obligatorios.");
+      return;
     }
     try {
       if (editando) {
-        await actualizarParte({
-          variables: {
-            id: Number(editando.idParte),
-            input: { activo: editando.activo, fechaExclusion: form.fechaExclusion || undefined },
-          },
+        await executeUpdate(async () => {
+          await actualizarParte({
+            variables: {
+              id: Number(editando.idParte),
+              input: { 
+                activo: editando.activo, 
+                fechaExclusion: form.fechaExclusion || undefined 
+              },
+            },
+          });
+          await refetch();
+          setModal(false);
+          return true;
         });
       } else {
-        await crearParte({
-          variables: {
-            idExpediente: Number(form.idExpediente),
-            idPersona:    Number(form.idPersona),
-            idRol:        Number(form.idRol),
-          },
+        await executeCreate(async () => {
+          await crearParte({
+            variables: {
+              idExpediente: Number(form.idExpediente),
+              idPersona:    Number(form.idPersona),
+              idRol:        Number(form.idRol),
+            },
+          });
+          await refetch();
+          setModal(false);
+          setExpedienteSeleccionado("");
+          setPersonaSeleccionada("");
+          setRolSeleccionado("");
+          return true;
         });
       }
-      await refetch(); setModal(false);
-    } catch (e: any) { setErr(e.message ?? "Error."); }
-  };
-
-  const toggleActivo = async (p: ParteProcesal) => {
-    await actualizarParte({
-      variables: {
-        id: Number(p.idParte),
-        input: {
-          activo:         !p.activo,
-          fechaExclusion: !p.activo ? undefined : new Date().toISOString().split("T")[0],
-        },
-      },
-    });
-    refetch();
-  };
-
-  const eliminar = async (p: ParteProcesal) => {
-    if (!window.confirm("¿Eliminar esta parte procesal?")) return;
-    const { data } = await eliminarParte({ variables: { id: Number(p.idParte) } });
-    if (!data?.eliminarParteProcesal?.ok) {
-      alert(data?.eliminarParteProcesal?.mensaje ?? "No se pudo eliminar."); return;
+    } catch (e: any) { 
+      setErr(e.message ?? "Error."); 
     }
-    refetch();
+  };
+
+  // ✅ TOGGLE ACTIVO CON NOTIFICACIONES
+  const toggleActivo = async (p: ParteProcesal) => {
+    try {
+      const nuevaFechaExclusion = p.activo ? new Date().toISOString().split("T")[0] : null;
+      await actualizarParte({
+        variables: {
+          id: Number(p.idParte),
+          input: {
+            activo: !p.activo,
+            fechaExclusion: nuevaFechaExclusion,
+          },
+        },
+      });
+      await refetch();
+      toast.success(`Parte ${p.activo ? 'excluida' : 'reincorporada'} correctamente`);
+    } catch (error: any) {
+      toast.error(error.message ?? "Error al cambiar estado");
+    }
+  };
+
+  // ✅ ELIMINAR CON NOTIFICACIONES
+  const eliminar = async (p: ParteProcesal) => {
+    await executeDelete(
+      async () => {
+        const { data } = await eliminarParte({ variables: { id: Number(p.idParte) } });
+        if (!data?.eliminarParteProcesal?.ok) {
+          throw new Error(data?.eliminarParteProcesal?.mensaje ?? "No se pudo eliminar.");
+        }
+        await refetch();
+        return true;
+      },
+      {
+        loading: `Eliminando parte ${p.idPersona?.nombre} ${p.idPersona?.primerApellido}...`,
+        success: `Parte eliminada exitosamente`,
+        error: `Error al eliminar la parte`,
+      },
+      `¿Eliminar a ${p.idPersona?.nombre} ${p.idPersona?.primerApellido} del expediente?`
+    );
   };
 
   return (
@@ -174,76 +545,105 @@ export default function PartesPage() {
         </span>
       </div>
 
-      {/* Tabla Desktop */}
-      <TablaDesktop
-        headers={["Persona", "Documento", "Expediente", "Rol procesal", "Inclusión", "Exclusión", "Estado", "Acciones"]}
-        loading={loading}
-        emptyMsg="No hay partes procesales"
-        emptyIcon={<Users className="w-12 h-12 text-gray-300 dark:text-gray-600" />}
-      >
-        {filtradas.map(p => (
-          <tr key={p.idParte} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
-            <td className="px-6 py-4">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-gray-800 dark:text-white text-sm">
-                  {nombreCompleto(p.idPersona)}
-                </span>
-                {p.idPersona?.esAbogado && <AbogadoBadge />}
-              </div>
-            </td>
-            <td className="px-6 py-4 font-mono text-gray-500 dark:text-gray-400 text-xs">
-              {p.idPersona?.numeroDocumento}
-            </td>
-            <td className="px-6 py-4">
-              <span className="text-blue-500 font-mono font-bold text-sm">
-                {p.idExpediente?.numeroExpediente}
-              </span>
-              <div className="text-xs text-gray-400 mt-0.5">{p.idExpediente?.ano}</div>
-            </td>
-            <td className="px-6 py-4">
-              <RolBadge rol={p.idRol?.nombreRol ?? "—"} />
-            </td>
-            <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 font-mono">
-              {fmtFecha(p.fechaInclusion)}
-            </td>
-            <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 font-mono">
-              {fmtFecha(p.fechaExclusion)}
-            </td>
-            <td className="px-6 py-4">
-              <EstadoBadge activo={p.activo} />
-            </td>
-            <td className="px-6 py-4">
-              <div className="flex items-center justify-end gap-1">
-                <button
-                  onClick={() => abrirEditar(p)}
-                  className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
-                  title="Editar"
-                >
-                  <Edit className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => toggleActivo(p)}
-                  title={p.activo ? "Excluir" : "Reincorporar"}
-                  className={`p-2 rounded-lg transition-colors text-xs font-semibold ${
-                    p.activo
-                      ? "text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30"
-                      : "text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
-                  }`}
-                >
-                  {p.activo ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-                </button>
-                <button
-                  onClick={() => eliminar(p)}
-                  className="p-2 rounded-lg text-gray-500 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-500 transition-colors"
-                  title="Eliminar"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </td>
-          </tr>
-        ))}
-      </TablaDesktop>
+      {/* Tabla Desktop - Versión manual sin TablaDesktop */}
+      <div className="hidden lg:block bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-lg overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-slate-900/50 border-b border-gray-200 dark:border-slate-700">
+              <tr>
+                {["Persona", "Documento", "Expediente", "Rol procesal", "Inclusión", "Exclusión", "Estado", "Acciones"].map(h => (
+                  <th key={h} className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                    <div className="flex justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
+                    </div>
+                  </td>
+                </tr>
+              ) : filtradas.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                    <div className="flex flex-col items-center gap-2">
+                      <Users className="w-12 h-12 text-gray-300 dark:text-gray-600" />
+                      <p>No hay partes procesales</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filtradas.map(p => (
+                  <tr key={p.idParte} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-gray-800 dark:text-white text-sm">
+                          {nombreCompleto(p.idPersona)}
+                        </span>
+                        {p.idPersona?.esAbogado && <AbogadoBadge />}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 font-mono text-gray-500 dark:text-gray-400 text-xs">
+                      {p.idPersona?.numeroDocumento}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-blue-500 font-mono font-bold text-sm">
+                        {p.idExpediente?.numeroExpediente}
+                      </span>
+                      <div className="text-xs text-gray-400 mt-0.5">{p.idExpediente?.ano}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <RolBadge rol={p.idRol?.nombreRol ?? "—"} />
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 font-mono">
+                      {fmtFecha(p.fechaInclusion)}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 font-mono">
+                      {fmtFecha(p.fechaExclusion)}
+                    </td>
+                    <td className="px-6 py-4">
+                      <EstadoBadge activo={p.activo} />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => abrirEditar(p)}
+                          className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                          title="Editar"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => toggleActivo(p)}
+                          title={p.activo ? "Excluir" : "Reincorporar"}
+                          className={`p-2 rounded-lg transition-colors ${
+                            p.activo
+                              ? "text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30"
+                              : "text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+                          }`}
+                        >
+                          {p.activo ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                        </button>
+                        <button
+                          onClick={() => eliminar(p)}
+                          className="p-2 rounded-lg text-gray-500 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-500 transition-colors"
+                          title="Eliminar"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {/* Cards Móvil */}
       <div className="lg:hidden space-y-3">
@@ -284,41 +684,143 @@ export default function PartesPage() {
         >
           {!editando ? (
             <>
-              <SelectField label="Expediente" value={form.idExpediente} onChange={f("idExpediente")} required>
-                <option value="">— Seleccionar expediente —</option>
-                {expedientes.map((e: Expediente) => (
-                  <option key={e.idExpediente} value={e.idExpediente}>
-                    {e.numeroExpediente} ({e.ano}){e.idEstadoExpediente ? ` — ${e.idEstadoExpediente.nombreEstado}` : ""}
-                  </option>
-                ))}
-              </SelectField>
-              <SelectField label="Persona" value={form.idPersona} onChange={f("idPersona")} required>
-                <option value="">— Seleccionar persona —</option>
-                {personas.map((p: Persona) => (
-                  <option key={p.idPersona} value={p.idPersona}>
-                    {nombreCompleto(p)} — {p.numeroDocumento}
-                  </option>
-                ))}
-              </SelectField>
-              <SelectField label="Rol procesal" value={form.idRol} onChange={f("idRol")} required>
-                <option value="">— Seleccionar rol —</option>
-                {roles.map((r: RolProcesal) => (
-                  <option key={r.idRol} value={r.idRol}>{r.nombreRol}</option>
-                ))}
-              </SelectField>
+              {/* Expediente - Con buscador */}
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                  Expediente <span className="text-red-500">*</span>
+                </label>
+                {expedienteSeleccionado ? (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800">
+                    <span className="flex-1 text-sm text-gray-800 dark:text-white">{expedienteSeleccionado}</span>
+                    <button
+                      onClick={() => {
+                        setForm(p => ({ ...p, idExpediente: "" }));
+                        setExpedienteSeleccionado("");
+                      }}
+                      className="p-1 rounded-lg text-gray-500 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setBuscadorExpAbierto(true)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-amber-400 dark:hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Buscar y seleccionar expediente
+                  </button>
+                )}
+              </div>
+
+              {/* Persona - Con buscador */}
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                  Persona <span className="text-red-500">*</span>
+                </label>
+                {personaSeleccionada ? (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800">
+                    <span className="flex-1 text-sm text-gray-800 dark:text-white">{personaSeleccionada}</span>
+                    <button
+                      onClick={() => {
+                        setForm(p => ({ ...p, idPersona: "" }));
+                        setPersonaSeleccionada("");
+                      }}
+                      className="p-1 rounded-lg text-gray-500 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setBuscadorPersonaAbierto(true)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-amber-400 dark:hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Buscar y seleccionar persona
+                  </button>
+                )}
+              </div>
+
+              {/* Rol - Con buscador */}
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                  Rol procesal <span className="text-red-500">*</span>
+                </label>
+                {rolSeleccionado ? (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800">
+                    <span className="flex-1 text-sm text-gray-800 dark:text-white">{rolSeleccionado}</span>
+                    <button
+                      onClick={() => {
+                        setForm(p => ({ ...p, idRol: "" }));
+                        setRolSeleccionado("");
+                      }}
+                      className="p-1 rounded-lg text-gray-500 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setBuscadorRolAbierto(true)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-amber-400 dark:hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Buscar y seleccionar rol
+                  </button>
+                )}
+              </div>
             </>
           ) : (
-            <Field
-              label="Fecha de exclusión" value={form.fechaExclusion}
-              onChange={f("fechaExclusion")} type="date"
-            />
+            <>
+              {/* En edición, mostrar la información como texto */}
+              <div className="mb-4 p-2.5 rounded-xl bg-gray-100 dark:bg-slate-700/50 text-gray-700 dark:text-gray-300 text-sm">
+                Expediente: {expedienteSeleccionado}
+              </div>
+              <div className="mb-4 p-2.5 rounded-xl bg-gray-100 dark:bg-slate-700/50 text-gray-700 dark:text-gray-300 text-sm">
+                Persona: {personaSeleccionada}
+              </div>
+              <div className="mb-4 p-2.5 rounded-xl bg-gray-100 dark:bg-slate-700/50 text-gray-700 dark:text-gray-300 text-sm">
+                Rol: {rolSeleccionado}
+              </div>
+              <Field
+                label="Fecha de exclusión" 
+                value={form.fechaExclusion}
+                onChange={f("fechaExclusion")} 
+                type="date"
+              />
+            </>
           )}
           <ErrorBox msg={err} />
           <ModalFooter
-            onCancel={() => setModal(false)} onSave={guardar}
+            onCancel={() => setModal(false)} 
+            onSave={guardar}
             saveLabel={editando ? "Guardar cambios" : "Agregar parte"}
           />
         </Modal>
+      )}
+
+      {/* Modales de buscadores */}
+      {buscadorExpAbierto && (
+        <BuscadorExpediente
+          onSelect={seleccionarExpediente}
+          onClose={() => setBuscadorExpAbierto(false)}
+        />
+      )}
+      {buscadorPersonaAbierto && (
+        <BuscadorPersona
+          onSelect={seleccionarPersona}
+          onClose={() => setBuscadorPersonaAbierto(false)}
+        />
+      )}
+      {buscadorRolAbierto && (
+        <BuscadorRol
+          onSelect={seleccionarRol}
+          onClose={() => setBuscadorRolAbierto(false)}
+        />
       )}
     </div>
   );
