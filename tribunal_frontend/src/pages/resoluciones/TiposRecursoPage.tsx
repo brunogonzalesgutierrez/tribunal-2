@@ -11,12 +11,17 @@ import {
   Modal, Field, TextareaField,
   ErrorBox, ModalFooter, StatCard, TablaDesktop, ActionBtns,
 } from "./shared";
+import { useCrudNotifications } from "../../hooks/useCrudNotifications";
+import { useToast } from "../../context/ToastContext";
 
 export default function TiposRecursoPage() {
   const { data, loading, refetch } = useQuery(GET_TIPOS_RECURSO);
   const [crear]      = useMutation(CREAR_TIPO_RECURSO);
   const [actualizar] = useMutation(ACTUALIZAR_TIPO_RECURSO);
   const [eliminar_m] = useMutation(ELIMINAR_TIPO_RECURSO);
+
+  // ✅ HOOK DE NOTIFICACIONES
+  const { executeCreate, executeUpdate, executeDelete, toast } = useCrudNotifications("Tipo de Recurso");
 
   const [modal, setModal]   = useState(false);
   const [editando, setEdit] = useState<TipoRecurso | null>(null);
@@ -31,34 +36,78 @@ export default function TiposRecursoPage() {
   const conDesc    = tipos.filter(t => t.descripcion?.trim()).length;
   const sinDesc    = tipos.filter(t => !t.descripcion?.trim()).length;
 
-  const abrirCrear = () => { setEdit(null); setForm(initForm); setErr(""); setModal(true); };
+  const abrirCrear = () => { 
+    setEdit(null); 
+    setForm(initForm); 
+    setErr(""); 
+    setModal(true); 
+  };
+  
   const abrirEditar = (t: TipoRecurso) => {
     setEdit(t);
     setForm({ nombre: t.nombre, descripcion: t.descripcion ?? "" });
-    setErr(""); setModal(true);
+    setErr(""); 
+    setModal(true);
   };
 
+  // ✅ GUARDAR CON NOTIFICACIONES
   const guardar = async () => {
-    if (!form.nombre) { setErr("El nombre es obligatorio."); return; }
+    if (!form.nombre) { 
+      toast.error("El nombre es obligatorio."); 
+      return; 
+    }
     try {
       if (editando) {
-        await actualizar({ variables: { id: Number(editando.idTipoRecurso), input: {
-          nombre: form.nombre, descripcion: form.descripcion || undefined,
-        }}});
+        await executeUpdate(async () => {
+          await actualizar({ 
+            variables: { 
+              id: Number(editando.idTipoRecurso), 
+              input: {
+                nombre: form.nombre, 
+                descripcion: form.descripcion || undefined,
+              }
+            } 
+          });
+          await refetch(); 
+          setModal(false);
+          return true;
+        });
       } else {
-        await crear({ variables: { nombre: form.nombre, descripcion: form.descripcion || undefined } });
+        await executeCreate(async () => {
+          await crear({ 
+            variables: { 
+              nombre: form.nombre, 
+              descripcion: form.descripcion || undefined 
+            } 
+          });
+          await refetch(); 
+          setModal(false);
+          return true;
+        });
       }
-      await refetch(); setModal(false);
-    } catch (e: any) { setErr(e.message ?? "Error."); }
+    } catch (e: any) { 
+      setErr(e.message ?? "Error."); 
+    }
   };
 
+  // ✅ ELIMINAR CON NOTIFICACIONES
   const eliminar = async (t: TipoRecurso) => {
-    if (!window.confirm(`¿Eliminar el tipo "${t.nombre}"?`)) return;
-    const { data } = await eliminar_m({ variables: { id: Number(t.idTipoRecurso) } });
-    if (!data?.eliminarTipoRecurso?.ok) {
-      alert(data?.eliminarTipoRecurso?.mensaje ?? "No se pudo eliminar."); return;
-    }
-    refetch();
+    await executeDelete(
+      async () => {
+        const { data } = await eliminar_m({ variables: { id: Number(t.idTipoRecurso) } });
+        if (!data?.eliminarTipoRecurso?.ok) {
+          throw new Error(data?.eliminarTipoRecurso?.mensaje ?? "No se pudo eliminar.");
+        }
+        await refetch();
+        return true;
+      },
+      {
+        loading: `Eliminando tipo "${t.nombre}"...`,
+        success: `Tipo "${t.nombre}" eliminado exitosamente`,
+        error: `Error al eliminar el tipo "${t.nombre}"`,
+      },
+      `¿Eliminar el tipo de recurso "${t.nombre}"?`
+    );
   };
 
   return (
@@ -150,7 +199,11 @@ export default function TiposRecursoPage() {
           <Field label="Nombre" value={form.nombre} onChange={f("nombre")} placeholder="Ej: Apelación, Casación..." required />
           <TextareaField label="Descripción" value={form.descripcion} onChange={f("descripcion")} />
           <ErrorBox msg={err} />
-          <ModalFooter onCancel={() => setModal(false)} onSave={guardar} saveLabel={editando ? "Guardar" : "Crear tipo"} />
+          <ModalFooter 
+            onCancel={() => setModal(false)} 
+            onSave={guardar} 
+            saveLabel={editando ? "Guardar" : "Crear tipo"} 
+          />
         </Modal>
       )}
     </div>

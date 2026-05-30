@@ -1779,18 +1779,66 @@ class CrearRecurso(graphene.Mutation):
             id_recurrente=ParteProcesal.objects.get(id_parte=id_recurrente),
             estado_recurso='PENDIENTE', fundamentos=fundamentos))
 
+from .models import *  # ← Esto importa Recurso, Expediente, EstadoExpediente, etc.
+import graphene
+from datetime import date
+from django.utils import timezone
+
+
 class ActualizarRecurso(graphene.Mutation):
     class Arguments:
         id    = graphene.Int(required=True)
         input = ActualizarRecursoInput(required=True)
+    
     recurso = graphene.Field(RecursoType)
+    
     def mutate(root, info, id, input):
         try:
             obj = Recurso.objects.get(id_recurso=id)
-            if input.estado_recurso is not None: obj.estado_recurso = input.estado_recurso
-            if input.fundamentos is not None:    obj.fundamentos = input.fundamentos
+            
+            # Guardar estado anterior para detectar cambio
+            estado_anterior = obj.estado_recurso
+            
+            # Actualizar campos
+            if input.estado_recurso is not None:
+                obj.estado_recurso = input.estado_recurso
+            if input.fundamentos is not None:
+                obj.fundamentos = input.fundamentos
+            
+            # ✅ AUTOMÁTICO: Cuando cambia a ADMITIDO, crear expediente alzada
+            if (estado_anterior != "ADMITIDO" and 
+                obj.estado_recurso == "ADMITIDO" and 
+                not obj.id_expediente_alzada):
+                
+                # Obtener el expediente original desde la resolución
+                exp_original = obj.id_resolucion_impugnada.id_expediente
+                
+                # Generar número para expediente de alzada
+                ano_actual = date.today().year
+                nuevo_numero = f"ALZ-{exp_original.id_expediente}-{ano_actual}"
+                
+                # Obtener o crear estado inicial
+                estado_inicial, _ = EstadoExpediente.objects.get_or_create(
+                    nombre_estado="EN TRÁMITE",
+                    defaults={'es_terminal': False}
+                )
+                
+                # ✅ CREAR EXPEDIENTE ALZADA (sin imports adicionales)
+                nuevo_expediente = Expediente.objects.create(
+                    numero_expediente=nuevo_numero,
+                    ano=ano_actual,
+                    id_sala=exp_original.id_sala,
+                    id_tipo_proceso=exp_original.id_tipo_proceso,
+                    id_estado_expediente=estado_inicial,
+                    descripcion=f"Expediente de alzada - Recurso #{obj.id_recurso}"
+                )
+                
+                # Vincular el recurso con el nuevo expediente
+                obj.id_expediente_alzada = nuevo_expediente
+            
             obj.save()
             return ActualizarRecurso(recurso=obj)
+            
         except Recurso.DoesNotExist:
             return ActualizarRecurso(recurso=None)
 

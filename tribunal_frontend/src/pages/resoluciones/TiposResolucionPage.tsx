@@ -11,12 +11,17 @@ import {
   Modal, Field, TextareaField,
   ErrorBox, ModalFooter, StatCard, TablaDesktop, ActionBtns,
 } from "./shared";
+import { useCrudNotifications } from "../../hooks/useCrudNotifications";
+import { useToast } from "../../context/ToastContext";
 
 export default function TiposResolucionPage() {
   const { data, loading, refetch } = useQuery(GET_TIPOS_RESOLUCION);
   const [crear]      = useMutation(CREAR_TIPO_RESOLUCION);
   const [actualizar] = useMutation(ACTUALIZAR_TIPO_RESOLUCION);
   const [eliminar_m] = useMutation(ELIMINAR_TIPO_RESOLUCION);
+
+  // ✅ HOOK DE NOTIFICACIONES
+  const { executeCreate, executeUpdate, executeDelete, toast } = useCrudNotifications("Tipo de Resolución");
 
   const [modal, setModal]   = useState(false);
   const [editando, setEdit] = useState<TipoResolucion | null>(null);
@@ -33,40 +38,87 @@ export default function TiposResolucionPage() {
   const nivel2 = tipos.filter(t => t.nivelJerarquico === 2).length;
   const nivel3 = tipos.filter(t => t.nivelJerarquico >= 3).length;
 
-  const abrirCrear = () => { setEdit(null); setForm(initForm); setErr(""); setModal(true); };
+  const abrirCrear = () => { 
+    setEdit(null); 
+    setForm(initForm); 
+    setErr(""); 
+    setModal(true); 
+  };
+  
   const abrirEditar = (t: TipoResolucion) => {
     setEdit(t);
-    setForm({ codigo: t.codigo, nombre: t.nombre, nivelJerarquico: String(t.nivelJerarquico), descripcion: t.descripcion ?? "" });
-    setErr(""); setModal(true);
+    setForm({ 
+      codigo: t.codigo, 
+      nombre: t.nombre, 
+      nivelJerarquico: String(t.nivelJerarquico), 
+      descripcion: t.descripcion ?? "" 
+    });
+    setErr(""); 
+    setModal(true);
   };
 
+  // ✅ GUARDAR CON NOTIFICACIONES
   const guardar = async () => {
-    if (!form.codigo || !form.nombre) { setErr("Código y nombre son obligatorios."); return; }
+    if (!form.codigo || !form.nombre) { 
+      toast.error("Código y nombre son obligatorios."); 
+      return; 
+    }
     try {
       if (editando) {
-        await actualizar({ variables: { id: Number(editando.idTipoRes), input: {
-          codigo: form.codigo, nombre: form.nombre,
-          nivelJerarquico: Number(form.nivelJerarquico),
-          descripcion: form.descripcion || undefined,
-        }}});
+        await executeUpdate(async () => {
+          await actualizar({ 
+            variables: { 
+              id: Number(editando.idTipoRes), 
+              input: {
+                codigo: form.codigo, 
+                nombre: form.nombre,
+                nivelJerarquico: Number(form.nivelJerarquico),
+                descripcion: form.descripcion || undefined,
+              }
+            } 
+          });
+          await refetch(); 
+          setModal(false);
+          return true;
+        });
       } else {
-        await crear({ variables: {
-          codigo: form.codigo, nombre: form.nombre,
-          nivelJerarquico: Number(form.nivelJerarquico),
-          descripcion: form.descripcion || undefined,
-        }});
+        await executeCreate(async () => {
+          await crear({ 
+            variables: {
+              codigo: form.codigo, 
+              nombre: form.nombre,
+              nivelJerarquico: Number(form.nivelJerarquico),
+              descripcion: form.descripcion || undefined,
+            } 
+          });
+          await refetch(); 
+          setModal(false);
+          return true;
+        });
       }
-      await refetch(); setModal(false);
-    } catch (e: any) { setErr(e.message ?? "Error."); }
+    } catch (e: any) { 
+      setErr(e.message ?? "Error."); 
+    }
   };
 
+  // ✅ ELIMINAR CON NOTIFICACIONES
   const eliminar = async (t: TipoResolucion) => {
-    if (!window.confirm(`¿Eliminar el tipo "${t.nombre}"?`)) return;
-    const { data } = await eliminar_m({ variables: { id: Number(t.idTipoRes) } });
-    if (!data?.eliminarTipoResolucion?.ok) {
-      alert(data?.eliminarTipoResolucion?.mensaje ?? "No se pudo eliminar."); return;
-    }
-    refetch();
+    await executeDelete(
+      async () => {
+        const { data } = await eliminar_m({ variables: { id: Number(t.idTipoRes) } });
+        if (!data?.eliminarTipoResolucion?.ok) {
+          throw new Error(data?.eliminarTipoResolucion?.mensaje ?? "No se pudo eliminar.");
+        }
+        await refetch();
+        return true;
+      },
+      {
+        loading: `Eliminando tipo "${t.nombre}"...`,
+        success: `Tipo "${t.nombre}" eliminado exitosamente`,
+        error: `Error al eliminar el tipo "${t.nombre}"`,
+      },
+      `¿Eliminar el tipo de resolución "${t.nombre}"?`
+    );
   };
 
   return (
@@ -171,7 +223,11 @@ export default function TiposResolucionPage() {
           <Field label="Nombre" value={form.nombre} onChange={f("nombre")} placeholder="Ej: Sentencia" required />
           <TextareaField label="Descripción" value={form.descripcion} onChange={f("descripcion")} />
           <ErrorBox msg={err} />
-          <ModalFooter onCancel={() => setModal(false)} onSave={guardar} saveLabel={editando ? "Guardar" : "Crear tipo"} />
+          <ModalFooter 
+            onCancel={() => setModal(false)} 
+            onSave={guardar} 
+            saveLabel={editando ? "Guardar" : "Crear tipo"} 
+          />
         </Modal>
       )}
     </div>

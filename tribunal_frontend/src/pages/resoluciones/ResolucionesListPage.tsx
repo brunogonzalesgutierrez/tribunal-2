@@ -7,16 +7,216 @@ import {
 } from "../../graphql/resoluciones";
 import {
   ScrollText, Plus, Edit, Trash2,
-  CheckCircle, Clock, XCircle, Shield, AlertTriangle,
+  CheckCircle, Clock, XCircle, Shield, AlertTriangle, Search, X,
 } from "lucide-react";
 import {
   Resolucion, Expediente, TipoResolucion,
   fmt, nivelLabel,
-  Modal, Field, SelectField, TextareaField,
+  Modal, Field, TextareaField,
   ErrorBox, ModalFooter, StatCard, TablaDesktop, ActionBtns,
   EstadoResolucionBadge,
 } from "./shared";
+import { useCrudNotifications } from "../../hooks/useCrudNotifications";
+import { useToast } from "../../context/ToastContext";
 
+// ============================================================
+// COMPONENTE: Buscador de Expedientes (Modal)
+// ============================================================
+function BuscadorExpediente({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: number, nombre: string) => void;
+  onClose: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const { data, loading } = useQuery(GET_EXPEDIENTES_SIMPLE);
+
+  const expedientes: Expediente[] = data?.allExpedientes ?? [];
+
+  const filtrados = expedientes.filter(e =>
+    `${e.numeroExpediente} ${e.ano}`.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-blue-500" />
+            Seleccionar Expediente
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar expediente por número..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No se encontraron expedientes</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtrados.map((e: Expediente, index: number) => (
+                <button
+                  key={e.idExpediente}
+                  onClick={() => {
+                    onSelect(e.idExpediente, `${e.numeroExpediente} (${e.ano})`);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 ${
+                    index === filtrados.length - 1 ? 'mb-0' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">{e.numeroExpediente}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Año: {e.ano}</p>
+                    </div>
+                    <div className="text-blue-500">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// COMPONENTE: Buscador de Tipos de Resolución (Modal)
+// ============================================================
+function BuscadorTipoResolucion({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: number, nombre: string) => void;
+  onClose: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const { data, loading } = useQuery(GET_TIPOS_RESOLUCION);
+
+  const tipos: TipoResolucion[] = data?.allTiposResolucion ?? [];
+
+  const filtrados = tipos.filter(t =>
+    `${t.codigo} ${t.nombre}`.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-blue-500" />
+            Seleccionar Tipo de Resolución
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar tipo de resolución..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No se encontraron tipos de resolución</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtrados.map((t: TipoResolucion, index: number) => (
+                <button
+                  key={t.idTipoRes}
+                  onClick={() => {
+                    onSelect(t.idTipoRes, `${t.codigo} - ${t.nombre} (${nivelLabel(t.nivelJerarquico)})`);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 ${
+                    index === filtrados.length - 1 ? 'mb-0' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">{t.nombre}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Código: {t.codigo}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{nivelLabel(t.nivelJerarquico)}</p>
+                    </div>
+                    <div className="text-blue-500">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════
+// PÁGINA PRINCIPAL
+// ════════════════════════════════════════════════════════
 export default function ResolucionesListPage() {
   const { data, loading, refetch } = useQuery(GET_RESOLUCIONES);
   const { data: dExp }  = useQuery(GET_EXPEDIENTES_SIMPLE);
@@ -26,10 +226,19 @@ export default function ResolucionesListPage() {
   const [actualizar] = useMutation(ACTUALIZAR_RESOLUCION);
   const [eliminar_m] = useMutation(ELIMINAR_RESOLUCION);
 
+  // ✅ HOOK DE NOTIFICACIONES
+  const { executeCreate, executeUpdate, executeDelete, toast } = useCrudNotifications("Resolución");
+
   const [modal, setModal]   = useState(false);
   const [editando, setEdit] = useState<Resolucion | null>(null);
   const [err, setErr]       = useState("");
   const [busqueda, setBusq] = useState("");
+
+  // Estados para buscadores modales
+  const [buscadorExpAbierto, setBuscadorExpAbierto] = useState(false);
+  const [buscadorTipoAbierto, setBuscadorTipoAbierto] = useState(false);
+  const [expedienteSeleccionado, setExpedienteSeleccionado] = useState("");
+  const [tipoSeleccionado, setTipoSeleccionado] = useState("");
 
   const initForm = {
     idExpediente: 0, idTipoRes: 0,
@@ -49,13 +258,31 @@ export default function ResolucionesListPage() {
       .toLowerCase().includes(busqueda.toLowerCase())
   );
 
-  // ── stats ─────────────────────────────────────────────
+  // stats
   const activas  = resoluciones.filter(r => r.estado === "ACTIVA").length;
   const firmes   = resoluciones.filter(r => r.estado === "FIRME").length;
   const apeladas = resoluciones.filter(r => r.estado === "APELADA").length;
   const recurribles = resoluciones.filter(r => r.esRecurrible).length;
 
-  const abrirCrear = () => { setEdit(null); setForm(initForm); setErr(""); setModal(true); };
+  const seleccionarExpediente = (id: number, nombre: string) => {
+    setForm(p => ({ ...p, idExpediente: id }));
+    setExpedienteSeleccionado(nombre);
+  };
+
+  const seleccionarTipo = (id: number, nombre: string) => {
+    setForm(p => ({ ...p, idTipoRes: id }));
+    setTipoSeleccionado(nombre);
+  };
+
+  const abrirCrear = () => { 
+    setEdit(null); 
+    setForm(initForm); 
+    setExpedienteSeleccionado("");
+    setTipoSeleccionado("");
+    setErr(""); 
+    setModal(true); 
+  };
+
   const abrirEditar = (r: Resolucion) => {
     setEdit(r);
     setForm({
@@ -69,49 +296,88 @@ export default function ResolucionesListPage() {
       esRecurrible: r.esRecurrible,
       plazoRecursoDias: String(r.plazoRecursoDias),
     });
-    setErr(""); setModal(true);
+    setExpedienteSeleccionado(`#${r.idExpediente.numeroExpediente} (${r.idExpediente.ano})`);
+    setTipoSeleccionado(`${r.idTipoRes.codigo} - ${r.idTipoRes.nombre}`);
+    setErr(""); 
+    setModal(true);
   };
 
+  // ✅ GUARDAR CON NOTIFICACIONES
   const guardar = async () => {
     if (!form.numeroResolucion || !form.fechaResolucion || !form.parteDispositiva) {
-      setErr("Número, fecha y parte dispositiva son obligatorios."); return;
+      toast.error("Número, fecha y parte dispositiva son obligatorios.");
+      return;
     }
     try {
       if (editando) {
-        await actualizar({ variables: { id: Number(editando.idResolucion), input: {
-          idTipoRes: Number(form.idTipoRes) || undefined,
-          numeroResolucion: form.numeroResolucion,
-          fechaResolucion: form.fechaResolucion,
-          parteDispositiva: form.parteDispositiva,
-          fundamentacion: form.fundamentacion || undefined,
-          estado: form.estado,
-          esRecurrible: form.esRecurrible,
-          plazoRecursoDias: Number(form.plazoRecursoDias),
-        }}});
+        await executeUpdate(async () => {
+          await actualizar({ 
+            variables: { 
+              id: Number(editando.idResolucion), 
+              input: {
+                idTipoRes: Number(form.idTipoRes) || undefined,
+                numeroResolucion: form.numeroResolucion,
+                fechaResolucion: form.fechaResolucion,
+                parteDispositiva: form.parteDispositiva,
+                fundamentacion: form.fundamentacion || undefined,
+                estado: form.estado,
+                esRecurrible: form.esRecurrible,
+                plazoRecursoDias: Number(form.plazoRecursoDias),
+              }
+            } 
+          });
+          await refetch(); 
+          setModal(false);
+          return true;
+        });
       } else {
         if (!form.idExpediente || !form.idTipoRes) {
-          setErr("Expediente y tipo de resolución son obligatorios."); return;
+          toast.error("Expediente y tipo de resolución son obligatorios.");
+          return;
         }
-        await crear({ variables: { input: {
-          idExpediente: Number(form.idExpediente),
-          idTipoRes: Number(form.idTipoRes),
-          numeroResolucion: form.numeroResolucion,
-          fechaResolucion: form.fechaResolucion,
-          parteDispositiva: form.parteDispositiva,
-          fundamentacion: form.fundamentacion || undefined,
-        }}});
+        await executeCreate(async () => {
+          await crear({ 
+            variables: { 
+              input: {
+                idExpediente: Number(form.idExpediente),
+                idTipoRes: Number(form.idTipoRes),
+                numeroResolucion: form.numeroResolucion,
+                fechaResolucion: form.fechaResolucion,
+                parteDispositiva: form.parteDispositiva,
+                fundamentacion: form.fundamentacion || undefined,
+              }
+            } 
+          });
+          await refetch(); 
+          setModal(false);
+          setExpedienteSeleccionado("");
+          setTipoSeleccionado("");
+          return true;
+        });
       }
-      await refetch(); setModal(false);
-    } catch (e: any) { setErr(e.message ?? "Error al guardar."); }
+    } catch (e: any) { 
+      setErr(e.message ?? "Error al guardar."); 
+    }
   };
 
+  // ✅ ELIMINAR CON NOTIFICACIONES
   const eliminar = async (r: Resolucion) => {
-    if (!window.confirm(`¿Eliminar la resolución ${r.numeroResolucion}?`)) return;
-    const { data } = await eliminar_m({ variables: { id: Number(r.idResolucion) } });
-    if (!data?.eliminarResolucion?.ok) {
-      alert(data?.eliminarResolucion?.mensaje ?? "No se pudo eliminar."); return;
-    }
-    refetch();
+    await executeDelete(
+      async () => {
+        const { data } = await eliminar_m({ variables: { id: Number(r.idResolucion) } });
+        if (!data?.eliminarResolucion?.ok) {
+          throw new Error(data?.eliminarResolucion?.mensaje ?? "No se pudo eliminar.");
+        }
+        await refetch();
+        return true;
+      },
+      {
+        loading: `Eliminando resolución ${r.numeroResolucion}...`,
+        success: `Resolución ${r.numeroResolucion} eliminada exitosamente`,
+        error: `Error al eliminar la resolución`,
+      },
+      `¿Eliminar la resolución ${r.numeroResolucion}?`
+    );
   };
 
   return (
@@ -244,35 +510,111 @@ export default function ResolucionesListPage() {
           icon={<ScrollText className="w-5 h-5 text-blue-500" />}
         >
           {!editando && (
-            <SelectField label="Expediente" value={form.idExpediente} onChange={f("idExpediente")} required>
-              <option value={0}>— Seleccionar expediente —</option>
-              {expedientes.map(e => (
-                <option key={e.idExpediente} value={e.idExpediente}>#{e.numeroExpediente} ({e.ano})</option>
-              ))}
-            </SelectField>
+            <>
+              {/* Expediente - Con buscador */}
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                  Expediente <span className="text-red-500">*</span>
+                </label>
+                {expedienteSeleccionado ? (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+                    <span className="flex-1 text-sm text-gray-800 dark:text-white">{expedienteSeleccionado}</span>
+                    <button
+                      onClick={() => {
+                        setForm(p => ({ ...p, idExpediente: 0 }));
+                        setExpedienteSeleccionado("");
+                      }}
+                      className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setBuscadorExpAbierto(true)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Buscar y seleccionar expediente
+                  </button>
+                )}
+              </div>
+
+              {/* Tipo de resolución - Con buscador */}
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                  Tipo de resolución <span className="text-red-500">*</span>
+                </label>
+                {tipoSeleccionado ? (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+                    <span className="flex-1 text-sm text-gray-800 dark:text-white">{tipoSeleccionado}</span>
+                    <button
+                      onClick={() => {
+                        setForm(p => ({ ...p, idTipoRes: 0 }));
+                        setTipoSeleccionado("");
+                      }}
+                      className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setBuscadorTipoAbierto(true)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Buscar y seleccionar tipo de resolución
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* En edición, mostrar la información como texto */}
+          {editando && (
+            <>
+              <div className="mb-4 p-2.5 rounded-xl bg-gray-100 dark:bg-slate-700/50 text-gray-700 dark:text-gray-300 text-sm">
+                Expediente: {expedienteSeleccionado}
+              </div>
+              <div className="mb-4 p-2.5 rounded-xl bg-gray-100 dark:bg-slate-700/50 text-gray-700 dark:text-gray-300 text-sm">
+                Tipo: {tipoSeleccionado}
+              </div>
+            </>
           )}
 
           <div className="grid grid-cols-2 gap-x-4">
-            <SelectField label="Tipo de resolución" value={form.idTipoRes} onChange={f("idTipoRes")} required>
-              <option value={0}>— Seleccionar tipo —</option>
-              {tipos.map(t => (
-                <option key={t.idTipoRes} value={t.idTipoRes}>{t.nombre} ({t.codigo})</option>
-              ))}
-            </SelectField>
             <Field label="N° de resolución" value={form.numeroResolucion} onChange={f("numeroResolucion")} placeholder="RES-2024-001" required />
+            <Field label="Fecha de resolución" value={form.fechaResolucion} onChange={f("fechaResolucion")} type="date" required />
           </div>
 
-          <div className="grid grid-cols-2 gap-x-4">
-            <Field label="Fecha de resolución" value={form.fechaResolucion} onChange={f("fechaResolucion")} type="date" required />
-            {editando && (
-              <SelectField label="Estado" value={form.estado} onChange={f("estado")}>
-                <option value="ACTIVA">Activa</option>
-                <option value="APELADA">Apelada</option>
-                <option value="ANULADA">Anulada</option>
-                <option value="FIRME">Firme</option>
-              </SelectField>
-            )}
-          </div>
+          {!editando && (
+            <div className="grid grid-cols-2 gap-x-4">
+              {/* Solo mostrar tipo en creación, en edición ya se mostró arriba */}
+            </div>
+          )}
+
+{editando && (
+  <div className="grid grid-cols-2 gap-x-4">
+    <div className="mb-4">
+      <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+        Estado
+      </label>
+      <select
+        value={form.estado}
+        onChange={e => setForm(p => ({ ...p, estado: e.target.value }))}
+        className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+      >
+        <option value="ACTIVA">Activa</option>
+        <option value="APELADA">Apelada</option>
+        <option value="ANULADA">Anulada</option>
+        <option value="FIRME">Firme</option>
+      </select>
+    </div>
+  </div>
+)}
 
           <TextareaField label="Parte dispositiva" value={form.parteDispositiva} onChange={f("parteDispositiva")} rows={3} required />
           <TextareaField label="Fundamentación" value={form.fundamentacion} onChange={f("fundamentacion")} rows={4} />
@@ -293,10 +635,25 @@ export default function ResolucionesListPage() {
 
           <ErrorBox msg={err} />
           <ModalFooter
-            onCancel={() => setModal(false)} onSave={guardar}
+            onCancel={() => setModal(false)} 
+            onSave={guardar}
             saveLabel={editando ? "Guardar cambios" : "Crear resolución"}
           />
         </Modal>
+      )}
+
+      {/* Modales de buscadores */}
+      {buscadorExpAbierto && (
+        <BuscadorExpediente
+          onSelect={seleccionarExpediente}
+          onClose={() => setBuscadorExpAbierto(false)}
+        />
+      )}
+      {buscadorTipoAbierto && (
+        <BuscadorTipoResolucion
+          onSelect={seleccionarTipo}
+          onClose={() => setBuscadorTipoAbierto(false)}
+        />
       )}
     </div>
   );
