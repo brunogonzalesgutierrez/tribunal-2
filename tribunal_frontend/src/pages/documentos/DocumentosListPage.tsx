@@ -28,9 +28,10 @@ const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api";
 interface DropZoneProps {
   archivo: File | null;
   onArchivo: (f: File | null) => void;
+  disabled?: boolean;
 }
 
-function DropZone({ archivo, onArchivo }: DropZoneProps) {
+function DropZone({ archivo, onArchivo, disabled = false }: DropZoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -46,9 +47,10 @@ function DropZone({ archivo, onArchivo }: DropZoneProps) {
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault(); setDragging(false);
+    if (disabled) return;
     const f = e.dataTransfer.files[0];
     if (f && validar(f)) onArchivo(f);
-  }, [onArchivo]);
+  }, [onArchivo, disabled]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -63,12 +65,13 @@ function DropZone({ archivo, onArchivo }: DropZoneProps) {
 
   return (
     <div
-      onDragOver={e => { e.preventDefault(); setDragging(true); }}
+      onDragOver={e => { if (!disabled) { e.preventDefault(); setDragging(true); } }}
       onDragLeave={() => setDragging(false)}
       onDrop={handleDrop}
-      onClick={() => !archivo && inputRef.current?.click()}
+      onClick={() => !disabled && !archivo && inputRef.current?.click()}
       className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer select-none
-        ${dragging
+        ${disabled ? "opacity-50 cursor-not-allowed" : ""}
+        ${dragging && !disabled
           ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
           : archivo
             ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 cursor-default"
@@ -81,6 +84,7 @@ function DropZone({ archivo, onArchivo }: DropZoneProps) {
         accept=".pdf"
         className="hidden"
         onChange={handleChange}
+        disabled={disabled}
       />
 
       {archivo ? (
@@ -93,7 +97,8 @@ function DropZone({ archivo, onArchivo }: DropZoneProps) {
           <button
             type="button"
             onClick={e => { e.stopPropagation(); onArchivo(null); inputRef.current && (inputRef.current.value = ""); }}
-            className="mt-1 flex items-center gap-1 text-xs text-red-500 hover:text-red-600 transition-colors"
+            disabled={disabled}
+            className="mt-1 flex items-center gap-1 text-xs text-red-500 hover:text-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <X className="w-3 h-3" /> Quitar archivo
           </button>
@@ -120,9 +125,11 @@ function DropZone({ archivo, onArchivo }: DropZoneProps) {
 function BuscadorExpediente({
   onSelect,
   onClose,
+  disabled,
 }: {
   onSelect: (id: number, nombre: string) => void;
   onClose: () => void;
+  disabled?: boolean;
 }) {
   const [busqueda, setBusqueda] = useState("");
   const { data, loading } = useQuery(GET_EXPEDIENTES_SIMPLE);
@@ -179,7 +186,8 @@ function BuscadorExpediente({
                     onSelect(e.idExpediente, `${e.numeroExpediente} (${e.ano})`);
                     onClose();
                   }}
-                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 ${
+                  disabled={disabled}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 disabled:opacity-50 disabled:cursor-not-allowed ${
                     index === filtrados.length - 1 ? 'mb-0' : ''
                   }`}
                 >
@@ -217,9 +225,11 @@ function BuscadorExpediente({
 function BuscadorTipoDocumento({
   onSelect,
   onClose,
+  disabled,
 }: {
   onSelect: (id: number, nombre: string) => void;
   onClose: () => void;
+  disabled?: boolean;
 }) {
   const [busqueda, setBusqueda] = useState("");
   const { data, loading } = useQuery(GET_TIPOS_DOC);
@@ -276,7 +286,8 @@ function BuscadorTipoDocumento({
                     onSelect(t.idTipoDoc, `${t.codigo} - ${t.nombre}`);
                     onClose();
                   }}
-                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 ${
+                  disabled={disabled}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 disabled:opacity-50 disabled:cursor-not-allowed ${
                     index === filtrados.length - 1 ? 'mb-0' : ''
                   }`}
                 >
@@ -386,8 +397,14 @@ function ModalSubirDocumento({ expedientes, tipos, onClose, onExito }: ModalSubi
 
   return (
     <Modal onClose={onClose} title="Subir documento PDF" icon={<UploadCloud className="w-5 h-5 text-blue-500" />}>
-      <Field label="Título del documento" value={form.titulo} onChange={f("titulo")} required
-        placeholder="Ej: Demanda inicial, Resolución 04..." />
+      <Field 
+        label="Título del documento" 
+        value={form.titulo} 
+        onChange={f("titulo")} 
+        required
+        placeholder="Ej: Demanda inicial, Resolución 04..."
+        disabled={subiendo}
+      />
 
       {/* Expediente - Con buscador */}
       <div className="mb-4">
@@ -402,7 +419,8 @@ function ModalSubirDocumento({ expedientes, tipos, onClose, onExito }: ModalSubi
                 setForm(p => ({ ...p, idExpediente: "" }));
                 setExpedienteSeleccionado("");
               }}
-              className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+              disabled={subiendo}
+              className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <X className="w-4 h-4" />
             </button>
@@ -411,7 +429,8 @@ function ModalSubirDocumento({ expedientes, tipos, onClose, onExito }: ModalSubi
           <button
             type="button"
             onClick={() => setBuscadorExpAbierto(true)}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+            disabled={subiendo}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="w-4 h-4" />
             Buscar y seleccionar expediente
@@ -432,7 +451,8 @@ function ModalSubirDocumento({ expedientes, tipos, onClose, onExito }: ModalSubi
                 setForm(p => ({ ...p, idTipoDoc: "" }));
                 setTipoSeleccionado("");
               }}
-              className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+              disabled={subiendo}
+              className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <X className="w-4 h-4" />
             </button>
@@ -441,7 +461,8 @@ function ModalSubirDocumento({ expedientes, tipos, onClose, onExito }: ModalSubi
           <button
             type="button"
             onClick={() => setBuscadorTipoAbierto(true)}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+            disabled={subiendo}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="w-4 h-4" />
             Buscar y seleccionar tipo de documento
@@ -449,14 +470,20 @@ function ModalSubirDocumento({ expedientes, tipos, onClose, onExito }: ModalSubi
         )}
       </div>
 
-      <Field label="Número de folio" value={form.numeroFolio} onChange={f("numeroFolio")} type="number" />
+      <Field 
+        label="Número de folio" 
+        value={form.numeroFolio} 
+        onChange={f("numeroFolio")} 
+        type="number" 
+        disabled={subiendo}
+      />
 
       {/* Drop Zone */}
       <div>
         <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
           Archivo PDF <span className="text-red-500">*</span>
         </label>
-        <DropZone archivo={archivo} onArchivo={setArchivo} />
+        <DropZone archivo={archivo} onArchivo={setArchivo} disabled={subiendo} />
       </div>
 
       {/* Barra de progreso */}
@@ -478,12 +505,18 @@ function ModalSubirDocumento({ expedientes, tipos, onClose, onExito }: ModalSubi
       <ErrorBox msg={err} />
 
       <div className="flex gap-3 justify-end pt-2">
-        <button onClick={onClose} disabled={subiendo}
-          className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium disabled:opacity-50">
+        <button 
+          onClick={onClose} 
+          disabled={subiendo}
+          className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           Cancelar
         </button>
-        <button onClick={handleSubir} disabled={subiendo || !archivo}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold text-sm shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+        <button 
+          onClick={handleSubir} 
+          disabled={subiendo || !archivo}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold text-sm shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           <UploadCloud className="w-4 h-4" />
           {subiendo ? "Subiendo..." : "Subir a bóveda"}
         </button>
@@ -494,12 +527,14 @@ function ModalSubirDocumento({ expedientes, tipos, onClose, onExito }: ModalSubi
         <BuscadorExpediente
           onSelect={seleccionarExpediente}
           onClose={() => setBuscadorExpAbierto(false)}
+          disabled={subiendo}
         />
       )}
       {buscadorTipoAbierto && (
         <BuscadorTipoDocumento
           onSelect={seleccionarTipo}
           onClose={() => setBuscadorTipoAbierto(false)}
+          disabled={subiendo}
         />
       )}
     </Modal>
@@ -522,7 +557,6 @@ export default function DocumentosListPage() {
   const [actualizarDocumento] = useMutation(ACTUALIZAR_DOCUMENTO);
   const [eliminarDocumento]   = useMutation(ELIMINAR_DOCUMENTO);
 
-  // ✅ HOOK DE NOTIFICACIONES
   const { executeUpdate, executeDelete, toast } = useCrudNotifications("Documento");
 
   // Modales
@@ -531,6 +565,9 @@ export default function DocumentosListPage() {
   const [editando, setEdit]           = useState<Documento | null>(null);
   const [formEditar, setFormEditar]   = useState(initFormEditar);
   const [err, setErr]                 = useState("");
+
+  // ✅ Estados para bloqueo de botones
+  const [saving, setSaving] = useState(false);
 
   // Filtros y paginación
   const [busqueda, setBusq] = useState("");
@@ -565,31 +602,38 @@ export default function DocumentosListPage() {
     setErr(""); setModalEditar(true);
   };
 
-  // ✅ GUARDAR EDICIÓN CON NOTIFICACIONES
+  // ✅ GUARDAR EDICIÓN CON BLOQUEO
   const guardarEdicion = async () => {
     if (!formEditar.titulo.trim()) { 
       toast.error("El título es obligatorio."); 
       return; 
     }
     
-    await executeUpdate(async () => {
-      await actualizarDocumento({
-        variables: {
-          id: Number(editando!.idDocumento),
-          input: {
-            titulo:      formEditar.titulo,
-            numeroFolio: formEditar.numeroFolio ? Number(formEditar.numeroFolio) : undefined,
-            rutaArchivo: formEditar.rutaArchivo || undefined,
+    if (saving) return;
+    setSaving(true);
+    
+    try {
+      await executeUpdate(async () => {
+        await actualizarDocumento({
+          variables: {
+            id: Number(editando!.idDocumento),
+            input: {
+              titulo:      formEditar.titulo,
+              numeroFolio: formEditar.numeroFolio ? Number(formEditar.numeroFolio) : undefined,
+              rutaArchivo: formEditar.rutaArchivo || undefined,
+            },
           },
-        },
+        });
+        await refetch(); 
+        setModalEditar(false);
+        return true;
       });
-      await refetch(); 
-      setModalEditar(false);
-      return true;
-    });
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // ✅ ELIMINAR CON NOTIFICACIONES
+  // ✅ ELIMINAR CON BLOQUEO
   const eliminar = async (d: Documento) => {
     await executeDelete(
       async () => {
@@ -617,6 +661,12 @@ export default function DocumentosListPage() {
     window.open(`${API_URL}/documento/${d.idDocumento}/descargar/`, "_blank");
   };
 
+  // Resetear página cuando cambia la búsqueda
+  const handleBusquedaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setBusq(e.target.value);
+    setPage(1);
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
 
@@ -633,30 +683,74 @@ export default function DocumentosListPage() {
         </div>
         <button
           onClick={() => setModalSubir(true)}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold text-sm shadow-lg shadow-blue-500/25 transition-all hover:scale-[1.02]"
+          disabled={saving}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold text-sm shadow-lg shadow-blue-500/25 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
         >
           <UploadCloud className="w-4 h-4" /> Subir documento
         </button>
       </div>
 
-      {/* Stats */}
+      {/* Stats - Clases fijas */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total documentos" value={documentos.length}
-          color="text-blue-600 dark:text-blue-400"
-          icon={<FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />}
-          sub="Registrados en el sistema" />
-        <StatCard label="Con archivo PDF" value={conArchivo}
-          color="text-emerald-600 dark:text-emerald-400"
-          icon={<UploadCloud className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />}
-          sub={`${Math.round((conArchivo / (documentos.length || 1)) * 100)}% del total`} />
-        <StatCard label="Electrónicos" value={electronicos}
-          color="text-purple-600 dark:text-purple-400"
-          icon={<Zap className="w-6 h-6 text-purple-600 dark:text-purple-400" />}
-          sub={`${Math.round((electronicos / (documentos.length || 1)) * 100)}% del total`} />
-        <StatCard label="Firmados digitalmente" value={firmados}
-          color="text-yellow-600 dark:text-yellow-400"
-          icon={<CheckCircle className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />}
-          sub={`${Math.round((firmados / (documentos.length || 1)) * 100)}% del total`} />
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total documentos</p>
+              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-2">{documentos.length}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Registrados en el sistema</p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Con archivo PDF</p>
+              <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 mt-2">{conArchivo}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <UploadCloud className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">{Math.round((conArchivo / (documentos.length || 1)) * 100)}% del total</p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Electrónicos</p>
+              <p className="text-3xl font-bold text-purple-600 dark:text-purple-400 mt-2">{electronicos}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Zap className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">{Math.round((electronicos / (documentos.length || 1)) * 100)}% del total</p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Firmados digitalmente</p>
+              <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400 mt-2">{firmados}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <CheckCircle className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">{Math.round((firmados / (documentos.length || 1)) * 100)}% del total</p>
+          </div>
+        </div>
       </div>
 
       {/* Buscador */}
@@ -666,7 +760,7 @@ export default function DocumentosListPage() {
           <input
             placeholder="Buscar por título, expediente o tipo..."
             value={busqueda}
-            onChange={e => { setBusq(e.target.value); setPage(1); }}
+            onChange={handleBusquedaChange}
             className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white dark:bg-slate-800/90 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
           />
         </div>
@@ -710,7 +804,8 @@ export default function DocumentosListPage() {
                     <File className="w-3 h-3" /> PDF
                   </span>
                   <button onClick={() => verArchivo(d)} title="Ver archivo"
-                    className="p-1 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">
+                    disabled={saving}
+                    className="p-1 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                     <Eye className="w-3.5 h-3.5" />
                   </button>
                   <a href={`${API_URL}/documento/${d.idDocumento}/descargar/`} download title="Descargar"
@@ -729,7 +824,7 @@ export default function DocumentosListPage() {
               <BoolBadge val={d.firmadoDigitalmente} si="Firmado" no="Sin firma" />
             </td>
             <td className="px-6 py-4">
-              <ActionBtns onEdit={() => abrirEditar(d)} onDelete={() => eliminar(d)} />
+              <ActionBtns onEdit={() => abrirEditar(d)} onDelete={() => eliminar(d)} disabled={saving} />
             </td>
           </tr>
         ))}
@@ -742,14 +837,18 @@ export default function DocumentosListPage() {
             Mostrando {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, filtrados.length)} de {filtrados.length}
           </p>
           <div className="flex gap-1">
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+            <button 
+              onClick={() => setPage(p => Math.max(1, p - 1))} 
+              disabled={page === 1}
               className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
               <ChevronLeft className="w-4 h-4" />
             </button>
             <span className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">
               {page} / {totalPages}
             </span>
-            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+            <button 
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))} 
+              disabled={page === totalPages}
               className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -768,15 +867,17 @@ export default function DocumentosListPage() {
               </div>
               <div className="flex gap-1 ml-2">
                 {d.rutaArchivo && (
-                  <button onClick={() => verArchivo(d)}
-                    className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/30">
+                  <button onClick={() => verArchivo(d)} disabled={saving}
+                    className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 disabled:opacity-40 disabled:cursor-not-allowed">
                     <Eye className="w-4 h-4" />
                   </button>
                 )}
-                <button onClick={() => abrirEditar(d)} className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30">
+                <button onClick={() => abrirEditar(d)} disabled={saving}
+                  className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed">
                   <Edit className="w-4 h-4" />
                 </button>
-                <button onClick={() => eliminar(d)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
+                <button onClick={() => eliminar(d)} disabled={saving}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -810,11 +911,34 @@ export default function DocumentosListPage() {
       {modalEditar && editando && (
         <Modal onClose={() => setModalEditar(false)} title="Editar documento"
           icon={<FileText className="w-5 h-5 text-blue-500" />}>
-          <Field label="Título" value={formEditar.titulo} onChange={fe("titulo")} required />
-          <Field label="Número de folio" value={formEditar.numeroFolio} onChange={fe("numeroFolio")} type="number" />
-          <Field label="Ruta / URL del archivo" value={formEditar.rutaArchivo} onChange={fe("rutaArchivo")} placeholder="ej: /docs/archivo.pdf" />
+          <Field 
+            label="Título" 
+            value={formEditar.titulo} 
+            onChange={fe("titulo")} 
+            required 
+            disabled={saving}
+          />
+          <Field 
+            label="Número de folio" 
+            value={formEditar.numeroFolio} 
+            onChange={fe("numeroFolio")} 
+            type="number" 
+            disabled={saving}
+          />
+          <Field 
+            label="Ruta / URL del archivo" 
+            value={formEditar.rutaArchivo} 
+            onChange={fe("rutaArchivo")} 
+            placeholder="ej: /docs/archivo.pdf" 
+            disabled={saving}
+          />
           <ErrorBox msg={err} />
-          <ModalFooter onCancel={() => setModalEditar(false)} onSave={guardarEdicion} saveLabel="Guardar cambios" />
+          <ModalFooter 
+            onCancel={() => setModalEditar(false)} 
+            onSave={guardarEdicion} 
+            saveLabel="Guardar cambios"
+            saving={saving}
+          />
         </Modal>
       )}
     </div>

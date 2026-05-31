@@ -7,7 +7,7 @@ import {
   ELIMINAR_SOLICITUD,
 } from "../../graphql/solicitudes";
 import {
-  ClipboardList, Plus, Eye, Trash2, Clock, CheckCircle, XCircle, X, AlertCircle, Search,
+  ClipboardList, Plus, Eye, Trash2, Clock, CheckCircle, XCircle, X, AlertCircle, Search, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { useCrudNotifications } from "../../hooks/useCrudNotifications";
 import { useToast } from "../../context/ToastContext";
@@ -79,13 +79,13 @@ const EstadoBadge = ({ estado }: { estado: string }) => (
 );
 
 // ════════════════════════════════════════════════════════
-// STAT CARD
+// STAT CARD - Clases fijas
 // ════════════════════════════════════════════════════════
 
 function StatCard({
-  label, value, icon, color, sub,
+  label, value, icon, colorText, sub,
 }: {
-  label: string; value: number; icon: React.ReactNode; color: string; sub?: string;
+  label: string; value: number; icon: React.ReactNode; colorText: string; sub?: string;
 }) {
   const bgMap: Record<string, string> = {
     blue:    "bg-blue-100 dark:bg-blue-900/30",
@@ -93,13 +93,14 @@ function StatCard({
     amber:   "bg-amber-100 dark:bg-amber-900/30",
     red:     "bg-red-100 dark:bg-red-900/30",
   };
-  const key = Object.keys(bgMap).find(k => color.includes(k)) ?? "blue";
+  const key = Object.keys(bgMap).find(k => colorText.includes(k)) ?? "blue";
+
   return (
     <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg hover:shadow-xl transition-all duration-300 group">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{label}</p>
-          <p className={`text-3xl font-bold mt-2 ${color}`}>{value}</p>
+          <p className={`text-3xl font-bold mt-2 ${colorText}`}>{value}</p>
         </div>
         <div className={`w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${bgMap[key]}`}>
           {icon}
@@ -151,10 +152,10 @@ function Modal({
 // ════════════════════════════════════════════════════════
 
 const Field = ({
-  label, value, onChange, type = "text", placeholder = "", required = false, readOnly = false,
+  label, value, onChange, type = "text", placeholder = "", required = false, readOnly = false, disabled = false,
 }: {
   label: string; value: string; onChange: (v: string) => void;
-  type?: string; placeholder?: string; required?: boolean; readOnly?: boolean;
+  type?: string; placeholder?: string; required?: boolean; readOnly?: boolean; disabled?: boolean;
 }) => (
   <div className="mb-4">
     <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
@@ -163,26 +164,28 @@ const Field = ({
     <input
       type={type} value={value} placeholder={placeholder} readOnly={readOnly}
       onChange={e => onChange(e.target.value)}
+      disabled={disabled}
       className={`w-full px-4 py-2.5 rounded-xl border text-sm transition-all outline-none ${
         readOnly
           ? "bg-gray-100 dark:bg-slate-900 border-gray-200 dark:border-slate-700 text-gray-400 cursor-not-allowed"
-          : "bg-gray-50 dark:bg-slate-900/60 border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          : "bg-gray-50 dark:bg-slate-900/60 border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
       }`}
     />
   </div>
 );
 
 const TextareaField = ({
-  label, value, onChange, placeholder = "",
+  label, value, onChange, placeholder = "", disabled = false,
 }: {
-  label: string; value: string; onChange: (v: string) => void; placeholder?: string;
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; disabled?: boolean;
 }) => (
   <div className="mb-4">
     <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">{label}</label>
     <textarea
       value={value} placeholder={placeholder} rows={3}
       onChange={e => onChange(e.target.value)}
-      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-vertical"
+      disabled={disabled}
+      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-vertical disabled:opacity-50 disabled:cursor-not-allowed"
     />
   </div>
 );
@@ -200,9 +203,11 @@ const ErrorBox = ({ msg }: { msg: string }) =>
 function BuscadorUsuario({
   onSelect,
   onClose,
+  disabled,
 }: {
   onSelect: (id: number, nombre: string) => void;
   onClose: () => void;
+  disabled?: boolean;
 }) {
   const [busqueda, setBusqueda] = useState("");
   const { data, loading } = useQuery(GET_USUARIOS_SIMPLE);
@@ -260,7 +265,8 @@ function BuscadorUsuario({
                     onSelect(u.idUsuario, `${u.nombres} ${u.paterno} (${u.email})`);
                     onClose();
                   }}
-                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 ${
+                  disabled={disabled}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 disabled:opacity-50 disabled:cursor-not-allowed ${
                     index === filtrados.length - 1 ? 'mb-0' : ''
                   }`}
                 >
@@ -371,6 +377,7 @@ function NuevaSolicitudModal({
   const [err, setErr]     = useState("");
   const [buscadorUsuarioAbierto, setBuscadorUsuarioAbierto] = useState(false);
   const [usuarioSeleccionado, setUsuarioSeleccionado] = useState("");
+  const [saving, setSaving] = useState(false);
   const [crearSolicitud]  = useMutation(CREAR_SOLICITUD);
   const { executeCreate, toast } = useCrudNotifications("Solicitud");
 
@@ -387,19 +394,26 @@ function NuevaSolicitudModal({
       return;
     }
     
-    await executeCreate(async () => {
-      await crearSolicitud({
-        variables: {
-          idUsuario:   Number(form.idUsuario),
-          codigoIanus: form.codigoIanus,
-          codigoSala:  form.codigoSala,
-          observacion: form.observacion || undefined,
-        },
+    if (saving) return;
+    setSaving(true);
+    
+    try {
+      await executeCreate(async () => {
+        await crearSolicitud({
+          variables: {
+            idUsuario:   Number(form.idUsuario),
+            codigoIanus: form.codigoIanus,
+            codigoSala:  form.codigoSala,
+            observacion: form.observacion || undefined,
+          },
+        });
+        onGuardado();
+        setUsuarioSeleccionado("");
+        return true;
       });
-      onGuardado();
-      setUsuarioSeleccionado("");
-      return true;
-    });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -421,7 +435,8 @@ function NuevaSolicitudModal({
                 setForm(p => ({ ...p, idUsuario: "" }));
                 setUsuarioSeleccionado("");
               }}
-              className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+              disabled={saving}
+              className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <X className="w-4 h-4" />
             </button>
@@ -430,7 +445,8 @@ function NuevaSolicitudModal({
           <button
             type="button"
             onClick={() => setBuscadorUsuarioAbierto(true)}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+            disabled={saving}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="w-4 h-4" />
             Buscar y seleccionar usuario
@@ -438,23 +454,45 @@ function NuevaSolicitudModal({
         )}
       </div>
 
-      <Field label="Código IANUS"   value={form.codigoIanus} onChange={f("codigoIanus")} required placeholder="ej: IANUS-2024-001" />
-      <Field label="Código de sala" value={form.codigoSala}  onChange={f("codigoSala")}  required placeholder="ej: SALA-A1" />
-      <TextareaField label="Observación" value={form.observacion} onChange={f("observacion")} placeholder="Descripción opcional de la solicitud..." />
+      <Field 
+        label="Código IANUS"   
+        value={form.codigoIanus} 
+        onChange={f("codigoIanus")} 
+        required 
+        placeholder="ej: IANUS-2024-001"
+        disabled={saving}
+      />
+      <Field 
+        label="Código de sala" 
+        value={form.codigoSala}  
+        onChange={f("codigoSala")}  
+        required 
+        placeholder="ej: SALA-A1"
+        disabled={saving}
+      />
+      <TextareaField 
+        label="Observación" 
+        value={form.observacion} 
+        onChange={f("observacion")} 
+        placeholder="Descripción opcional de la solicitud..."
+        disabled={saving}
+      />
       
       <ErrorBox msg={err} />
       <div className="flex gap-3 justify-end pt-2">
         <button
           onClick={onClose}
-          className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          disabled={saving}
+          className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Cancelar
         </button>
         <button
           onClick={guardar}
-          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium text-sm shadow-md transition-all"
+          disabled={saving}
+          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium text-sm shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Crear solicitud
+          {saving ? "Creando..." : "Crear solicitud"}
         </button>
       </div>
 
@@ -463,6 +501,7 @@ function NuevaSolicitudModal({
         <BuscadorUsuario
           onSelect={seleccionarUsuario}
           onClose={() => setBuscadorUsuarioAbierto(false)}
+          disabled={saving}
         />
       )}
     </Modal>
@@ -485,6 +524,13 @@ export default function SolicitudesPage() {
   const [solicitudDetalle, setSolicitudDetalle] = useState<Solicitud | null>(null);
   const [busqueda, setBusqueda]                 = useState("");
   const [filtroEstado, setFiltroEstado]         = useState<FiltroEstado>("TODOS");
+  
+  // ✅ Estado para paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+  
+  // ✅ Estado para bloqueo de botones
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const { data, loading, refetch } = useQuery(GET_SOLICITUDES);
   const { data: dataUsuarios }     = useQuery(GET_USUARIOS_SIMPLE);
@@ -494,36 +540,60 @@ export default function SolicitudesPage() {
   const solicitudes: Solicitud[] = data?.allSolicitudes   ?? [];
   const usuarios:    Usuario[]   = dataUsuarios?.allUsuarios ?? [];
 
-  const total      = solicitudes.length;
-  const pendientes = solicitudes.filter(s => s.estadoSolicitud === "PENDIENTE").length;
-  const aprobadas  = solicitudes.filter(s => s.estadoSolicitud === "APROBADA").length;
-  const rechazadas = solicitudes.filter(s => s.estadoSolicitud === "RECHAZADA").length;
-
-  const filtradas = solicitudes.filter(s => {
+  // ✅ Filtrar solicitudes
+  const solicitudesFiltradas = solicitudes.filter(s => {
     const matchEstado   = filtroEstado === "TODOS" || s.estadoSolicitud === filtroEstado;
     const matchBusqueda = `${s.codigoIanus} ${s.codigoSala} ${s.usuario?.nombres ?? ""} ${s.usuario?.paterno ?? ""} ${s.observacion ?? ""}`
       .toLowerCase().includes(busqueda.toLowerCase());
     return matchEstado && matchBusqueda;
   });
 
-  // ✅ ELIMINAR CON NOTIFICACIONES
+  // ✅ Paginación
+  const totalPages = Math.ceil(solicitudesFiltradas.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedSolicitudes = solicitudesFiltradas.slice(startIndex, startIndex + itemsPerPage);
+
+  const total      = solicitudes.length;
+  const pendientes = solicitudes.filter(s => s.estadoSolicitud === "PENDIENTE").length;
+  const aprobadas  = solicitudes.filter(s => s.estadoSolicitud === "APROBADA").length;
+  const rechazadas = solicitudes.filter(s => s.estadoSolicitud === "RECHAZADA").length;
+
+  // ✅ ELIMINAR CON BLOQUEO
   const eliminar = async (s: Solicitud) => {
-    await executeDelete(
-      async () => {
-        const { data } = await eliminarSolicitud({ variables: { id: Number(s.idSolicitud) } });
-        if (!data?.eliminarSolicitud?.ok) {
-          throw new Error(data?.eliminarSolicitud?.mensaje ?? "No se pudo eliminar.");
-        }
-        await refetch();
-        return true;
-      },
-      {
-        loading: `Eliminando solicitud ${s.codigoIanus}...`,
-        success: `Solicitud ${s.codigoIanus} eliminada exitosamente`,
-        error: `Error al eliminar la solicitud`,
-      },
-      `¿Eliminar la solicitud ${s.codigoIanus}?`
-    );
+    if (deletingId === s.idSolicitud) return;
+    setDeletingId(s.idSolicitud);
+    
+    try {
+      await executeDelete(
+        async () => {
+          const { data } = await eliminarSolicitud({ variables: { id: Number(s.idSolicitud) } });
+          if (!data?.eliminarSolicitud?.ok) {
+            throw new Error(data?.eliminarSolicitud?.mensaje ?? "No se pudo eliminar.");
+          }
+          await refetch();
+          return true;
+        },
+        {
+          loading: `Eliminando solicitud ${s.codigoIanus}...`,
+          success: `Solicitud ${s.codigoIanus} eliminada exitosamente`,
+          error: `Error al eliminar la solicitud`,
+        },
+        `¿Eliminar la solicitud ${s.codigoIanus}?`
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // Resetear página cuando cambia la búsqueda o el filtro
+  const handleBusquedaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setBusqueda(e.target.value);
+    setCurrentPage(1);
+  };
+
+  const handleFiltroChange = (filtro: FiltroEstado) => {
+    setFiltroEstado(filtro);
+    setCurrentPage(1);
   };
 
   return (
@@ -548,17 +618,17 @@ export default function SolicitudesPage() {
         </button>
       </div>
 
-      {/* Stats */}
+      {/* Stats - Clases fijas */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <StatCard label="Total" value={total} color="text-blue-600 dark:text-blue-400"
+        <StatCard label="Total" value={total} colorText="text-blue-600 dark:text-blue-400"
           icon={<ClipboardList className="w-6 h-6 text-blue-600 dark:text-blue-400" />} />
-        <StatCard label="Pendientes" value={pendientes} color="text-amber-600 dark:text-amber-400"
+        <StatCard label="Pendientes" value={pendientes} colorText="text-amber-600 dark:text-amber-400"
           icon={<Clock className="w-6 h-6 text-amber-600 dark:text-amber-400" />}
           sub="Esperando respuesta" />
-        <StatCard label="Aprobadas" value={aprobadas} color="text-emerald-600 dark:text-emerald-400"
+        <StatCard label="Aprobadas" value={aprobadas} colorText="text-emerald-600 dark:text-emerald-400"
           icon={<CheckCircle className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />}
           sub={`${Math.round((aprobadas / (total || 1)) * 100)}% del total`} />
-        <StatCard label="Rechazadas" value={rechazadas} color="text-red-600 dark:text-red-400"
+        <StatCard label="Rechazadas" value={rechazadas} colorText="text-red-600 dark:text-red-400"
           icon={<XCircle className="w-6 h-6 text-red-600 dark:text-red-400" />}
           sub="Requieren atención" />
       </div>
@@ -569,7 +639,7 @@ export default function SolicitudesPage() {
           {FILTROS.map(fil => (
             <button
               key={fil.id}
-              onClick={() => setFiltroEstado(fil.id)}
+              onClick={() => handleFiltroChange(fil.id)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 filtroEstado === fil.id
                   ? "bg-white dark:bg-slate-700 text-gray-800 dark:text-white shadow-sm"
@@ -583,18 +653,18 @@ export default function SolicitudesPage() {
 
         <input
           value={busqueda}
-          onChange={e => setBusqueda(e.target.value)}
+          onChange={handleBusquedaChange}
           placeholder="Buscar por código, usuario u observación..."
           className="flex-1 min-w-0 px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
         />
 
         <span className="text-sm text-gray-500 dark:text-gray-400 shrink-0">
-          {filtradas.length} resultado{filtradas.length !== 1 ? "s" : ""}
+          {solicitudesFiltradas.length} resultado{solicitudesFiltradas.length !== 1 ? "s" : ""}
           {filtroEstado !== "TODOS" && ` · ${ESTADO_LABELS[filtroEstado]}`}
         </span>
       </div>
 
-      {/* Tabla Desktop */}
+      {/* Tabla Desktop con datos paginados */}
       <div className="hidden lg:block bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -618,7 +688,7 @@ export default function SolicitudesPage() {
                     ))}
                   </tr>
                 ))
-              ) : filtradas.length === 0 ? (
+              ) : paginatedSolicitudes.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                     <div className="flex flex-col items-center gap-2">
@@ -627,7 +697,7 @@ export default function SolicitudesPage() {
                     </div>
                   </td>
                 </tr>
-              ) : filtradas.map(s => (
+              ) : paginatedSolicitudes.map(s => (
                 <tr key={s.idSolicitud} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
                   <td className="px-6 py-4 text-xs text-gray-400 font-mono">#{s.idSolicitud}</td>
                   <td className="px-6 py-4 font-mono font-bold text-blue-500 text-sm">{s.codigoIanus}</td>
@@ -658,7 +728,8 @@ export default function SolicitudesPage() {
                       </button>
                       <button
                         onClick={() => eliminar(s)}
-                        className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                        disabled={deletingId === s.idSolicitud}
+                        className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                         title="Eliminar"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -672,9 +743,37 @@ export default function SolicitudesPage() {
         </div>
       </div>
 
-      {/* Cards Móvil */}
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Mostrando {startIndex + 1} - {Math.min(startIndex + itemsPerPage, solicitudesFiltradas.length)} de {solicitudesFiltradas.length}
+          </p>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">
+              Página {currentPage} de {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Cards Móvil con datos paginados */}
       <div className="lg:hidden space-y-3">
-        {filtradas.map(s => (
+        {paginatedSolicitudes.map(s => (
           <div key={s.idSolicitud} className="bg-white dark:bg-slate-800/90 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
             <div className="flex justify-between items-start mb-3">
               <div>
@@ -686,7 +785,11 @@ export default function SolicitudesPage() {
                 <button onClick={() => setSolicitudDetalle(s)} className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30">
                   <Eye className="w-4 h-4" />
                 </button>
-                <button onClick={() => eliminar(s)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
+                <button 
+                  onClick={() => eliminar(s)} 
+                  disabled={deletingId === s.idSolicitud}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
