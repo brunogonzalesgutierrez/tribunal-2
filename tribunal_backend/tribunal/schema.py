@@ -374,7 +374,12 @@ class ActualizarTipoActuacionInput(graphene.InputObjectType):
     codigo = graphene.String()
     nombre = graphene.String()
 
+# En tu archivo schema.py
 
+class ActualizarSolicitudInput(graphene.InputObjectType):
+    estado_solicitud = graphene.String(required=True)
+    fecha_confirmacion = graphene.DateTime()
+    observacion = graphene.String()
 
 class ReporteEstadoType(graphene.ObjectType):
     estado    = graphene.String()
@@ -3159,6 +3164,7 @@ class Mutation(graphene.ObjectType):
     # Solicitud
     crear_solicitud    = CrearSolicitud.Field()
     eliminar_solicitud = EliminarSolicitud.Field()
+    actualizar_solicitud = ActualizarSolicitud.Field()
     # Login OTP
     validate_user = ValidateUser.Field()
     verify_otp    = VerifyOtp.Field()

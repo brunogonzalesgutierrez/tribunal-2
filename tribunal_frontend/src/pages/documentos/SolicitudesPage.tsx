@@ -4,10 +4,11 @@ import {
   GET_SOLICITUDES,
   GET_USUARIOS_SIMPLE,
   CREAR_SOLICITUD,
+  ACTUALIZAR_SOLICITUD, 
   ELIMINAR_SOLICITUD,
 } from "../../graphql/solicitudes";
 import {
-  ClipboardList, Plus, Eye, Trash2, Clock, CheckCircle, XCircle, X, AlertCircle, Search, ChevronLeft, ChevronRight,
+  ClipboardList, Plus, Eye, Trash2, Clock, CheckCircle, XCircle, X, AlertCircle, Search, ChevronLeft, ChevronRight, Edit,
 } from "lucide-react";
 import { useCrudNotifications } from "../../hooks/useCrudNotifications";
 import { useToast } from "../../context/ToastContext";
@@ -509,6 +510,183 @@ function NuevaSolicitudModal({
 }
 
 // ════════════════════════════════════════════════════════
+// MODAL EDITAR SOLICITUD (cambiar estado y observación)
+// ════════════════════════════════════════════════════════
+
+const ESTADO_OPCIONES = [
+  { value: "PENDIENTE", label: "Pendiente", color: "amber" },
+  { value: "APROBADA",  label: "Aprobada",  color: "emerald" },
+  { value: "RECHAZADA", label: "Rechazada", color: "red" },
+];
+
+function EditarSolicitudModal({
+  solicitud,
+  onClose,
+  onGuardado,
+}: {
+  solicitud: Solicitud;
+  onClose: () => void;
+  onGuardado: () => void;
+}) {
+  const [estado, setEstado] = useState(solicitud.estadoSolicitud);
+  const [observacion, setObservacion] = useState(solicitud.observacion || "");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("")
+  const [actualizarSolicitud] = useMutation(ACTUALIZAR_SOLICITUD);
+  const  toast  = useToast();
+
+  const getColorClass = (color: string, isSelected: boolean) => {
+    if (!isSelected) return "";
+    const colorMap: Record<string, string> = {
+      amber: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-400",
+      emerald: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-400",
+      red: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-400",
+    };
+    return colorMap[color] || "";
+  };
+
+  const guardar = async () => {
+    if (!estado) {
+      toast.error("Debe seleccionar un estado");
+      return;
+    }
+
+    if (saving) return;
+    setSaving(true);
+
+    try {
+      const { data } = await actualizarSolicitud({
+        variables: {
+          id: Number(solicitud.idSolicitud),
+          estadoSolicitud: estado,
+          fechaConfirmacion: null,
+          observacion: observacion || null,
+        },
+      });
+
+      if (data?.actualizarSolicitud?.ok) {
+        toast.success(`Solicitud ${estado === "APROBADA" ? "aprobada" : estado === "RECHAZADA" ? "rechazada" : "actualizada"} exitosamente`);
+        onGuardado();
+        onClose();
+      } else {
+        throw new Error(data?.actualizarSolicitud?.mensaje || "Error al actualizar");
+      }
+    } catch (error: any) {
+      console.error("Error:", error);
+      toast.error(error.message || "Error al actualizar la solicitud");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      onClose={onClose}
+      title={`Editar solicitud #${solicitud.idSolicitud}`}
+      icon={<ClipboardList className="w-5 h-5 text-blue-500" />}
+    >
+      {/* Información de solo lectura */}
+      {/* <div className="bg-gray-50 dark:bg-slate-900/60 rounded-xl border border-gray-200 dark:border-slate-700 p-3 mb-4">
+        <p className="text-xs text-gray-400 mb-1">Código IANUS</p>
+        <p className="font-mono font-bold text-blue-500 text-sm">{solicitud.codigoIanus}</p>
+      </div>
+
+      <div className="bg-gray-50 dark:bg-slate-900/60 rounded-xl border border-gray-200 dark:border-slate-700 p-3 mb-4">
+        <p className="text-xs text-gray-400 mb-1">Código de sala</p>
+        <p className="font-mono font-bold text-blue-500 text-sm">{solicitud.codigoSala}</p>
+      </div>
+
+      <div className="bg-gray-50 dark:bg-slate-900/60 rounded-xl border border-gray-200 dark:border-slate-700 p-3 mb-4">
+        <p className="text-xs text-gray-400 mb-1">Usuario solicitante</p>
+        <p className="font-semibold text-gray-800 dark:text-white text-sm">
+          {solicitud.usuario.nombres} {solicitud.usuario.paterno}
+        </p>
+        <p className="text-xs text-gray-400 mt-0.5">{solicitud.usuario.email}</p>
+      </div> */}
+
+      {/* Estado actual */}
+      <div className="mb-4">
+        <div className="flex items-center gap-2 mb-2">
+          <p className="text-xs font-semibold text-gray-600 dark:text-gray-400">Estado actual:</p>
+          <EstadoBadge estado={solicitud.estadoSolicitud} />
+        </div>
+      </div>
+
+      {/* Estado - Selección */}
+      <div className="mb-4">
+        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+          Cambiar estado <span className="text-red-500">*</span>
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {ESTADO_OPCIONES.map(opt => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setEstado(opt.value)}
+              disabled={saving}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                estado === opt.value
+                  ? `${getColorClass(opt.color, true)} border-2`
+                  : "bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-400 border border-transparent hover:border-gray-300"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Fecha de confirmación (solo lectura) */}
+      <div className="mb-4">
+        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+          Fecha de confirmación actual
+        </label>
+        <p className="text-sm text-gray-700 dark:text-gray-200 p-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700">
+          {fmtFechaHora(solicitud.fechaConfirmacion) || "—"}
+        </p>
+        <p className="text-xs text-amber-500 mt-1">
+          ⚠️ Al aprobar o rechazar, la fecha se actualizará automáticamente
+        </p>
+      </div>
+
+      {/* Observación */}
+      <div className="mb-4">
+        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+          Observación (opcional)
+        </label>
+        <textarea
+          value={observacion}
+          onChange={e => setObservacion(e.target.value)}
+          disabled={saving}
+          rows={3}
+          placeholder="Motivo de aprobación/rechazo o cualquier observación..."
+          className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-vertical disabled:opacity-50 disabled:cursor-not-allowed"
+        />
+      </div>
+
+      <ErrorBox msg={err} />
+
+      <div className="flex gap-3 justify-end pt-2">
+        <button
+          onClick={onClose}
+          disabled={saving}
+          className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={guardar}
+          disabled={saving}
+          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium text-sm shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {saving ? "Guardando..." : "Guardar cambios"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ════════════════════════════════════════════════════════
 // PÁGINA PRINCIPAL
 // ════════════════════════════════════════════════════════
 
@@ -522,14 +700,12 @@ const FILTROS: { id: FiltroEstado; label: string }[] = [
 export default function SolicitudesPage() {
   const [modalNuevo, setModalNuevo]             = useState(false);
   const [solicitudDetalle, setSolicitudDetalle] = useState<Solicitud | null>(null);
+  const [solicitudEditando, setSolicitudEditando] = useState<Solicitud | null>(null);
   const [busqueda, setBusqueda]                 = useState("");
   const [filtroEstado, setFiltroEstado]         = useState<FiltroEstado>("TODOS");
   
-  // ✅ Estado para paginación
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-  
-  // ✅ Estado para bloqueo de botones
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const { data, loading, refetch } = useQuery(GET_SOLICITUDES);
@@ -540,7 +716,6 @@ export default function SolicitudesPage() {
   const solicitudes: Solicitud[] = data?.allSolicitudes   ?? [];
   const usuarios:    Usuario[]   = dataUsuarios?.allUsuarios ?? [];
 
-  // ✅ Filtrar solicitudes
   const solicitudesFiltradas = solicitudes.filter(s => {
     const matchEstado   = filtroEstado === "TODOS" || s.estadoSolicitud === filtroEstado;
     const matchBusqueda = `${s.codigoIanus} ${s.codigoSala} ${s.usuario?.nombres ?? ""} ${s.usuario?.paterno ?? ""} ${s.observacion ?? ""}`
@@ -548,7 +723,6 @@ export default function SolicitudesPage() {
     return matchEstado && matchBusqueda;
   });
 
-  // ✅ Paginación
   const totalPages = Math.ceil(solicitudesFiltradas.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedSolicitudes = solicitudesFiltradas.slice(startIndex, startIndex + itemsPerPage);
@@ -558,7 +732,6 @@ export default function SolicitudesPage() {
   const aprobadas  = solicitudes.filter(s => s.estadoSolicitud === "APROBADA").length;
   const rechazadas = solicitudes.filter(s => s.estadoSolicitud === "RECHAZADA").length;
 
-  // ✅ ELIMINAR CON BLOQUEO
   const eliminar = async (s: Solicitud) => {
     if (deletingId === s.idSolicitud) return;
     setDeletingId(s.idSolicitud);
@@ -585,7 +758,6 @@ export default function SolicitudesPage() {
     }
   };
 
-  // Resetear página cuando cambia la búsqueda o el filtro
   const handleBusquedaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setBusqueda(e.target.value);
     setCurrentPage(1);
@@ -664,13 +836,13 @@ export default function SolicitudesPage() {
         </span>
       </div>
 
-      {/* Tabla Desktop con datos paginados */}
+      {/* Tabla Desktop */}
       <div className="hidden lg:block bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-slate-900/50 border-b border-gray-200 dark:border-slate-700">
               <tr>
-                {["#", "Código IANUS", "Código sala", "Usuario", "Estado", "Fecha solicitud", "Fecha confirmación", "Acciones"].map(h => (
+                {["ID", "Código IANUS", "Código sala", "Usuario", "Estado", "Fecha solicitud", "Fecha confirmación", "Acciones"].map(h => (
                   <th key={h} className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     {h}
                   </th>
@@ -727,6 +899,13 @@ export default function SolicitudesPage() {
                         <Eye className="w-4 h-4" />
                       </button>
                       <button
+                        onClick={() => setSolicitudEditando(s)}
+                        className="p-2 rounded-lg text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors"
+                        title="Editar estado"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={() => eliminar(s)}
                         disabled={deletingId === s.idSolicitud}
                         className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -771,7 +950,7 @@ export default function SolicitudesPage() {
         </div>
       )}
 
-      {/* Cards Móvil con datos paginados */}
+      {/* Cards Móvil */}
       <div className="lg:hidden space-y-3">
         {paginatedSolicitudes.map(s => (
           <div key={s.idSolicitud} className="bg-white dark:bg-slate-800/90 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
@@ -784,6 +963,12 @@ export default function SolicitudesPage() {
                 <EstadoBadge estado={s.estadoSolicitud} />
                 <button onClick={() => setSolicitudDetalle(s)} className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30">
                   <Eye className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={() => setSolicitudEditando(s)} 
+                  className="p-1.5 rounded-lg text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30"
+                >
+                  <Edit className="w-4 h-4" />
                 </button>
                 <button 
                   onClick={() => eliminar(s)} 
@@ -818,6 +1003,15 @@ export default function SolicitudesPage() {
         <DetalleModal
           solicitud={solicitudDetalle}
           onClose={() => setSolicitudDetalle(null)}
+        />
+      )}
+
+      {/* Modal editar solicitud */}
+      {solicitudEditando && (
+        <EditarSolicitudModal
+          solicitud={solicitudEditando}
+          onClose={() => setSolicitudEditando(null)}
+          onGuardado={() => { refetch(); setSolicitudEditando(null); }}
         />
       )}
     </div>
