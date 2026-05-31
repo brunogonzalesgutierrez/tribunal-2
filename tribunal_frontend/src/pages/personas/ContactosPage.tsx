@@ -7,7 +7,7 @@ import {
   ACTUALIZAR_CONTACTO,
   ELIMINAR_CONTACTO,
 } from "../../graphql/personas";
-import { Phone, Plus, Edit, Trash2, Mail, Smartphone, Home, CheckCircle, Search, X } from "lucide-react";
+import { Phone, Plus, Edit, Trash2, Mail, Smartphone, Home, CheckCircle, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   Contacto, Persona, nombreCompleto,
   TipoContactoBadge, PrincipalBadge, ValidadoBadge,
@@ -32,9 +32,11 @@ const initForm = { idPersona: "", tipoContacto: "", valor: "", esPrincipal: fals
 function BuscadorPersona({
   onSelect,
   onClose,
+  disabled,
 }: {
   onSelect: (id: number, nombre: string) => void;
   onClose: () => void;
+  disabled?: boolean;
 }) {
   const [busqueda, setBusqueda] = useState("");
   const { data, loading } = useQuery(GET_PERSONAS);
@@ -92,7 +94,8 @@ function BuscadorPersona({
                     onSelect(p.idPersona, `${p.nombre} ${p.primerApellido} (${p.numeroDocumento})`);
                     onClose();
                   }}
-                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-700 ${
+                  disabled={disabled}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed ${
                     index === filtrados.length - 1 ? 'mb-0' : ''
                   }`}
                 >
@@ -134,9 +137,17 @@ export default function ContactosPage() {
   const [actualizarContacto] = useMutation(ACTUALIZAR_CONTACTO);
   const [eliminarContacto]   = useMutation(ELIMINAR_CONTACTO);
 
-  // ✅ HOOK DE NOTIFICACIONES
   const { executeCreate, executeUpdate, executeDelete } = useCrudNotifications('Contacto');
   const toast = useToast();
+
+  // ✅ Estado para paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // ✅ Estado para bloqueo de botones
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [togglingId, setTogglingId] = useState<number | null>(null);
 
   const [modal, setModal]   = useState(false);
   const [buscadorPersonaAbierto, setBuscadorPersonaAbierto] = useState(false);
@@ -149,10 +160,16 @@ export default function ContactosPage() {
   const contactos: Contacto[] = data?.allContactos ?? [];
   const personas: Persona[]   = dataPersonas?.allPersonas ?? [];
 
-  const filtrados = contactos.filter(c =>
+  // ✅ Filtrar contactos por búsqueda
+  const contactosFiltrados = contactos.filter(c =>
     `${c.valor} ${c.tipoContacto} ${c.idPersona?.nombre ?? ""} ${c.idPersona?.primerApellido ?? ""}`
       .toLowerCase().includes(busqueda.toLowerCase())
   );
+
+  // ✅ Paginación
+  const totalPages = Math.ceil(contactosFiltrados.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedContactos = contactosFiltrados.slice(startIndex, startIndex + itemsPerPage);
 
   // Stats
   const validados   = contactos.filter(c => c.validado).length;
@@ -186,68 +203,92 @@ export default function ContactosPage() {
     setModal(true);
   };
 
-  // ✅ GUARDAR CON NOTIFICACIONES
+  // Resetear página cuando cambia la búsqueda
+  const handleBusquedaChange = (value: string) => {
+    setBusq(value);
+    setCurrentPage(1);
+  };
+
+  // ✅ GUARDAR CON BLOQUEO
   const guardar = async () => {
     if (!form.valor || !form.tipoContacto) { 
       toast.error("Tipo y valor son obligatorios."); 
       return; 
     }
     
-    if (editando) {
-      await executeUpdate(async () => {
-        await actualizarContacto({
-          variables: {
-            id: Number(editando.idContacto),
-            input: { valor: form.valor, esPrincipal: form.esPrincipal, validado: false },
-          },
+    if (saving) return;
+    setSaving(true);
+    
+    try {
+      if (editando) {
+        await executeUpdate(async () => {
+          await actualizarContacto({
+            variables: {
+              id: Number(editando.idContacto),
+              input: { valor: form.valor, esPrincipal: form.esPrincipal, validado: false },
+            },
+          });
+          await refetch();
+          setModal(false);
+          return true;
         });
-        await refetch();
-        setModal(false);
-        return true;
-      });
-    } else {
-      if (!form.idPersona) { 
-        toast.error("Seleccioná una persona."); 
-        return; 
+      } else {
+        if (!form.idPersona) { 
+          toast.error("Seleccioná una persona."); 
+          return; 
+        }
+        await executeCreate(async () => {
+          await crearContacto({
+            variables: {
+              idPersona:    Number(form.idPersona),
+              tipoContacto: form.tipoContacto,
+              valor:        form.valor,
+              esPrincipal:  form.esPrincipal,
+            },
+          });
+          await refetch();
+          setModal(false);
+          setPersonaSeleccionada("");
+          return true;
+        });
       }
-      await executeCreate(async () => {
-        await crearContacto({
-          variables: {
-            idPersona:    Number(form.idPersona),
-            tipoContacto: form.tipoContacto,
-            valor:        form.valor,
-            esPrincipal:  form.esPrincipal,
-          },
-        });
-        await refetch();
-        setModal(false);
-        setPersonaSeleccionada("");
-        return true;
-      });
+    } finally {
+      setSaving(false);
     }
   };
 
-  // ✅ ELIMINAR CON NOTIFICACIONES
+  // ✅ ELIMINAR CON BLOQUEO
   const eliminar = async (c: Contacto) => {
-    await executeDelete(
-      async () => {
-        const { data } = await eliminarContacto({ variables: { id: Number(c.idContacto) } });
-        if (!data?.eliminarContacto?.ok) {
-          throw new Error(data?.eliminarContacto?.mensaje ?? "No se pudo eliminar.");
-        }
-        await refetch();
-        return true;
-      },
-      {
-        loading: `Eliminando contacto ${c.valor}...`,
-        success: `Contacto eliminado exitosamente`,
-        error: `Error al eliminar el contacto`,
-      },
-      `¿Eliminar el contacto "${c.valor}"?`
-    );
+    if (deletingId === c.idContacto) return;
+    setDeletingId(c.idContacto);
+    
+    try {
+      await executeDelete(
+        async () => {
+          const { data } = await eliminarContacto({ variables: { id: Number(c.idContacto) } });
+          if (!data?.eliminarContacto?.ok) {
+            throw new Error(data?.eliminarContacto?.mensaje ?? "No se pudo eliminar.");
+          }
+          await refetch();
+          return true;
+        },
+        {
+          loading: `Eliminando contacto ${c.valor}...`,
+          success: `Contacto eliminado exitosamente`,
+          error: `Error al eliminar el contacto`,
+        },
+        `¿Eliminar el contacto "${c.valor}"?`
+      );
+    } finally {
+      setDeletingId(null);
+    }
   };
 
+  // ✅ Toggle validado con bloqueo
   const toggleValidado = async (c: Contacto) => {
+    if (togglingId === c.idContacto) return;
+    setTogglingId(c.idContacto);
+    
     try {
       await actualizarContacto({
         variables: { 
@@ -259,6 +300,8 @@ export default function ContactosPage() {
       toast.success(`Contacto ${!c.validado ? 'validado' : 'invalidado'} correctamente`);
     } catch (error: any) {
       toast.error(error.message ?? "Error al cambiar estado");
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -278,40 +321,77 @@ export default function ContactosPage() {
         </div>
         <button
           onClick={abrirCrear}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-semibold text-sm shadow-lg shadow-emerald-500/25 transition-all hover:scale-[1.02]"
+          disabled={saving}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-semibold text-sm shadow-lg shadow-emerald-500/25 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
         >
           <Plus className="w-4 h-4" /> Nuevo contacto
         </button>
       </div>
 
-      {/* Stats */}
+      {/* Stats - Clases fijas */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Total contactos" value={contactos.length} color="text-emerald-600 dark:text-emerald-400"
-          icon={<Phone className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />} sub="Registrados en el sistema" />
-        <StatCard label="Validados" value={validados} color="text-blue-600 dark:text-blue-400"
-          icon={<CheckCircle className="w-6 h-6 text-blue-600 dark:text-blue-400" />}
-          sub={`${Math.round((validados / (contactos.length || 1)) * 100)}% del total`} />
-        <StatCard label="Principales" value={principales} color="text-purple-600 dark:text-purple-400"
-          icon={<Smartphone className="w-6 h-6 text-purple-600 dark:text-purple-400" />}
-          sub="Contacto de referencia" />
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total contactos</p>
+              <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 mt-2">{contactos.length}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Phone className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Registrados en el sistema</p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Validados</p>
+              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-2">{validados}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <CheckCircle className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">{Math.round((validados / (contactos.length || 1)) * 100)}% del total</p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Principales</p>
+              <p className="text-3xl font-bold text-purple-600 dark:text-purple-400 mt-2">{principales}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Smartphone className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Contacto de referencia</p>
+          </div>
+        </div>
       </div>
 
       {/* Buscador */}
       <div className="flex justify-between items-center">
-        <SearchBar value={busqueda} onChange={setBusq} placeholder="Buscar por valor, tipo o persona..." />
+        <SearchBar value={busqueda} onChange={handleBusquedaChange} placeholder="Buscar por valor, tipo o persona..." />
         <span className="text-sm text-gray-500 dark:text-gray-400">
-          {filtrados.length} resultado{filtrados.length !== 1 ? "s" : ""}
+          {contactosFiltrados.length} resultado{contactosFiltrados.length !== 1 ? "s" : ""}
         </span>
       </div>
 
-      {/* Tabla Desktop */}
+      {/* Tabla Desktop con datos paginados */}
       <TablaDesktop
         headers={["Persona", "Documento", "Tipo", "Valor", "Principal", "Validado", "Acciones"]}
         loading={loading}
         emptyMsg="No hay contactos registrados"
         emptyIcon={<Phone className="w-12 h-12 text-gray-300 dark:text-gray-600" />}
       >
-        {filtrados.map(c => (
+        {paginatedContactos.map(c => (
           <tr key={c.idContacto} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
             <td className="px-6 py-4 font-semibold text-gray-800 dark:text-white text-sm">
               {c.idPersona?.nombre} {c.idPersona?.primerApellido}
@@ -327,18 +407,50 @@ export default function ContactosPage() {
               {c.esPrincipal ? <PrincipalBadge /> : <span className="text-gray-400 text-sm">—</span>}
             </td>
             <td className="px-6 py-4">
-              <ValidadoBadge validado={c.validado} onClick={() => toggleValidado(c)} />
+              <ValidadoBadge validado={c.validado} onClick={() => toggleValidado(c)} disabled={togglingId === c.idContacto} />
             </td>
             <td className="px-6 py-4">
-              <ActionBtns onEdit={() => abrirEditar(c)} onDelete={() => eliminar(c)} />
+              <ActionBtns 
+                onEdit={() => abrirEditar(c)} 
+                onDelete={() => eliminar(c)} 
+                disabled={saving}
+              />
             </td>
           </tr>
         ))}
       </TablaDesktop>
 
-      {/* Cards Móvil */}
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Mostrando {startIndex + 1} - {Math.min(startIndex + itemsPerPage, contactosFiltrados.length)} de {contactosFiltrados.length}
+          </p>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">
+              Página {currentPage} de {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Cards Móvil con datos paginados */}
       <div className="lg:hidden space-y-3">
-        {filtrados.map(c => (
+        {paginatedContactos.map(c => (
           <div key={c.idContacto} className="bg-white dark:bg-slate-800/90 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
             <div className="flex justify-between items-start mb-2">
               <div>
@@ -348,10 +460,18 @@ export default function ContactosPage() {
                 <p className="text-sm text-gray-700 dark:text-gray-200 mt-0.5">{c.valor}</p>
               </div>
               <div className="flex gap-1">
-                <button onClick={() => abrirEditar(c)} className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/30">
+                <button 
+                  onClick={() => abrirEditar(c)} 
+                  disabled={saving}
+                  className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
                   <Edit className="w-4 h-4" />
                 </button>
-                <button onClick={() => eliminar(c)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
+                <button 
+                  onClick={() => eliminar(c)} 
+                  disabled={deletingId === c.idContacto}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -359,7 +479,11 @@ export default function ContactosPage() {
             <div className="flex gap-2 flex-wrap items-center">
               <TipoContactoBadge tipo={c.tipoContacto} />
               {c.esPrincipal && <PrincipalBadge />}
-              <ValidadoBadge validado={c.validado} onClick={() => toggleValidado(c)} />
+              <ValidadoBadge 
+                validado={c.validado} 
+                onClick={() => toggleValidado(c)} 
+                disabled={togglingId === c.idContacto}
+              />
             </div>
           </div>
         ))}
@@ -385,7 +509,8 @@ export default function ContactosPage() {
                       setForm(p => ({ ...p, idPersona: "" }));
                       setPersonaSeleccionada("");
                     }}
-                    className="p-1 rounded-lg text-gray-500 hover:bg-emerald-200 dark:hover:bg-emerald-800 transition-colors"
+                    disabled={saving}
+                    className="p-1 rounded-lg text-gray-500 hover:bg-emerald-200 dark:hover:bg-emerald-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -394,7 +519,8 @@ export default function ContactosPage() {
                 <button
                   type="button"
                   onClick={() => setBuscadorPersonaAbierto(true)}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-emerald-400 dark:hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all"
+                  disabled={saving}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-emerald-400 dark:hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Plus className="w-4 h-4" />
                   Buscar y seleccionar persona
@@ -410,7 +536,7 @@ export default function ContactosPage() {
             </div>
           )}
 
-          <SelectField label="Tipo de contacto" value={form.tipoContacto} onChange={f("tipoContacto")} required>
+          <SelectField label="Tipo de contacto" value={form.tipoContacto} onChange={f("tipoContacto")} required disabled={saving}>
             <option value="">— Seleccionar tipo —</option>
             {TIPO_CONTACTO_OPTS.map(o => (
               <option key={o.value} value={o.value}>{o.label}</option>
@@ -418,17 +544,27 @@ export default function ContactosPage() {
           </SelectField>
           
           <Field
-            label="Valor" value={form.valor} onChange={f("valor")} required
+            label="Valor" 
+            value={form.valor} 
+            onChange={f("valor")} 
+            required
             placeholder="ej: correo@ejemplo.com / +591 71234567"
+            disabled={saving}
           />
           
-          <CheckboxField label="Es contacto principal" value={form.esPrincipal} onChange={v => setForm(p => ({ ...p, esPrincipal: v }))} />
+          <CheckboxField 
+            label="Es contacto principal" 
+            value={form.esPrincipal} 
+            onChange={v => setForm(p => ({ ...p, esPrincipal: v }))}
+            disabled={saving}
+          />
           
           <ErrorBox msg={err} />
           <ModalFooter
             onCancel={() => setModal(false)} 
             onSave={guardar}
             saveLabel={editando ? "Guardar cambios" : "Crear contacto"}
+            saving={saving}
           />
         </Modal>
       )}
@@ -438,6 +574,7 @@ export default function ContactosPage() {
         <BuscadorPersona
           onSelect={seleccionarPersona}
           onClose={() => setBuscadorPersonaAbierto(false)}
+          disabled={saving}
         />
       )}
     </div>

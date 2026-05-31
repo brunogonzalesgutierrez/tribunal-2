@@ -6,7 +6,7 @@ import {
   ACTUALIZAR_ROL_PROCESAL,
   ELIMINAR_ROL_PROCESAL,
 } from "../../graphql/personas";
-import { Shield, Plus, Edit, Trash2 } from "lucide-react";
+import { Shield, Plus, Edit, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   RolProcesal,
   RolBadge,
@@ -22,9 +22,16 @@ export default function RolesProcesalesPage() {
   const [actualizarRolProcesal] = useMutation(ACTUALIZAR_ROL_PROCESAL);
   const [eliminarRolProcesal]   = useMutation(ELIMINAR_ROL_PROCESAL);
 
-  // ✅ HOOK DE NOTIFICACIONES
   const { executeCreate, executeUpdate, executeDelete } = useCrudNotifications('Rol Procesal');
   const toast = useToast();
+
+  // ✅ Estado para paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // ✅ Estado para bloqueo de botones
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const [modal, setModal]    = useState(false);
   const [editando, setEdit]  = useState<RolProcesal | null>(null);
@@ -33,9 +40,16 @@ export default function RolesProcesalesPage() {
   const [err, setErr]        = useState("");
 
   const roles: RolProcesal[] = data?.allRolesProcesal ?? [];
-  const filtrados = roles.filter(r =>
+  
+  // ✅ Filtrar roles por búsqueda
+  const rolesFiltrados = roles.filter(r =>
     r.nombreRol.toLowerCase().includes(busqueda.toLowerCase())
   );
+
+  // ✅ Paginación
+  const totalPages = Math.ceil(rolesFiltrados.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedRoles = rolesFiltrados.slice(startIndex, startIndex + itemsPerPage);
 
   const abrirCrear = () => { 
     setEdit(null); 
@@ -51,12 +65,22 @@ export default function RolesProcesalesPage() {
     setModal(true); 
   };
 
-  // ✅ GUARDAR CON NOTIFICACIONES
+  // Resetear página cuando cambia la búsqueda
+  const handleBusquedaChange = (value: string) => {
+    setBusq(value);
+    setCurrentPage(1);
+  };
+
+  // ✅ GUARDAR CON BLOQUEO
   const guardar = async () => {
     if (!nombreRol.trim()) { 
       toast.error("El nombre del rol es obligatorio."); 
       return; 
     }
+    
+    if (saving) return;
+    setSaving(true);
+    
     try {
       if (editando) {
         await executeUpdate(async () => {
@@ -80,27 +104,36 @@ export default function RolesProcesalesPage() {
       }
     } catch (e: any) { 
       setErr(e.message ?? "Error."); 
+    } finally {
+      setSaving(false);
     }
   };
 
-  // ✅ ELIMINAR CON NOTIFICACIONES
+  // ✅ ELIMINAR CON BLOQUEO
   const eliminar = async (r: RolProcesal) => {
-    await executeDelete(
-      async () => {
-        const { data } = await eliminarRolProcesal({ variables: { id: Number(r.idRol) } });
-        if (!data?.eliminarRolProcesal?.ok) {
-          throw new Error(data?.eliminarRolProcesal?.mensaje ?? "No se pudo eliminar.");
-        }
-        await refetch();
-        return true;
-      },
-      {
-        loading: `Eliminando rol "${r.nombreRol}"...`,
-        success: `Rol "${r.nombreRol}" eliminado exitosamente`,
-        error: `Error al eliminar el rol "${r.nombreRol}"`,
-      },
-      `¿Eliminar el rol "${r.nombreRol}"?`
-    );
+    if (deletingId === r.idRol) return;
+    setDeletingId(r.idRol);
+    
+    try {
+      await executeDelete(
+        async () => {
+          const { data } = await eliminarRolProcesal({ variables: { id: Number(r.idRol) } });
+          if (!data?.eliminarRolProcesal?.ok) {
+            throw new Error(data?.eliminarRolProcesal?.mensaje ?? "No se pudo eliminar.");
+          }
+          await refetch();
+          return true;
+        },
+        {
+          loading: `Eliminando rol "${r.nombreRol}"...`,
+          success: `Rol "${r.nombreRol}" eliminado exitosamente`,
+          error: `Error al eliminar el rol "${r.nombreRol}"`,
+        },
+        `¿Eliminar el rol "${r.nombreRol}"?`
+      );
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -119,35 +152,47 @@ export default function RolesProcesalesPage() {
         </div>
         <button
           onClick={abrirCrear}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-semibold text-sm shadow-lg shadow-purple-500/25 transition-all hover:scale-[1.02]"
+          disabled={saving}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-semibold text-sm shadow-lg shadow-purple-500/25 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
         >
           <Plus className="w-4 h-4" /> Nuevo rol
         </button>
       </div>
 
-      {/* Stat único */}
+      {/* Stats - Clases fijas */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Total roles" value={roles.length} color="text-purple-600 dark:text-purple-400"
-          icon={<Shield className="w-6 h-6 text-purple-600 dark:text-purple-400" />}
-          sub="Roles procesales definidos" />
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total roles</p>
+              <p className="text-3xl font-bold text-purple-600 dark:text-purple-400 mt-2">{roles.length}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Shield className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Roles procesales definidos</p>
+          </div>
+        </div>
       </div>
 
       {/* Buscador */}
       <div className="flex justify-between items-center">
-        <SearchBar value={busqueda} onChange={setBusq} placeholder="Buscar rol procesal..." />
+        <SearchBar value={busqueda} onChange={handleBusquedaChange} placeholder="Buscar rol procesal..." />
         <span className="text-sm text-gray-500 dark:text-gray-400">
-          {filtrados.length} resultado{filtrados.length !== 1 ? "s" : ""}
+          {rolesFiltrados.length} resultado{rolesFiltrados.length !== 1 ? "s" : ""}
         </span>
       </div>
 
-      {/* Tabla Desktop */}
+      {/* Tabla Desktop con datos paginados */}
       <TablaDesktop
         headers={["ID", "Nombre del rol", "Acciones"]}
         loading={loading}
         emptyMsg="No hay roles procesales"
         emptyIcon={<Shield className="w-12 h-12 text-gray-300 dark:text-gray-600" />}
       >
-        {filtrados.map(r => (
+        {paginatedRoles.map(r => (
           <tr key={r.idRol} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
             <td className="px-6 py-4">
               <span className="font-mono text-gray-400 text-xs">#{r.idRol}</span>
@@ -156,15 +201,43 @@ export default function RolesProcesalesPage() {
               <RolBadge rol={r.nombreRol} />
             </td>
             <td className="px-6 py-4">
-              <ActionBtns onEdit={() => abrirEditar(r)} onDelete={() => eliminar(r)} />
+              <ActionBtns onEdit={() => abrirEditar(r)} onDelete={() => eliminar(r)} disabled={saving} />
             </td>
           </tr>
         ))}
       </TablaDesktop>
 
-      {/* Cards Móvil */}
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Mostrando {startIndex + 1} - {Math.min(startIndex + itemsPerPage, rolesFiltrados.length)} de {rolesFiltrados.length}
+          </p>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">
+              Página {currentPage} de {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Cards Móvil con datos paginados */}
       <div className="lg:hidden space-y-3">
-        {filtrados.map(r => (
+        {paginatedRoles.map(r => (
           <div key={r.idRol} className="bg-white dark:bg-slate-800/90 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-3">
@@ -172,10 +245,18 @@ export default function RolesProcesalesPage() {
                 <RolBadge rol={r.nombreRol} />
               </div>
               <div className="flex gap-1">
-                <button onClick={() => abrirEditar(r)} className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30">
+                <button 
+                  onClick={() => abrirEditar(r)} 
+                  disabled={saving}
+                  className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
                   <Edit className="w-4 h-4" />
                 </button>
-                <button onClick={() => eliminar(r)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
+                <button 
+                  onClick={() => eliminar(r)} 
+                  disabled={deletingId === r.idRol}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -197,12 +278,14 @@ export default function RolesProcesalesPage() {
             onChange={setNombre} 
             required
             placeholder="ej: Demandante, Demandado, Abogado defensor..."
+            disabled={saving}
           />
           <ErrorBox msg={err} />
           <ModalFooter
             onCancel={() => setModal(false)} 
             onSave={guardar}
             saveLabel={editando ? "Guardar cambios" : "Crear rol"}
+            saving={saving}
           />
         </Modal>
       )}
