@@ -5,7 +5,7 @@ import {
   GET_TIPOS_RESOLUCION,
   CREAR_TIPO_RESOLUCION, ACTUALIZAR_TIPO_RESOLUCION, ELIMINAR_TIPO_RESOLUCION,
 } from "../../graphql/resoluciones";
-import { Layers, Plus, Edit, Trash2 } from "lucide-react";
+import { Layers, Plus, Edit, Trash2, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import {
   TipoResolucion, nivelStars,
   Modal, Field, TextareaField,
@@ -20,8 +20,18 @@ export default function TiposResolucionPage() {
   const [actualizar] = useMutation(ACTUALIZAR_TIPO_RESOLUCION);
   const [eliminar_m] = useMutation(ELIMINAR_TIPO_RESOLUCION);
 
-  // ✅ HOOK DE NOTIFICACIONES
   const { executeCreate, executeUpdate, executeDelete, toast } = useCrudNotifications("Tipo de Resolución");
+
+  // ✅ Estado para paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // ✅ Estado para bloqueo de botones
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  // ✅ Estado para búsqueda
+  const [busqueda, setBusqueda] = useState("");
 
   const [modal, setModal]   = useState(false);
   const [editando, setEdit] = useState<TipoResolucion | null>(null);
@@ -32,6 +42,17 @@ export default function TiposResolucionPage() {
   const f = (k: string) => (v: string) => setForm(p => ({ ...p, [k]: v }));
 
   const tipos: TipoResolucion[] = data?.allTiposResolucion ?? [];
+
+  // ✅ Filtrar tipos por búsqueda
+  const tiposFiltrados = tipos.filter(t =>
+    `${t.codigo} ${t.nombre} ${t.descripcion ?? ""}`
+      .toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  // ✅ Paginación
+  const totalPages = Math.ceil(tiposFiltrados.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedTipos = tiposFiltrados.slice(startIndex, startIndex + itemsPerPage);
 
   // stats por nivel
   const nivel1 = tipos.filter(t => t.nivelJerarquico === 1).length;
@@ -57,12 +78,22 @@ export default function TiposResolucionPage() {
     setModal(true);
   };
 
-  // ✅ GUARDAR CON NOTIFICACIONES
+  // Resetear página cuando cambia la búsqueda
+  const handleBusquedaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setBusqueda(e.target.value);
+    setCurrentPage(1);
+  };
+
+  // ✅ GUARDAR CON BLOQUEO
   const guardar = async () => {
     if (!form.codigo || !form.nombre) { 
       toast.error("Código y nombre son obligatorios."); 
       return; 
     }
+    
+    if (saving) return;
+    setSaving(true);
+    
     try {
       if (editando) {
         await executeUpdate(async () => {
@@ -98,27 +129,36 @@ export default function TiposResolucionPage() {
       }
     } catch (e: any) { 
       setErr(e.message ?? "Error."); 
+    } finally {
+      setSaving(false);
     }
   };
 
-  // ✅ ELIMINAR CON NOTIFICACIONES
+  // ✅ ELIMINAR CON BLOQUEO
   const eliminar = async (t: TipoResolucion) => {
-    await executeDelete(
-      async () => {
-        const { data } = await eliminar_m({ variables: { id: Number(t.idTipoRes) } });
-        if (!data?.eliminarTipoResolucion?.ok) {
-          throw new Error(data?.eliminarTipoResolucion?.mensaje ?? "No se pudo eliminar.");
-        }
-        await refetch();
-        return true;
-      },
-      {
-        loading: `Eliminando tipo "${t.nombre}"...`,
-        success: `Tipo "${t.nombre}" eliminado exitosamente`,
-        error: `Error al eliminar el tipo "${t.nombre}"`,
-      },
-      `¿Eliminar el tipo de resolución "${t.nombre}"?`
-    );
+    if (deletingId === t.idTipoRes) return;
+    setDeletingId(t.idTipoRes);
+    
+    try {
+      await executeDelete(
+        async () => {
+          const { data } = await eliminar_m({ variables: { id: Number(t.idTipoRes) } });
+          if (!data?.eliminarTipoResolucion?.ok) {
+            throw new Error(data?.eliminarTipoResolucion?.mensaje ?? "No se pudo eliminar.");
+          }
+          await refetch();
+          return true;
+        },
+        {
+          loading: `Eliminando tipo "${t.nombre}"...`,
+          success: `Tipo "${t.nombre}" eliminado exitosamente`,
+          error: `Error al eliminar el tipo "${t.nombre}"`,
+        },
+        `¿Eliminar el tipo de resolución "${t.nombre}"?`
+      );
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -137,33 +177,85 @@ export default function TiposResolucionPage() {
         </div>
         <button
           onClick={abrirCrear}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-semibold text-sm shadow-lg shadow-purple-500/25 transition-all hover:scale-[1.02]"
+          disabled={saving}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-semibold text-sm shadow-lg shadow-purple-500/25 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
         >
           <Plus className="w-4 h-4" /> Nuevo tipo
         </button>
       </div>
 
-      {/* Stats */}
+      {/* Stats - Clases fijas */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Primera instancia" value={nivel1} color="text-blue-600 dark:text-blue-400"
-          icon={<span className="text-xl text-blue-500">★</span>}
-          sub="Nivel jerárquico 1" />
-        <StatCard label="Segunda instancia" value={nivel2} color="text-purple-600 dark:text-purple-400"
-          icon={<span className="text-xl text-purple-500">★★</span>}
-          sub="Nivel jerárquico 2" />
-        <StatCard label="Tercera o superior" value={nivel3} color="text-amber-600 dark:text-amber-400"
-          icon={<span className="text-xl text-amber-500">★★★</span>}
-          sub="Nivel jerárquico 3+" />
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Primera instancia</p>
+              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-2">{nivel1}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <span className="text-xl text-blue-500">★</span>
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Nivel jerárquico 1</p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Segunda instancia</p>
+              <p className="text-3xl font-bold text-purple-600 dark:text-purple-400 mt-2">{nivel2}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <span className="text-xl text-purple-500">★★</span>
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Nivel jerárquico 2</p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tercera o superior</p>
+              <p className="text-3xl font-bold text-amber-600 dark:text-amber-400 mt-2">{nivel3}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <span className="text-xl text-amber-500">★★★</span>
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Nivel jerárquico 3+</p>
+          </div>
+        </div>
       </div>
 
-      {/* Tabla Desktop */}
+      {/* Buscador */}
+      <div className="flex justify-between items-center">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            placeholder="Buscar por código, nombre o descripción..."
+            value={busqueda}
+            onChange={handleBusquedaChange}
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white dark:bg-slate-800/90 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all outline-none"
+          />
+        </div>
+        <span className="text-sm text-gray-500 dark:text-gray-400">
+          {tiposFiltrados.length} resultado{tiposFiltrados.length !== 1 ? "s" : ""}
+        </span>
+      </div>
+
+      {/* Tabla Desktop con datos paginados */}
       <TablaDesktop
         headers={["Código", "Nombre", "Nivel jerárquico", "Descripción", "Acciones"]}
         loading={loading}
         emptyMsg="No hay tipos de resolución registrados"
         emptyIcon={<Layers className="w-12 h-12 text-gray-300 dark:text-gray-600" />}
       >
-        {tipos.map(t => (
+        {paginatedTipos.map(t => (
           <tr key={t.idTipoRes} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
             <td className="px-6 py-4">
               <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 font-mono text-sm font-bold">
@@ -177,15 +269,43 @@ export default function TiposResolucionPage() {
             </td>
             <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{t.descripcion ?? "—"}</td>
             <td className="px-6 py-4">
-              <ActionBtns onEdit={() => abrirEditar(t)} onDelete={() => eliminar(t)} />
+              <ActionBtns onEdit={() => abrirEditar(t)} onDelete={() => eliminar(t)} disabled={saving} />
             </td>
           </tr>
         ))}
       </TablaDesktop>
 
-      {/* Cards Móvil */}
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Mostrando {startIndex + 1} - {Math.min(startIndex + itemsPerPage, tiposFiltrados.length)} de {tiposFiltrados.length}
+          </p>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">
+              Página {currentPage} de {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Cards Móvil con datos paginados */}
       <div className="lg:hidden space-y-3">
-        {tipos.map(t => (
+        {paginatedTipos.map(t => (
           <div key={t.idTipoRes} className="bg-white dark:bg-slate-800/90 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
             <div className="flex justify-between items-start mb-2">
               <div>
@@ -195,10 +315,18 @@ export default function TiposResolucionPage() {
                 <p className="font-semibold text-gray-800 dark:text-white mt-1">{t.nombre}</p>
               </div>
               <div className="flex gap-1">
-                <button onClick={() => abrirEditar(t)} className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30">
+                <button 
+                  onClick={() => abrirEditar(t)} 
+                  disabled={saving}
+                  className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
                   <Edit className="w-4 h-4" />
                 </button>
-                <button onClick={() => eliminar(t)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
+                <button 
+                  onClick={() => eliminar(t)} 
+                  disabled={deletingId === t.idTipoRes}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -217,16 +345,42 @@ export default function TiposResolucionPage() {
           icon={<Layers className="w-5 h-5 text-purple-500" />}
         >
           <div className="grid grid-cols-2 gap-x-4">
-            <Field label="Código" value={form.codigo} onChange={f("codigo")} placeholder="Ej: SENT" required />
-            <Field label="Nivel jerárquico" value={form.nivelJerarquico} onChange={f("nivelJerarquico")} type="number" />
+            <Field 
+              label="Código" 
+              value={form.codigo} 
+              onChange={f("codigo")} 
+              placeholder="Ej: SENT" 
+              required 
+              disabled={saving}
+            />
+            <Field 
+              label="Nivel jerárquico" 
+              value={form.nivelJerarquico} 
+              onChange={f("nivelJerarquico")} 
+              type="number" 
+              disabled={saving}
+            />
           </div>
-          <Field label="Nombre" value={form.nombre} onChange={f("nombre")} placeholder="Ej: Sentencia" required />
-          <TextareaField label="Descripción" value={form.descripcion} onChange={f("descripcion")} />
+          <Field 
+            label="Nombre" 
+            value={form.nombre} 
+            onChange={f("nombre")} 
+            placeholder="Ej: Sentencia" 
+            required 
+            disabled={saving}
+          />
+          <TextareaField 
+            label="Descripción" 
+            value={form.descripcion} 
+            onChange={f("descripcion")}
+            disabled={saving}
+          />
           <ErrorBox msg={err} />
           <ModalFooter 
             onCancel={() => setModal(false)} 
             onSave={guardar} 
-            saveLabel={editando ? "Guardar" : "Crear tipo"} 
+            saveLabel={editando ? "Guardar" : "Crear tipo"}
+            saving={saving}
           />
         </Modal>
       )}
