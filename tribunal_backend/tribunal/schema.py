@@ -2271,7 +2271,52 @@ class CrearSolicitud(graphene.Mutation):
             usuario=Usuario.objects.get(id_usuario=id_usuario),
             codigo_ianus=codigo_ianus, codigo_sala=codigo_sala,
             estado_solicitud='PENDIENTE', observacion=observacion))
-
+# En tu archivo de mutations (schema.py)
+class ActualizarSolicitud(graphene.Mutation):
+    class Arguments:
+        id = graphene.Int(required=True)
+        estado_solicitud = graphene.String(required=True)  # ← parámetro directo
+        fecha_confirmacion = graphene.DateTime()           # ← parámetro directo
+        observacion = graphene.String()                    # ← parámetro directo
+    
+    ok = graphene.Boolean()
+    mensaje = graphene.String()
+    solicitud = graphene.Field(lambda: SolicitudActualizacionType)
+    
+    def mutate(self, info, id, estado_solicitud, fecha_confirmacion=None, observacion=None):
+        print(f"=== ACTUALIZANDO: id={id}, estado={estado_solicitud}, fecha={fecha_confirmacion}")
+        
+        try:
+            solicitud = SolicitudActualizacion.objects.get(id_solicitud=id)
+            
+            # Cambiar estado
+            solicitud.estado_solicitud = estado_solicitud
+            
+            # Si se aprueba o rechaza, poner fecha actual
+            if estado_solicitud in ['APROBADA', 'RECHAZADA']:
+                from django.utils import timezone
+                solicitud.fecha_confirmacion = timezone.now()
+                print(f"Fecha automática: {solicitud.fecha_confirmacion}")
+            elif fecha_confirmacion:
+                solicitud.fecha_confirmacion = fecha_confirmacion
+            
+            # Actualizar observación
+            if observacion is not None:
+                solicitud.observacion = observacion
+            
+            solicitud.save()
+            print("✅ Solicitud actualizada correctamente")
+            
+            return ActualizarSolicitud(ok=True, mensaje="Solicitud actualizada", solicitud=solicitud)
+            
+        except SolicitudActualizacion.DoesNotExist:
+            print(f"❌ Solicitud {id} no encontrada")
+            return ActualizarSolicitud(ok=False, mensaje="Solicitud no encontrada", solicitud=None)
+        except Exception as e:
+            print(f"❌ Error: {e}")
+            import traceback
+            traceback.print_exc()
+            return ActualizarSolicitud(ok=False, mensaje=str(e), solicitud=None)
 class EliminarSolicitud(graphene.Mutation):
     class Arguments:
         id = graphene.Int(required=True)

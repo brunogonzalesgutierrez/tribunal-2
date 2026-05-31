@@ -8,76 +8,33 @@ import {
   CREAR_AUDIENCIA, ACTUALIZAR_AUDIENCIA, ELIMINAR_AUDIENCIA,
   GET_TIPOS_AUDIENCIA, GET_SALAS_AUDIENCIA,
 } from "../../graphql/audiencias";
+import { useCrudNotifications } from "../../hooks/useCrudNotifications";
 
-// ─── GraphQL adicional (mutations que no están en archivos separados) ──────
-const GET_PERSONAS      = gql`query { allPersonas { idPersona nombre primerApellido segundoApellido numeroDocumento esAbogado } }`;
-const GET_ROLES_PROC    = gql`query { allRolesProcesal { idRol nombreRol } }`;
-const GET_VOCALES       = gql`query { allVocales { idVocal cargo activo idPersona { nombre primerApellido } idSala { nombreSala } } }`;
-const GET_TIPOS_DOC     = gql`query { allTiposDoc { idTipoDoc codigo nombre requiereFirma esPublico } }`;
-const GET_TIPOS_RES     = gql`query { allTiposResolucion { idTipoRes codigo nombre nivelJerarquico } }`;
-const GET_TIPOS_ACT     = gql`query { allTiposActuacion { idTipoActuacion codigo nombre } }`;
+// ─── GraphQL adicional ─────────────────────────────────────────────────────
+const GET_PERSONAS   = gql`query { allPersonas { idPersona nombre primerApellido segundoApellido numeroDocumento esAbogado } }`;
+const GET_ROLES_PROC = gql`query { allRolesProcesal { idRol nombreRol } }`;
+const GET_VOCALES    = gql`query { allVocales { idVocal cargo activo idPersona { nombre primerApellido } idSala { nombreSala } } }`;
+const GET_TIPOS_DOC  = gql`query { allTiposDoc { idTipoDoc codigo nombre requiereFirma esPublico } }`;
+const GET_TIPOS_RES  = gql`query { allTiposResolucion { idTipoRes codigo nombre nivelJerarquico } }`;
+const GET_TIPOS_ACT  = gql`query { allTiposActuacion { idTipoActuacion codigo nombre } }`;
 
-const CREAR_PARTE       = gql`
-  mutation CrearParteProcesal($idExpediente: Int!, $idPersona: Int!, $idRol: Int!) {
-    crearParteProcesal(idExpediente: $idExpediente, idPersona: $idPersona, idRol: $idRol) {
-      parte { idParte activo idPersona { nombre primerApellido } idRol { nombreRol } }
-    }
-  }`;
-const ELIMINAR_PARTE    = gql`
-  mutation EliminarParteProcesal($id: Int!) {
-    eliminarParteProcesal(id: $id) { ok mensaje }
-  }`;
-
-const CREAR_RESOLUCION  = gql`
-  mutation CrearResolucion($input: CrearResolucionInput!) {
-    crearResolucion(input: $input) {
-      resolucion { idResolucion numeroResolucion fechaResolucion estado }
-    }
-  }`;
-const ELIMINAR_RESOLUCION = gql`
-  mutation EliminarResolucion($id: Int!) {
-    eliminarResolucion(id: $id) { ok mensaje }
-  }`;
-
-const CREAR_DOCUMENTO   = gql`
-  mutation CrearDocumento($idExpediente: Int!, $idTipoDoc: Int!, $titulo: String!, $numeroFolio: Int, $tamanoKb: Int) {
-    crearDocumento(idExpediente: $idExpediente, idTipoDoc: $idTipoDoc, titulo: $titulo, numeroFolio: $numeroFolio, tamanoKb: $tamanoKb) {
-      documento { idDocumento titulo fechaPresentacion idTipoDoc { codigo nombre } }
-    }
-  }`;
-const ELIMINAR_DOCUMENTO = gql`
-  mutation EliminarDocumento($id: Int!) {
-    eliminarDocumento(id: $id) { ok mensaje }
-  }`;
-
-const CREAR_ACTUACION   = gql`
-  mutation CrearActuacionProcesal($idExpediente: Int!, $idTipoActuacion: Int!, $idUsuario: Int!, $folioInicio: Int!, $folioFin: Int!, $descripcion: String) {
-    crearActuacionProcesal(idExpediente: $idExpediente, idTipoActuacion: $idTipoActuacion, idUsuario: $idUsuario, folioInicio: $folioInicio, folioFin: $folioFin, descripcion: $descripcion) {
-      actuacion { idActuacion descripcion folioInicio folioFin idTipoActuacion { nombre } }
-    }
-  }`;
-const ELIMINAR_ACTUACION = gql`
-  mutation EliminarActuacionProcesal($id: Int!) {
-    eliminarActuacionProcesal(id: $id) { ok mensaje }
-  }`;
-
-const CREAR_CONFORMACION = gql`
-  mutation CrearConformacion($idExpediente: Int!, $idVocal: Int!, $rolEnCaso: String!) {
-    crearConformacion(idExpediente: $idExpediente, idVocal: $idVocal, rolEnCaso: $rolEnCaso) {
-      conformacion { idConformacion rolEnCaso idVocal { cargo idPersona { nombre primerApellido } } }
-    }
-  }`;
-const ELIMINAR_CONFORMACION = gql`
-  mutation EliminarConformacion($id: Int!) {
-    eliminarConformacion(id: $id) { ok mensaje }
-  }`;
+const CREAR_PARTE        = gql`mutation CrearParteProcesal($idExpediente: Int!, $idPersona: Int!, $idRol: Int!) { crearParteProcesal(idExpediente: $idExpediente, idPersona: $idPersona, idRol: $idRol) { parte { idParte activo idPersona { nombre primerApellido } idRol { nombreRol } } } }`;
+const ELIMINAR_PARTE     = gql`mutation EliminarParteProcesal($id: Int!) { eliminarParteProcesal(id: $id) { ok mensaje } }`;
+const CREAR_RESOLUCION   = gql`mutation CrearResolucion($input: CrearResolucionInput!) { crearResolucion(input: $input) { resolucion { idResolucion numeroResolucion fechaResolucion estado } } }`;
+const ELIMINAR_RESOLUCION= gql`mutation EliminarResolucion($id: Int!) { eliminarResolucion(id: $id) { ok mensaje } }`;
+const CREAR_DOCUMENTO    = gql`mutation CrearDocumento($idExpediente: Int!, $idTipoDoc: Int!, $titulo: String!, $numeroFolio: Int, $tamanoKb: Int) { crearDocumento(idExpediente: $idExpediente, idTipoDoc: $idTipoDoc, titulo: $titulo, numeroFolio: $numeroFolio, tamanoKb: $tamanoKb) { documento { idDocumento titulo fechaPresentacion idTipoDoc { codigo nombre } } } }`;
+const ELIMINAR_DOCUMENTO = gql`mutation EliminarDocumento($id: Int!) { eliminarDocumento(id: $id) { ok mensaje } }`;
+const CREAR_ACTUACION    = gql`mutation CrearActuacionProcesal($idExpediente: Int!, $idTipoActuacion: Int!, $idUsuario: Int!, $folioInicio: Int!, $folioFin: Int!, $descripcion: String) { crearActuacionProcesal(idExpediente: $idExpediente, idTipoActuacion: $idTipoActuacion, idUsuario: $idUsuario, folioInicio: $folioInicio, folioFin: $folioFin, descripcion: $descripcion) { actuacion { idActuacion descripcion folioInicio folioFin idTipoActuacion { nombre } } } }`;
+const ELIMINAR_ACTUACION = gql`mutation EliminarActuacionProcesal($id: Int!) { eliminarActuacionProcesal(id: $id) { ok mensaje } }`;
+const CREAR_CONFORMACION = gql`mutation CrearConformacion($idExpediente: Int!, $idVocal: Int!, $rolEnCaso: String!) { crearConformacion(idExpediente: $idExpediente, idVocal: $idVocal, rolEnCaso: $rolEnCaso) { conformacion { idConformacion rolEnCaso idVocal { cargo idPersona { nombre primerApellido } } } } }`;
+const ELIMINAR_CONFORMACION = gql`mutation EliminarConformacion($id: Int!) { eliminarConformacion(id: $id) { ok mensaje } }`;
 
 // ─── Imports de iconos ─────────────────────────────────────────────────────
 import {
   X, FolderOpen, Users, Calendar, Scale, FileText,
   ClipboardList, History, Building2, CheckCircle, AlertCircle,
   Clock, Gavel, UserCheck, ArrowRight, Loader2, GitBranch,
-  Plus, Edit2, Trash2, Save, XCircle, Video, ChevronLeft,
+  Plus, Edit2, Trash2, Save, XCircle, Video, ChevronLeft, Search,
 } from "lucide-react";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -87,9 +44,7 @@ const fmtFecha = (iso?: string | null) => {
 };
 const fmtFechaHora = (iso?: string | null) => {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString("es-BO", {
-    day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
-  });
+  return new Date(iso).toLocaleString("es-BO", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 };
 const tiempoRelativo = (iso?: string | null) => {
   if (!iso) return "";
@@ -104,8 +59,8 @@ const tiempoRelativo = (iso?: string | null) => {
 };
 
 // ─── Estilos compartidos ───────────────────────────────────────────────────
-const inputCls  = "w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-600 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all";
-const labelCls  = "block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1";
+const inputCls = "w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-600 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all";
+const labelCls = "block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1";
 
 const estadoAudienciaColor: Record<string, string> = {
   PROGRAMADA: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400",
@@ -115,28 +70,24 @@ const estadoAudienciaColor: Record<string, string> = {
   EN_CURSO:   "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400",
   FINALIZADA: "bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300",
 };
-
 const audBg: Record<string, string> = {
   PROGRAMADA: "bg-blue-100 dark:bg-blue-900/30",
   REALIZADA: "bg-emerald-100 dark:bg-emerald-900/30",
   SUSPENDIDA: "bg-amber-100 dark:bg-amber-900/30",
   EN_CURSO: "bg-indigo-100 dark:bg-indigo-900/30",
 };
-
 const audIc: Record<string, string> = {
   PROGRAMADA: "text-blue-600 dark:text-blue-400",
   REALIZADA: "text-emerald-600 dark:text-emerald-400",
   SUSPENDIDA: "text-amber-600 dark:text-amber-400",
   EN_CURSO: "text-indigo-600 dark:text-indigo-400",
 };
-
 const estadoRecursoColor: Record<string, string> = {
   PENDIENTE: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400",
   ADMITIDO:  "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400",
   RESUELTO:  "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400",
   RECHAZADO: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400",
 };
-
 const TIMELINE_NODE: Record<string, { dot: string; ring: string; icon: string }> = {
   "En Trámite":      { dot: "bg-blue-500",    ring: "ring-blue-200 dark:ring-blue-900",       icon: "🔄" },
   "Para Resolución": { dot: "bg-amber-500",   ring: "ring-amber-200 dark:ring-amber-900",     icon: "⚖️" },
@@ -154,6 +105,216 @@ const RESUMEN_STYLES: Record<string, { bg: string; border: string; text: string 
   purple:  { bg: "bg-purple-50 dark:bg-purple-900/10", border: "border-purple-100 dark:border-purple-900/30", text: "text-purple-600 dark:text-purple-400" },
   emerald: { bg: "bg-emerald-50 dark:bg-emerald-900/10", border: "border-emerald-100 dark:border-emerald-900/30", text: "text-emerald-600 dark:text-emerald-400" },
 };
+
+// ══════════════════════════════════════════════════════════════════════════
+// BUSCADOR MODAL GENÉRICO (equivalente a BuscadorTribunal pero reutilizable)
+// ══════════════════════════════════════════════════════════════════════════
+interface OpcionModal {
+  id: number;
+  titulo: string;
+  subtitulo?: string;
+  extra?: string;
+}
+
+function BuscadorModal({
+  titulo,
+  placeholder,
+  opciones,
+  loading,
+  onSelect,
+  onClose,
+}: {
+  titulo: string;
+  placeholder: string;
+  opciones: OpcionModal[];
+  loading: boolean;
+  onSelect: (id: number, label: string) => void;
+  onClose: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+
+  const filtradas = opciones.filter(o =>
+    `${o.titulo} ${o.subtitulo ?? ""} ${o.extra ?? ""}`
+      .toLowerCase()
+      .includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Cabecera */}
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-blue-500" />
+            {titulo}
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+          >
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        {/* Buscador */}
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder={placeholder}
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        {/* Lista */}
+        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+            </div>
+          ) : filtradas.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p>No se encontraron resultados</p>
+            </div>
+          ) : (
+            <div className="space-y-2 pb-4">
+              {filtradas.map(o => (
+                <button
+                  key={o.id}
+                  onClick={() => {
+                    const label = o.extra ? `${o.titulo} — ${o.extra}` : o.titulo;
+                    onSelect(o.id, label);
+                    onClose();
+                  }}
+                  className="w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700"
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-white">{o.titulo}</p>
+                      {o.subtitulo && <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{o.subtitulo}</p>}
+                      {o.extra && <p className="text-xs text-blue-500 dark:text-blue-400 mt-0.5">{o.extra}</p>}
+                    </div>
+                    <Plus className="w-5 h-5 text-blue-500 shrink-0 ml-3" />
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Pie */}
+        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Chip de selección (muestra el valor elegido + botón limpiar) ──────────
+function ChipSeleccionado({
+  label,
+  onClear,
+  color = "blue",
+}: {
+  label: string;
+  onClear: () => void;
+  color?: "blue" | "indigo" | "emerald" | "purple";
+}) {
+  const colores = {
+    blue:    "bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800",
+    indigo:  "bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-800",
+    emerald: "bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800",
+    purple:  "bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-800",
+  };
+  const btnColores = {
+    blue:    "hover:bg-blue-200 dark:hover:bg-blue-800",
+    indigo:  "hover:bg-indigo-200 dark:hover:bg-indigo-800",
+    emerald: "hover:bg-emerald-200 dark:hover:bg-emerald-800",
+    purple:  "hover:bg-purple-200 dark:hover:bg-purple-800",
+  };
+  return (
+    <div className={`flex items-center gap-2 p-2.5 rounded-xl border ${colores[color]}`}>
+      <span className="flex-1 text-sm text-gray-800 dark:text-white truncate">{label}</span>
+      <button
+        type="button"
+        onClick={onClear}
+        className={`p-1 rounded-lg text-gray-500 transition-colors ${btnColores[color]}`}
+      >
+        <X className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
+// ─── Botón para abrir el buscador modal ───────────────────────────────────
+function BtnAbrirBuscador({
+  onClick,
+  label = "Buscar y seleccionar",
+}: {
+  onClick: () => void;
+  label?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+    >
+      <Search className="w-4 h-4" />
+      {label}
+    </button>
+  );
+}
+
+// ─── Campo selector con modal ─────────────────────────────────────────────
+function CampoSelector({
+  label,
+  required,
+  valorLabel,
+  onAbrir,
+  onLimpiar,
+  color = "blue",
+  disabled = false,
+}: {
+  label: string;
+  required?: boolean;
+  valorLabel: string;
+  onAbrir: () => void;
+  onLimpiar: () => void;
+  color?: "blue" | "indigo" | "emerald" | "purple";
+  disabled?: boolean;
+}) {
+  return (
+    <div>
+      <label className={labelCls}>
+        {label} {required && <span className="text-red-500">*</span>}
+      </label>
+      {valorLabel ? (
+        <ChipSeleccionado label={valorLabel} onClear={onLimpiar} color={color} />
+      ) : (
+        <BtnAbrirBuscador onClick={onAbrir} label={`Buscar ${label.toLowerCase()}`} />
+      )}
+    </div>
+  );
+}
 
 // ─── Componentes base ──────────────────────────────────────────────────────
 const Pill = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
@@ -184,7 +345,6 @@ const TablaVacia = ({ icono: Icon, mensaje, onAgregar, labelAgregar }: {
   </div>
 );
 
-// ─── Cabecera de sección con botón agregar ─────────────────────────────────
 const SeccionHeader = ({ count, singular, plural, onAgregar, mostrarBoton }: {
   count: number; singular: string; plural: string; onAgregar: () => void; mostrarBoton: boolean;
 }) => (
@@ -203,13 +363,21 @@ const SeccionHeader = ({ count, singular, plural, onAgregar, mostrarBoton }: {
   </div>
 );
 
-// ─── Wrapper de formulario inline ──────────────────────────────────────────
+// ─── FormInline ────────────────────────────────────────────────────────────
 const FormInline = ({ titulo, icono: Icon, color = "blue", onCancel, onSave, saving, error, children }: {
   titulo: string; icono: React.ElementType; color?: string;
   onCancel: () => void; onSave: () => void; saving: boolean; error: string; children: React.ReactNode;
 }) => {
-  const bg   = { blue: "border-blue-200 dark:border-blue-800/60 bg-blue-50/60 dark:bg-blue-900/10", emerald: "border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/60 dark:bg-emerald-900/10", purple: "border-purple-200 dark:border-purple-800/60 bg-purple-50/60 dark:bg-purple-900/10", indigo: "border-indigo-200 dark:border-indigo-800/60 bg-indigo-50/60 dark:bg-indigo-900/10" }[color] ?? "";
-  const ic   = { blue: "bg-blue-500", emerald: "bg-emerald-500", purple: "bg-purple-500", indigo: "bg-indigo-500" }[color] ?? "bg-blue-500";
+  const bg = {
+    blue:    "border-blue-200 dark:border-blue-800/60 bg-blue-50/60 dark:bg-blue-900/10",
+    emerald: "border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/60 dark:bg-emerald-900/10",
+    purple:  "border-purple-200 dark:border-purple-800/60 bg-purple-50/60 dark:bg-purple-900/10",
+    indigo:  "border-indigo-200 dark:border-indigo-800/60 bg-indigo-50/60 dark:bg-indigo-900/10",
+  }[color] ?? "";
+  const ic = {
+    blue: "bg-blue-500", emerald: "bg-emerald-500", purple: "bg-purple-500", indigo: "bg-indigo-500",
+  }[color] ?? "bg-blue-500";
+
   return (
     <div className={`rounded-2xl border-2 ${bg} p-5 space-y-4`}>
       <div className="flex items-center justify-between">
@@ -219,7 +387,11 @@ const FormInline = ({ titulo, icono: Icon, color = "blue", onCancel, onSave, sav
           </div>
           <p className="text-sm font-bold text-gray-800 dark:text-white">{titulo}</p>
         </div>
-        <button onClick={onCancel} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
+        <button
+          onClick={onCancel}
+          disabled={saving}
+          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-40"
+        >
           <X className="w-4 h-4" />
         </button>
       </div>
@@ -230,21 +402,34 @@ const FormInline = ({ titulo, icono: Icon, color = "blue", onCancel, onSave, sav
         </div>
       )}
       <div className="flex items-center justify-end gap-2 pt-1">
-        <button onClick={onCancel} className="px-4 py-2 rounded-xl border border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 text-sm font-medium transition-colors flex items-center gap-1.5">
+        <button
+          onClick={onCancel}
+          disabled={saving}
+          className="px-4 py-2 rounded-xl border border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 text-sm font-medium transition-colors flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
           <XCircle className="w-4 h-4" /> Cancelar
         </button>
-        <button onClick={onSave} disabled={saving} className={`px-4 py-2 rounded-xl ${ic} hover:opacity-90 disabled:opacity-60 text-white text-sm font-semibold transition-colors flex items-center gap-1.5 shadow-sm`}>
+        <button
+          onClick={onSave}
+          disabled={saving}
+          className={`px-4 py-2 rounded-xl ${ic} hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors flex items-center gap-1.5 shadow-sm`}
+        >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          Guardar
+          {saving ? "Guardando..." : "Guardar"}
         </button>
       </div>
     </div>
   );
 };
 
-// ─── Botón eliminar pequeño ────────────────────────────────────────────────
-const BtnEliminar = ({ onClick }: { onClick: () => void }) => (
-  <button onClick={onClick} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Eliminar">
+// ─── Botón eliminar pequeño con bloqueo ────────────────────────────────────
+const BtnEliminar = ({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+    title="Eliminar"
+  >
     <Trash2 className="w-3.5 h-3.5" />
   </button>
 );
@@ -263,27 +448,55 @@ const TABS = [
 ] as const;
 type TabId = typeof TABS[number]["id"];
 
-// ─── Form Audiencia ────────────────────────────────────────────────────────
-const INIT_AUD = { idTipoAudiencia: 0, idSalaAud: 0, fechaHoraProgramada: "", linkVideoconferencia: "", estadoAudiencia: "PROGRAMADA", motivoSuspension: "" };
-function FormAudiencia({ idExpediente, editando, onSaved, onCancel }: { idExpediente: number; editando: any | null; onSaved: () => void; onCancel: () => void }) {
-  const { data: dTipo } = useQuery(GET_TIPOS_AUDIENCIA);
-  const { data: dSala } = useQuery(GET_SALAS_AUDIENCIA);
+// ══════════════════════════════════════════════════════════════════════════
+// FORM AUDIENCIA — con BuscadorModal para Tipo y Sala
+// ══════════════════════════════════════════════════════════════════════════
+const INIT_AUD = { idTipoAudiencia: 0, tipoLabel: "", idSalaAud: 0, salaLabel: "", fechaHoraProgramada: "", linkVideoconferencia: "", estadoAudiencia: "PROGRAMADA", motivoSuspension: "" };
+
+function FormAudiencia({ idExpediente, editando, onSaved, onCancel }: {
+  idExpediente: number; editando: any | null; onSaved: () => void; onCancel: () => void;
+}) {
+  const { data: dTipo, loading: lTipo } = useQuery(GET_TIPOS_AUDIENCIA);
+  const { data: dSala, loading: lSala } = useQuery(GET_SALAS_AUDIENCIA);
   const [crear]      = useMutation(CREAR_AUDIENCIA);
   const [actualizar] = useMutation(ACTUALIZAR_AUDIENCIA);
+
   const [form, setForm] = useState(editando ? {
     idTipoAudiencia: editando.idTipoAudiencia?.idTipoAudiencia ?? 0,
+    tipoLabel: editando.idTipoAudiencia?.nombre ?? "",
     idSalaAud: editando.idSalaAud?.idSalaAud ?? 0,
+    salaLabel: editando.idSalaAud?.nombreSala ?? "",
     fechaHoraProgramada: editando.fechaHoraProgramada?.slice(0, 16) ?? "",
     linkVideoconferencia: editando.linkVideoconferencia ?? "",
     estadoAudiencia: editando.estadoAudiencia ?? "PROGRAMADA",
     motivoSuspension: editando.motivoSuspension ?? "",
   } : { ...INIT_AUD });
-  const [err, setErr] = useState(""); const [saving, setSaving] = useState(false);
+
+  const [err, setErr]       = useState("");
+  const [saving, setSaving] = useState(false);
+  const [modal, setModal]   = useState<"tipo" | "sala" | null>(null);
+
   const tipos: any[] = dTipo?.allTiposAudiencia ?? [];
-  const salas: any[] = dSala?.allSalasAudiencia ?? [];
+  const salas: any[] = (dSala?.allSalasAudiencia ?? []).filter((s: any) => s.activa);
+
+  const opcionesTipo: OpcionModal[] = tipos.map((t: any) => ({
+    id: t.idTipoAudiencia,
+    titulo: t.nombre,
+    extra: `${t.duracionEstimada} min`,
+  }));
+  const opcionesSala: OpcionModal[] = salas.map((s: any) => ({
+    id: s.idSalaAud,
+    titulo: s.nombreSala,
+    subtitulo: `Cap. ${s.capacidad}`,
+    extra: s.equipadaVideoconf ? "📹 Videoconferencia" : undefined,
+  }));
+
   const set = (k: string) => (e: React.ChangeEvent<any>) => setForm(p => ({ ...p, [k]: e.target.value }));
+
   const guardar = async () => {
-    if (!form.idTipoAudiencia || !form.fechaHoraProgramada) { setErr("Tipo y fecha son obligatorios."); return; }
+    if (!form.idTipoAudiencia || !form.fechaHoraProgramada) {
+      setErr("Tipo y fecha son obligatorios."); return;
+    }
     setSaving(true); setErr("");
     try {
       if (editando) {
@@ -294,47 +507,117 @@ function FormAudiencia({ idExpediente, editando, onSaved, onCancel }: { idExpedi
       onSaved();
     } catch (e: any) { setErr(e.message ?? "Error al guardar."); } finally { setSaving(false); }
   };
+
   return (
-    <FormInline titulo={editando ? "Editar audiencia" : "Programar audiencia"} icono={Calendar} color="blue" onCancel={onCancel} onSave={guardar} saving={saving} error={err}>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div><label className={labelCls}>Tipo <span className="text-red-500">*</span></label>
-          <select value={form.idTipoAudiencia} onChange={set("idTipoAudiencia")} className={inputCls}>
-            <option value={0}>— Seleccionar —</option>
-            {tipos.map((t: any) => <option key={t.idTipoAudiencia} value={t.idTipoAudiencia}>{t.nombre} ({t.duracionEstimada} min)</option>)}
-          </select></div>
-        <div><label className={labelCls}>Fecha y hora <span className="text-red-500">*</span></label>
-          <input type="datetime-local" value={form.fechaHoraProgramada} onChange={set("fechaHoraProgramada")} className={inputCls} /></div>
-        <div><label className={labelCls}>Sala</label>
-          <select value={form.idSalaAud} onChange={set("idSalaAud")} className={inputCls}>
-            <option value={0}>— Sin sala —</option>
-            {salas.filter((s: any) => s.activa).map((s: any) => <option key={s.idSalaAud} value={s.idSalaAud}>{s.nombreSala} (cap. {s.capacidad}){s.equipadaVideoconf ? " 📹" : ""}</option>)}
-          </select></div>
-        <div><label className={labelCls}>Link videoconf.</label>
-          <input type="url" placeholder="https://meet.google.com/..." value={form.linkVideoconferencia} onChange={set("linkVideoconferencia")} className={inputCls} /></div>
-        {editando && (<div><label className={labelCls}>Estado</label>
-          <select value={form.estadoAudiencia} onChange={set("estadoAudiencia")} className={inputCls}>
-            <option value="PROGRAMADA">Programada</option><option value="EN_CURSO">En curso</option>
-            <option value="REALIZADA">Realizada</option><option value="SUSPENDIDA">Suspendida</option><option value="CANCELADA">Cancelada</option>
-          </select></div>)}
-        {editando && form.estadoAudiencia === "SUSPENDIDA" && (
-          <div className="sm:col-span-2"><label className={labelCls}>Motivo suspensión</label>
-            <textarea rows={2} value={form.motivoSuspension} onChange={set("motivoSuspension")} className={`${inputCls} resize-none`} /></div>
-        )}
-      </div>
-    </FormInline>
+    <>
+      <FormInline titulo={editando ? "Editar audiencia" : "Programar audiencia"} icono={Calendar} color="blue" onCancel={onCancel} onSave={guardar} saving={saving} error={err}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+          {/* Tipo de audiencia */}
+          <CampoSelector
+            label="Tipo de audiencia" required
+            valorLabel={form.tipoLabel}
+            onAbrir={() => setModal("tipo")}
+            onLimpiar={() => setForm(p => ({ ...p, idTipoAudiencia: 0, tipoLabel: "" }))}
+            color="blue"
+          />
+
+          {/* Fecha y hora */}
+          <div>
+            <label className={labelCls}>Fecha y hora <span className="text-red-500">*</span></label>
+            <input type="datetime-local" value={form.fechaHoraProgramada} onChange={set("fechaHoraProgramada")} className={inputCls} disabled={saving} />
+          </div>
+
+          {/* Sala */}
+          <CampoSelector
+            label="Sala"
+            valorLabel={form.salaLabel}
+            onAbrir={() => setModal("sala")}
+            onLimpiar={() => setForm(p => ({ ...p, idSalaAud: 0, salaLabel: "" }))}
+            color="blue"
+          />
+
+          {/* Link videoconferencia */}
+          <div>
+            <label className={labelCls}>Link videoconf.</label>
+            <input type="url" placeholder="https://meet.google.com/..." value={form.linkVideoconferencia} onChange={set("linkVideoconferencia")} className={inputCls} disabled={saving} />
+          </div>
+
+          {/* Estado (solo edición) */}
+          {editando && (
+            <div>
+              <label className={labelCls}>Estado</label>
+              <select value={form.estadoAudiencia} onChange={set("estadoAudiencia")} className={inputCls} disabled={saving}>
+                <option value="PROGRAMADA">Programada</option>
+                <option value="EN_CURSO">En curso</option>
+                <option value="REALIZADA">Realizada</option>
+                <option value="SUSPENDIDA">Suspendida</option>
+                <option value="CANCELADA">Cancelada</option>
+              </select>
+            </div>
+          )}
+
+          {/* Motivo suspensión */}
+          {editando && form.estadoAudiencia === "SUSPENDIDA" && (
+            <div className="sm:col-span-2">
+              <label className={labelCls}>Motivo suspensión</label>
+              <textarea rows={2} value={form.motivoSuspension} onChange={set("motivoSuspension")} className={`${inputCls} resize-none`} disabled={saving} />
+            </div>
+          )}
+        </div>
+      </FormInline>
+
+      {modal === "tipo" && (
+        <BuscadorModal
+          titulo="Seleccionar tipo de audiencia"
+          placeholder="Buscar por nombre..."
+          opciones={opcionesTipo}
+          loading={lTipo}
+          onSelect={(id, label) => setForm(p => ({ ...p, idTipoAudiencia: id, tipoLabel: label }))}
+          onClose={() => setModal(null)}
+        />
+      )}
+      {modal === "sala" && (
+        <BuscadorModal
+          titulo="Seleccionar sala"
+          placeholder="Buscar por nombre o capacidad..."
+          opciones={opcionesSala}
+          loading={lSala}
+          onSelect={(id, label) => setForm(p => ({ ...p, idSalaAud: id, salaLabel: label }))}
+          onClose={() => setModal(null)}
+        />
+      )}
+    </>
   );
 }
 
-// ─── Form Parte Procesal ───────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+// FORM PARTE PROCESAL
+// ══════════════════════════════════════════════════════════════════════════
 function FormParte({ idExpediente, onSaved, onCancel }: { idExpediente: number; onSaved: () => void; onCancel: () => void }) {
-  const { data: dP } = useQuery(GET_PERSONAS);
-  const { data: dR } = useQuery(GET_ROLES_PROC);
+  const { data: dP, loading: lP } = useQuery(GET_PERSONAS);
+  const { data: dR, loading: lR } = useQuery(GET_ROLES_PROC);
   const [crear] = useMutation(CREAR_PARTE);
-  const [form, setForm] = useState({ idPersona: 0, idRol: 0 });
-  const [err, setErr] = useState(""); const [saving, setSaving] = useState(false);
+
+  const [form, setForm] = useState({ idPersona: 0, personaLabel: "", idRol: 0, rolLabel: "" });
+  const [err, setErr]   = useState("");
+  const [saving, setSaving] = useState(false);
+  const [modal, setModal] = useState<"persona" | "rol" | null>(null);
+
   const personas: any[] = dP?.allPersonas ?? [];
   const roles: any[]    = dR?.allRolesProcesal ?? [];
-  const set = (k: string) => (e: React.ChangeEvent<any>) => setForm(p => ({ ...p, [k]: e.target.value }));
+
+  const opcionesPersona: OpcionModal[] = personas.map((p: any) => ({
+    id: p.idPersona,
+    titulo: `${p.nombre} ${p.primerApellido} ${p.segundoApellido ?? ""}`.trim(),
+    extra: p.numeroDocumento,
+    subtitulo: p.esAbogado ? "Abogado" : undefined,
+  }));
+  const opcionesRol: OpcionModal[] = roles.map((r: any) => ({
+    id: r.idRol,
+    titulo: r.nombreRol,
+  }));
+
   const guardar = async () => {
     if (!form.idPersona || !form.idRol) { setErr("Persona y rol son obligatorios."); return; }
     setSaving(true); setErr("");
@@ -343,32 +626,54 @@ function FormParte({ idExpediente, onSaved, onCancel }: { idExpediente: number; 
       onSaved();
     } catch (e: any) { setErr(e.message ?? "Error al guardar."); } finally { setSaving(false); }
   };
+
   return (
-    <FormInline titulo="Agregar parte procesal" icono={Users} color="indigo" onCancel={onCancel} onSave={guardar} saving={saving} error={err}>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="sm:col-span-2"><label className={labelCls}>Persona <span className="text-red-500">*</span></label>
-          <select value={form.idPersona} onChange={set("idPersona")} className={inputCls}>
-            <option value={0}>— Seleccionar persona —</option>
-            {personas.map((p: any) => <option key={p.idPersona} value={p.idPersona}>{p.nombre} {p.primerApellido} {p.segundoApellido} — {p.numeroDocumento}</option>)}
-          </select></div>
-        <div className="sm:col-span-2"><label className={labelCls}>Rol procesal <span className="text-red-500">*</span></label>
-          <select value={form.idRol} onChange={set("idRol")} className={inputCls}>
-            <option value={0}>— Seleccionar rol —</option>
-            {roles.map((r: any) => <option key={r.idRol} value={r.idRol}>{r.nombreRol}</option>)}
-          </select></div>
-      </div>
-    </FormInline>
+    <>
+      <FormInline titulo="Agregar parte procesal" icono={Users} color="indigo" onCancel={onCancel} onSave={guardar} saving={saving} error={err}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
+            <CampoSelector label="Persona" required valorLabel={form.personaLabel} onAbrir={() => setModal("persona")} onLimpiar={() => setForm(p => ({ ...p, idPersona: 0, personaLabel: "" }))} color="indigo" />
+          </div>
+          <div className="sm:col-span-2">
+            <CampoSelector label="Rol procesal" required valorLabel={form.rolLabel} onAbrir={() => setModal("rol")} onLimpiar={() => setForm(p => ({ ...p, idRol: 0, rolLabel: "" }))} color="indigo" />
+          </div>
+        </div>
+      </FormInline>
+
+      {modal === "persona" && (
+        <BuscadorModal titulo="Seleccionar persona" placeholder="Buscar por nombre o documento..." opciones={opcionesPersona} loading={lP}
+          onSelect={(id, label) => setForm(p => ({ ...p, idPersona: id, personaLabel: label }))} onClose={() => setModal(null)} />
+      )}
+      {modal === "rol" && (
+        <BuscadorModal titulo="Seleccionar rol procesal" placeholder="Buscar por nombre..." opciones={opcionesRol} loading={lR}
+          onSelect={(id, label) => setForm(p => ({ ...p, idRol: id, rolLabel: label }))} onClose={() => setModal(null)} />
+      )}
+    </>
   );
 }
 
-// ─── Form Resolución ───────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+// FORM RESOLUCIÓN
+// ══════════════════════════════════════════════════════════════════════════
 function FormResolucion({ idExpediente, onSaved, onCancel }: { idExpediente: number; onSaved: () => void; onCancel: () => void }) {
-  const { data: dR } = useQuery(GET_TIPOS_RES);
+  const { data: dR, loading: lR } = useQuery(GET_TIPOS_RES);
   const [crear] = useMutation(CREAR_RESOLUCION);
-  const [form, setForm] = useState({ idTipoRes: 0, numeroResolucion: "", fechaResolucion: "", parteDispositiva: "", fundamentacion: "" });
-  const [err, setErr] = useState(""); const [saving, setSaving] = useState(false);
+
+  const [form, setForm] = useState({ idTipoRes: 0, tipoLabel: "", numeroResolucion: "", fechaResolucion: "", parteDispositiva: "", fundamentacion: "" });
+  const [err, setErr]   = useState("");
+  const [saving, setSaving] = useState(false);
+  const [modalAbierto, setModalAbierto] = useState(false);
+
   const tipos: any[] = dR?.allTiposResolucion ?? [];
+  const opciones: OpcionModal[] = tipos.map((t: any) => ({
+    id: t.idTipoRes,
+    titulo: t.nombre,
+    extra: t.codigo,
+    subtitulo: t.nivelJerarquico ? `Nivel ${t.nivelJerarquico}` : undefined,
+  }));
+
   const set = (k: string) => (e: React.ChangeEvent<any>) => setForm(p => ({ ...p, [k]: e.target.value }));
+
   const guardar = async () => {
     if (!form.idTipoRes || !form.numeroResolucion || !form.fechaResolucion || !form.parteDispositiva) {
       setErr("Tipo, número, fecha y parte dispositiva son obligatorios."); return;
@@ -379,35 +684,63 @@ function FormResolucion({ idExpediente, onSaved, onCancel }: { idExpediente: num
       onSaved();
     } catch (e: any) { setErr(e.message ?? "Error al guardar."); } finally { setSaving(false); }
   };
+
   return (
-    <FormInline titulo="Nueva resolución" icono={Scale} color="purple" onCancel={onCancel} onSave={guardar} saving={saving} error={err}>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div><label className={labelCls}>Tipo de resolución <span className="text-red-500">*</span></label>
-          <select value={form.idTipoRes} onChange={set("idTipoRes")} className={inputCls}>
-            <option value={0}>— Seleccionar tipo —</option>
-            {tipos.map((t: any) => <option key={t.idTipoRes} value={t.idTipoRes}>{t.codigo} · {t.nombre}</option>)}
-          </select></div>
-        <div><label className={labelCls}>N° Resolución <span className="text-red-500">*</span></label>
-          <input type="text" placeholder="Ej: RES-001/2025" value={form.numeroResolucion} onChange={set("numeroResolucion")} className={inputCls} /></div>
-        <div><label className={labelCls}>Fecha <span className="text-red-500">*</span></label>
-          <input type="date" value={form.fechaResolucion} onChange={set("fechaResolucion")} className={inputCls} /></div>
-        <div className="sm:col-span-2"><label className={labelCls}>Parte dispositiva <span className="text-red-500">*</span></label>
-          <textarea rows={3} placeholder="Decisión principal de la resolución..." value={form.parteDispositiva} onChange={set("parteDispositiva")} className={`${inputCls} resize-none`} /></div>
-        <div className="sm:col-span-2"><label className={labelCls}>Fundamentación</label>
-          <textarea rows={3} placeholder="Fundamentos jurídicos (opcional)..." value={form.fundamentacion} onChange={set("fundamentacion")} className={`${inputCls} resize-none`} /></div>
-      </div>
-    </FormInline>
+    <>
+      <FormInline titulo="Nueva resolución" icono={Scale} color="purple" onCancel={onCancel} onSave={guardar} saving={saving} error={err}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
+            <CampoSelector label="Tipo de resolución" required valorLabel={form.tipoLabel} onAbrir={() => setModalAbierto(true)} onLimpiar={() => setForm(p => ({ ...p, idTipoRes: 0, tipoLabel: "" }))} color="purple" />
+          </div>
+          <div>
+            <label className={labelCls}>N° Resolución <span className="text-red-500">*</span></label>
+            <input type="text" placeholder="Ej: RES-001/2025" value={form.numeroResolucion} onChange={set("numeroResolucion")} className={inputCls} disabled={saving} />
+          </div>
+          <div>
+            <label className={labelCls}>Fecha <span className="text-red-500">*</span></label>
+            <input type="date" value={form.fechaResolucion} onChange={set("fechaResolucion")} className={inputCls} disabled={saving} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={labelCls}>Parte dispositiva <span className="text-red-500">*</span></label>
+            <textarea rows={3} placeholder="Decisión principal de la resolución..." value={form.parteDispositiva} onChange={set("parteDispositiva")} className={`${inputCls} resize-none`} disabled={saving} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={labelCls}>Fundamentación</label>
+            <textarea rows={3} placeholder="Fundamentos jurídicos (opcional)..." value={form.fundamentacion} onChange={set("fundamentacion")} className={`${inputCls} resize-none`} disabled={saving} />
+          </div>
+        </div>
+      </FormInline>
+
+      {modalAbierto && (
+        <BuscadorModal titulo="Seleccionar tipo de resolución" placeholder="Buscar por nombre o código..." opciones={opciones} loading={lR}
+          onSelect={(id, label) => setForm(p => ({ ...p, idTipoRes: id, tipoLabel: label }))} onClose={() => setModalAbierto(false)} />
+      )}
+    </>
   );
 }
 
-// ─── Form Documento ────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+// FORM DOCUMENTO
+// ══════════════════════════════════════════════════════════════════════════
 function FormDocumento({ idExpediente, onSaved, onCancel }: { idExpediente: number; onSaved: () => void; onCancel: () => void }) {
-  const { data: dD } = useQuery(GET_TIPOS_DOC);
+  const { data: dD, loading: lD } = useQuery(GET_TIPOS_DOC);
   const [crear] = useMutation(CREAR_DOCUMENTO);
-  const [form, setForm] = useState({ idTipoDoc: 0, titulo: "", numeroFolio: "", tamanoKb: "" });
-  const [err, setErr] = useState(""); const [saving, setSaving] = useState(false);
+
+  const [form, setForm] = useState({ idTipoDoc: 0, tipoLabel: "", titulo: "", numeroFolio: "", tamanoKb: "" });
+  const [err, setErr]   = useState("");
+  const [saving, setSaving] = useState(false);
+  const [modalAbierto, setModalAbierto] = useState(false);
+
   const tipos: any[] = dD?.allTiposDoc ?? [];
+  const opciones: OpcionModal[] = tipos.map((t: any) => ({
+    id: t.idTipoDoc,
+    titulo: t.nombre,
+    extra: t.codigo,
+    subtitulo: t.esPublico ? "Público" : "Privado",
+  }));
+
   const set = (k: string) => (e: React.ChangeEvent<any>) => setForm(p => ({ ...p, [k]: e.target.value }));
+
   const guardar = async () => {
     if (!form.idTipoDoc || !form.titulo) { setErr("Tipo y título son obligatorios."); return; }
     setSaving(true); setErr("");
@@ -416,73 +749,126 @@ function FormDocumento({ idExpediente, onSaved, onCancel }: { idExpediente: numb
       onSaved();
     } catch (e: any) { setErr(e.message ?? "Error al guardar."); } finally { setSaving(false); }
   };
+
   return (
-    <FormInline titulo="Registrar documento" icono={FileText} color="emerald" onCancel={onCancel} onSave={guardar} saving={saving} error={err}>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div><label className={labelCls}>Tipo de documento <span className="text-red-500">*</span></label>
-          <select value={form.idTipoDoc} onChange={set("idTipoDoc")} className={inputCls}>
-            <option value={0}>— Seleccionar tipo —</option>
-            {tipos.map((t: any) => <option key={t.idTipoDoc} value={t.idTipoDoc}>{t.codigo} · {t.nombre}</option>)}
-          </select></div>
-        <div><label className={labelCls}>Título <span className="text-red-500">*</span></label>
-          <input type="text" placeholder="Nombre del documento..." value={form.titulo} onChange={set("titulo")} className={inputCls} /></div>
-        <div><label className={labelCls}>N° Folio</label>
-          <input type="number" placeholder="Ej: 42" value={form.numeroFolio} onChange={set("numeroFolio")} className={inputCls} /></div>
-        <div><label className={labelCls}>Tamaño (KB)</label>
-          <input type="number" placeholder="Ej: 256" value={form.tamanoKb} onChange={set("tamanoKb")} className={inputCls} /></div>
-      </div>
-    </FormInline>
+    <>
+      <FormInline titulo="Registrar documento" icono={FileText} color="emerald" onCancel={onCancel} onSave={guardar} saving={saving} error={err}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
+            <CampoSelector label="Tipo de documento" required valorLabel={form.tipoLabel} onAbrir={() => setModalAbierto(true)} onLimpiar={() => setForm(p => ({ ...p, idTipoDoc: 0, tipoLabel: "" }))} color="emerald" />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={labelCls}>Título <span className="text-red-500">*</span></label>
+            <input type="text" placeholder="Nombre del documento..." value={form.titulo} onChange={set("titulo")} className={inputCls} disabled={saving} />
+          </div>
+          <div>
+            <label className={labelCls}>N° Folio</label>
+            <input type="number" placeholder="Ej: 42" value={form.numeroFolio} onChange={set("numeroFolio")} className={inputCls} disabled={saving} />
+          </div>
+          <div>
+            <label className={labelCls}>Tamaño (KB)</label>
+            <input type="number" placeholder="Ej: 256" value={form.tamanoKb} onChange={set("tamanoKb")} className={inputCls} disabled={saving} />
+          </div>
+        </div>
+      </FormInline>
+
+      {modalAbierto && (
+        <BuscadorModal titulo="Seleccionar tipo de documento" placeholder="Buscar por nombre o código..." opciones={opciones} loading={lD}
+          onSelect={(id, label) => setForm(p => ({ ...p, idTipoDoc: id, tipoLabel: label }))} onClose={() => setModalAbierto(false)} />
+      )}
+    </>
   );
 }
 
-// ─── Form Actuación ────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+// FORM ACTUACIÓN
+// ══════════════════════════════════════════════════════════════════════════
 function FormActuacion({ idExpediente, onSaved, onCancel }: { idExpediente: number; onSaved: () => void; onCancel: () => void }) {
   const { usuario } = useAuth();
-  const { data: dA } = useQuery(GET_TIPOS_ACT);
+  const { data: dA, loading: lA } = useQuery(GET_TIPOS_ACT);
   const [crear] = useMutation(CREAR_ACTUACION);
-  const [form, setForm] = useState({ idTipoActuacion: 0, folioInicio: "", folioFin: "", descripcion: "" });
-  const [err, setErr] = useState(""); const [saving, setSaving] = useState(false);
+
+  const [form, setForm] = useState({ idTipoActuacion: 0, tipoLabel: "", folioInicio: "", folioFin: "", descripcion: "" });
+  const [err, setErr]   = useState("");
+  const [saving, setSaving] = useState(false);
+  const [modalAbierto, setModalAbierto] = useState(false);
+
   const tipos: any[] = dA?.allTiposActuacion ?? [];
+  const opciones: OpcionModal[] = tipos.map((t: any) => ({
+    id: t.idTipoActuacion,
+    titulo: t.nombre,
+    extra: t.codigo,
+  }));
+
   const set = (k: string) => (e: React.ChangeEvent<any>) => setForm(p => ({ ...p, [k]: e.target.value }));
+
   const guardar = async () => {
-    if (!form.idTipoActuacion || !form.folioInicio || !form.folioFin) { setErr("Tipo, folio inicio y folio fin son obligatorios."); return; }
-    if (!usuario?.idUsuario) { setErr("No se pudo identificar al usuario. Volvé a iniciar sesión."); return; }
+    if (!form.idTipoActuacion || !form.folioInicio || !form.folioFin) {
+      setErr("Tipo, folio inicio y folio fin son obligatorios."); return;
+    }
+    if (!usuario?.idUsuario) { setErr("No se pudo identificar al usuario."); return; }
     setSaving(true); setErr("");
     try {
       await crear({ variables: { idExpediente: Number(idExpediente), idTipoActuacion: Number(form.idTipoActuacion), idUsuario: Number(usuario.idUsuario), folioInicio: Number(form.folioInicio), folioFin: Number(form.folioFin), descripcion: form.descripcion || undefined } });
       onSaved();
     } catch (e: any) { setErr(e.message ?? "Error al guardar."); } finally { setSaving(false); }
   };
+
   return (
-    <FormInline titulo="Registrar actuación" icono={ClipboardList} color="blue" onCancel={onCancel} onSave={guardar} saving={saving} error={err}>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="sm:col-span-2"><label className={labelCls}>Tipo de actuación <span className="text-red-500">*</span></label>
-          <select value={form.idTipoActuacion} onChange={set("idTipoActuacion")} className={inputCls}>
-            <option value={0}>— Seleccionar tipo —</option>
-            {tipos.map((t: any) => <option key={t.idTipoActuacion} value={t.idTipoActuacion}>{t.codigo} · {t.nombre}</option>)}
-          </select></div>
-        <div><label className={labelCls}>Folio inicio <span className="text-red-500">*</span></label>
-          <input type="number" placeholder="Ej: 1" value={form.folioInicio} onChange={set("folioInicio")} className={inputCls} /></div>
-        <div><label className={labelCls}>Folio fin <span className="text-red-500">*</span></label>
-          <input type="number" placeholder="Ej: 5" value={form.folioFin} onChange={set("folioFin")} className={inputCls} /></div>
-        <div className="sm:col-span-2"><label className={labelCls}>Descripción</label>
-          <textarea rows={2} placeholder="Descripción de la actuación (opcional)..." value={form.descripcion} onChange={set("descripcion")} className={`${inputCls} resize-none`} /></div>
-        <div className="sm:col-span-2 px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-800/60 border border-gray-200 dark:border-slate-700 text-xs text-gray-500 dark:text-gray-400">
-          Usuario registrador: <span className="font-semibold text-gray-700 dark:text-gray-300">{usuario?.paterno} {usuario?.nombre}</span>
+    <>
+      <FormInline titulo="Registrar actuación" icono={ClipboardList} color="blue" onCancel={onCancel} onSave={guardar} saving={saving} error={err}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
+            <CampoSelector label="Tipo de actuación" required valorLabel={form.tipoLabel} onAbrir={() => setModalAbierto(true)} onLimpiar={() => setForm(p => ({ ...p, idTipoActuacion: 0, tipoLabel: "" }))} color="blue" />
+          </div>
+          <div>
+            <label className={labelCls}>Folio inicio <span className="text-red-500">*</span></label>
+            <input type="number" placeholder="Ej: 1" value={form.folioInicio} onChange={set("folioInicio")} className={inputCls} disabled={saving} />
+          </div>
+          <div>
+            <label className={labelCls}>Folio fin <span className="text-red-500">*</span></label>
+            <input type="number" placeholder="Ej: 5" value={form.folioFin} onChange={set("folioFin")} className={inputCls} disabled={saving} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={labelCls}>Descripción</label>
+            <textarea rows={2} placeholder="Descripción de la actuación (opcional)..." value={form.descripcion} onChange={set("descripcion")} className={`${inputCls} resize-none`} disabled={saving} />
+          </div>
+          <div className="sm:col-span-2 px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-800/60 border border-gray-200 dark:border-slate-700 text-xs text-gray-500 dark:text-gray-400">
+            Usuario registrador: <span className="font-semibold text-gray-700 dark:text-gray-300">{usuario?.paterno} {usuario?.nombre}</span>
+          </div>
         </div>
-      </div>
-    </FormInline>
+      </FormInline>
+
+      {modalAbierto && (
+        <BuscadorModal titulo="Seleccionar tipo de actuación" placeholder="Buscar por nombre o código..." opciones={opciones} loading={lA}
+          onSelect={(id, label) => setForm(p => ({ ...p, idTipoActuacion: id, tipoLabel: label }))} onClose={() => setModalAbierto(false)} />
+      )}
+    </>
   );
 }
 
-// ─── Form Conformación ─────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+// FORM CONFORMACIÓN
+// ══════════════════════════════════════════════════════════════════════════
 function FormConformacion({ idExpediente, onSaved, onCancel }: { idExpediente: number; onSaved: () => void; onCancel: () => void }) {
-  const { data: dV } = useQuery(GET_VOCALES);
+  const { data: dV, loading: lV } = useQuery(GET_VOCALES);
   const [crear] = useMutation(CREAR_CONFORMACION);
-  const [form, setForm] = useState({ idVocal: 0, rolEnCaso: "" });
-  const [err, setErr] = useState(""); const [saving, setSaving] = useState(false);
+
+  const [form, setForm] = useState({ idVocal: 0, vocalLabel: "", rolEnCaso: "" });
+  const [err, setErr]   = useState("");
+  const [saving, setSaving] = useState(false);
+  const [modalAbierto, setModalAbierto] = useState(false);
+
   const vocales: any[] = (dV?.allVocales ?? []).filter((v: any) => v.activo);
+  const opciones: OpcionModal[] = vocales.map((v: any) => ({
+    id: v.idVocal,
+    titulo: `${v.idPersona?.nombre} ${v.idPersona?.primerApellido}`,
+    subtitulo: v.cargo,
+    extra: v.idSala?.nombreSala,
+  }));
+
   const set = (k: string) => (e: React.ChangeEvent<any>) => setForm(p => ({ ...p, [k]: e.target.value }));
+
   const guardar = async () => {
     if (!form.idVocal || !form.rolEnCaso.trim()) { setErr("Vocal y rol en el caso son obligatorios."); return; }
     setSaving(true); setErr("");
@@ -491,18 +877,26 @@ function FormConformacion({ idExpediente, onSaved, onCancel }: { idExpediente: n
       onSaved();
     } catch (e: any) { setErr(e.message ?? "Error al guardar."); } finally { setSaving(false); }
   };
+
   return (
-    <FormInline titulo="Asignar vocal" icono={Building2} color="indigo" onCancel={onCancel} onSave={guardar} saving={saving} error={err}>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="sm:col-span-2"><label className={labelCls}>Vocal <span className="text-red-500">*</span></label>
-          <select value={form.idVocal} onChange={set("idVocal")} className={inputCls}>
-            <option value={0}>— Seleccionar vocal activo —</option>
-            {vocales.map((v: any) => <option key={v.idVocal} value={v.idVocal}>{v.idPersona?.nombre} {v.idPersona?.primerApellido} — {v.cargo} · {v.idSala?.nombreSala}</option>)}
-          </select></div>
-        <div className="sm:col-span-2"><label className={labelCls}>Rol en el caso <span className="text-red-500">*</span></label>
-          <input type="text" placeholder="Ej: Vocal Relator, Presidente de Sala..." value={form.rolEnCaso} onChange={set("rolEnCaso")} className={inputCls} /></div>
-      </div>
-    </FormInline>
+    <>
+      <FormInline titulo="Asignar vocal" icono={Building2} color="indigo" onCancel={onCancel} onSave={guardar} saving={saving} error={err}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
+            <CampoSelector label="Vocal" required valorLabel={form.vocalLabel} onAbrir={() => setModalAbierto(true)} onLimpiar={() => setForm(p => ({ ...p, idVocal: 0, vocalLabel: "" }))} color="indigo" />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={labelCls}>Rol en el caso <span className="text-red-500">*</span></label>
+            <input type="text" placeholder="Ej: Vocal Relator, Presidente de Sala..." value={form.rolEnCaso} onChange={set("rolEnCaso")} className={inputCls} disabled={saving} />
+          </div>
+        </div>
+      </FormInline>
+
+      {modalAbierto && (
+        <BuscadorModal titulo="Seleccionar vocal activo" placeholder="Buscar por nombre, cargo o sala..." opciones={opciones} loading={lV}
+          onSelect={(id, label) => setForm(p => ({ ...p, idVocal: id, vocalLabel: label }))} onClose={() => setModalAbierto(false)} />
+      )}
+    </>
   );
 }
 
@@ -524,7 +918,7 @@ function TimelineHistorial({ historial }: { historial: any[] }) {
         <div className="space-y-0">
           {ordenado.map((h: any, idx: number) => {
             const ns = getNodeStyle(h.idEstadoNuevo?.nombreEstado);
-            const esUltimo = idx === ordenado.length - 1;
+            const esUltimo  = idx === ordenado.length - 1;
             const esPrimero = idx === 0;
             return (
               <div key={h.idHistorial} className="relative flex gap-4 pb-6 last:pb-0">
@@ -537,7 +931,7 @@ function TimelineHistorial({ historial }: { historial: any[] }) {
                   </div>
                 </div>
                 <div className={`flex-1 min-w-0 rounded-2xl border p-4 transition-all hover:shadow-md ${esUltimo ? "bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800/50 shadow-sm" : "bg-gray-50 dark:bg-slate-800/60 border-gray-200 dark:border-slate-700"}`}>
-                  {esUltimo && <div className="flex items-center gap-1.5 mb-2"><div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" /><span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Estado actual</span></div>}
+                  {esUltimo  && <div className="flex items-center gap-1.5 mb-2"><div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" /><span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Estado actual</span></div>}
                   {esPrimero && !esUltimo && <div className="flex items-center gap-1.5 mb-2"><span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Estado inicial</span></div>}
                   <div className="flex flex-wrap items-center gap-2 mb-3">
                     {h.idEstadoAnterior ? <Pill className="bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 font-semibold">{h.idEstadoAnterior.nombreEstado}</Pill> : <Pill className="bg-gray-100 dark:bg-slate-700 text-gray-400 italic">(sin estado)</Pill>}
@@ -579,17 +973,18 @@ function TimelineHistorial({ historial }: { historial: any[] }) {
 // PÁGINA PRINCIPAL
 // ══════════════════════════════════════════════════════════════════════════
 export default function ExpedienteDetallePage() {
-  const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+  const { id }      = useParams<{ id: string }>();
+  const navigate    = useNavigate();
   const idExpediente = Number(id);
 
   const [tabActiva, setTabActiva] = useState<TabId>("general");
-
-  // Estado de formularios por tab
-  const [showForm, setShowForm] = useState<Partial<Record<TabId, boolean>>>({});
+  const [showForm, setShowForm]   = useState<Partial<Record<TabId, boolean>>>({});
   const [editandoAud, setEditandoAud] = useState<any | null>(null);
+  // Para bloquear botones de eliminar individualmente
+  const [eliminandoId, setEliminandoId] = useState<number | null>(null);
 
-  // Mutations de eliminación
+  const { executeCreate, executeDelete } = useCrudNotifications("Expediente");
+
   const [eliminarAudiencia]    = useMutation(ELIMINAR_AUDIENCIA);
   const [eliminarParte]        = useMutation(ELIMINAR_PARTE);
   const [eliminarResolucion]   = useMutation(ELIMINAR_RESOLUCION);
@@ -619,23 +1014,34 @@ export default function ExpedienteDetallePage() {
     actuaciones: actuaciones.length, historial: historial.length,
   };
 
-  // Helpers de formulario
-  const abrirForm  = (tab: TabId) => { setShowForm(p => ({ ...p, [tab]: true })); if (tab !== "audiencias") { setEditandoAud(null); } };
+  const abrirForm  = (tab: TabId) => { setShowForm(p => ({ ...p, [tab]: true })); if (tab !== "audiencias") setEditandoAud(null); };
   const cerrarForm = (tab: TabId) => { setShowForm(p => ({ ...p, [tab]: false })); setEditandoAud(null); };
   const onSaved    = (tab: TabId) => { cerrarForm(tab); refetch(); };
 
-  const confirmarEliminar = (msg: string) => window.confirm(msg);
-
-  const eliminar = async (fn: () => Promise<any>, msg: string, confirmMsg: string) => {
-    if (!confirmarEliminar(confirmMsg)) return;
-    const { data: res } = await fn();
-    const result = Object.values(res ?? {})[0] as any;
-    if (!result?.ok) { alert(result?.mensaje ?? "No se pudo eliminar."); return; }
-    refetch();
+  // ✅ Eliminar con toast + bloqueo de botón
+  const eliminar = async (
+    id: number,
+    fn: () => Promise<any>,
+    confirmMsg: string,
+    toastMsgs: { loading: string; success: string; error: string },
+  ) => {
+    await executeDelete(
+      async () => {
+        setEliminandoId(id);
+        try {
+          const { data: res } = await fn();
+          const result = Object.values(res ?? {})[0] as any;
+          if (!result?.ok) throw new Error(result?.mensaje ?? "No se pudo eliminar.");
+          await refetch();
+          return true;
+        } finally {
+          setEliminandoId(null);
+        }
+      },
+      toastMsgs,
+      confirmMsg,
+    );
   };
-
-  // Tabs con formularios habilitados (Recursos no tiene crear por ahora — depende de resolución)
-  const TABS_CON_FORM: TabId[] = ["audiencias", "partes", "resoluciones", "documentos", "actuaciones", "vocales"];
 
   return (
     <div className="space-y-0 animate-fade-in">
@@ -646,8 +1052,7 @@ export default function ExpedienteDetallePage() {
           onClick={() => navigate("/expedientes")}
           className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors text-sm font-medium"
         >
-          <ChevronLeft className="w-4 h-4" />
-          Expedientes
+          <ChevronLeft className="w-4 h-4" /> Expedientes
         </button>
         <div className="flex-1 min-w-0">
           {loading ? (
@@ -666,10 +1071,10 @@ export default function ExpedienteDetallePage() {
         </div>
       </div>
 
-      {/* LAYOUT: sidebar + contenido */}
+      {/* LAYOUT */}
       <div className="flex gap-6 items-start">
 
-        {/* SIDEBAR DE TABS */}
+        {/* SIDEBAR */}
         <nav className="w-44 shrink-0 bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
           {TABS.map(tab => {
             const Icon  = tab.icon;
@@ -678,11 +1083,7 @@ export default function ExpedienteDetallePage() {
             return (
               <button
                 key={tab.id}
-                onClick={() => {
-                  setTabActiva(tab.id);
-                  setShowForm({});
-                  setEditandoAud(null);
-                }}
+                onClick={() => { setTabActiva(tab.id); setShowForm({}); setEditandoAud(null); }}
                 className={`w-full flex items-center gap-2.5 px-4 py-3 text-sm font-medium transition-all border-l-2 ${
                   activa
                     ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
@@ -701,7 +1102,7 @@ export default function ExpedienteDetallePage() {
           })}
         </nav>
 
-        {/* PANEL DE CONTENIDO */}
+        {/* PANEL */}
         <div className="flex-1 min-w-0 bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm p-6">
 
           {loading && (
@@ -710,7 +1111,6 @@ export default function ExpedienteDetallePage() {
               <p className="text-sm">Cargando expediente...</p>
             </div>
           )}
-
           {error && (
             <div className="flex flex-col items-center justify-center h-64 gap-3 text-red-400">
               <AlertCircle className="w-8 h-8" />
@@ -720,7 +1120,6 @@ export default function ExpedienteDetallePage() {
 
           {!loading && !error && exp && (
             <>
-
               {/* ══ GENERAL ══ */}
               {tabActiva === "general" && (
                 <div className="space-y-6">
@@ -756,18 +1155,14 @@ export default function ExpedienteDetallePage() {
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {[
-                      { label: "Partes procesales", count: partes.length, color: "blue", tab: "partes" as TabId },
-                      { label: "Audiencias",         count: audiencias.length, color: "indigo", tab: "audiencias" as TabId },
-                      { label: "Resoluciones",       count: resoluciones.length, color: "purple", tab: "resoluciones" as TabId },
-                      { label: "Documentos",         count: documentos.length, color: "emerald", tab: "documentos" as TabId },
+                      { label: "Partes procesales", count: partes.length,      color: "blue",    tab: "partes"      as TabId },
+                      { label: "Audiencias",         count: audiencias.length,  color: "indigo",  tab: "audiencias"  as TabId },
+                      { label: "Resoluciones",       count: resoluciones.length,color: "purple",  tab: "resoluciones"as TabId },
+                      { label: "Documentos",         count: documentos.length,  color: "emerald", tab: "documentos"  as TabId },
                     ].map(({ label, count, color, tab }) => {
                       const s = RESUMEN_STYLES[color];
                       return (
-                        <button
-                          key={label}
-                          onClick={() => setTabActiva(tab)}
-                          className={`${s.bg} rounded-xl p-4 border ${s.border} text-left hover:opacity-80 transition-opacity cursor-pointer`}
-                        >
+                        <button key={label} onClick={() => setTabActiva(tab)} className={`${s.bg} rounded-xl p-4 border ${s.border} text-left hover:opacity-80 transition-opacity cursor-pointer`}>
                           <p className={`text-2xl font-bold ${s.text}`}>{count}</p>
                           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{label}</p>
                         </button>
@@ -799,7 +1194,10 @@ export default function ExpedienteDetallePage() {
                           </div>
                           <div className="flex items-center gap-2">
                             <Pill className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400">{c.rolEnCaso}</Pill>
-                            <BtnEliminar onClick={() => eliminar(() => eliminarConformacion({ variables: { id: Number(c.idConformacion) } }) as any, "", `¿Quitar al vocal ${c.idVocal?.idPersona?.nombre} de este expediente?`)} />
+                            <BtnEliminar
+                              disabled={eliminandoId === c.idConformacion}
+                              onClick={() => eliminar(c.idConformacion, () => eliminarConformacion({ variables: { id: Number(c.idConformacion) } }) as any, `¿Quitar al vocal ${c.idVocal?.idPersona?.nombre} de este expediente?`, { loading: "Quitando vocal...", success: "Vocal quitado del expediente", error: "Error al quitar el vocal" })}
+                            />
                           </div>
                         </div>
                       ))}
@@ -819,21 +1217,22 @@ export default function ExpedienteDetallePage() {
                     <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-slate-700">
                       <table className="w-full">
                         <thead className="bg-gray-50 dark:bg-slate-800/80">
-                          <tr>
-                            {["Persona", "Documento", "Rol Procesal", "Abogado", "Estado", ""].map(h => (
-                              <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>
-                            ))}
-                          </tr>
+                          <tr>{["Persona", "Documento", "Rol Procesal", "Abogado", "Estado", ""].map(h => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>)}</tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                           {partes.map((p: any) => (
                             <tr key={p.idParte} className="hover:bg-gray-50 dark:hover:bg-slate-800/40">
-                              <td className="px-4 py-3"><p className="text-sm font-medium text-gray-800 dark:text-white">{p.idPersona?.nombre} {p.idPersona?.primerApellido} {p.idPersona?.segundoApellido}</p>{p.idPersona?.estamento && <p className="text-xs text-gray-500 dark:text-gray-400">{p.idPersona.estamento}</p>}</td>
+                              <td className="px-4 py-3"><p className="text-sm font-medium text-gray-800 dark:text-white">{p.idPersona?.nombre} {p.idPersona?.primerApellido} {p.idPersona?.segundoApellido}</p></td>
                               <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 font-mono">{p.idPersona?.numeroDocumento ?? "—"}</td>
                               <td className="px-4 py-3"><Pill className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">{p.idRol?.nombreRol}</Pill></td>
                               <td className="px-4 py-3">{p.idPersona?.esAbogado ? <Pill className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400">Sí</Pill> : <span className="text-xs text-gray-400">No</span>}</td>
                               <td className="px-4 py-3"><Pill className={p.activo ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"}>{p.activo ? "Activo" : "Excluido"}</Pill></td>
-                              <td className="px-4 py-3 text-right"><BtnEliminar onClick={() => eliminar(() => eliminarParte({ variables: { id: Number(p.idParte) } }) as any, "", `¿Eliminar a ${p.idPersona?.nombre} ${p.idPersona?.primerApellido} como parte procesal?`)} /></td>
+                              <td className="px-4 py-3 text-right">
+                                <BtnEliminar
+                                  disabled={eliminandoId === p.idParte}
+                                  onClick={() => eliminar(p.idParte, () => eliminarParte({ variables: { id: Number(p.idParte) } }) as any, `¿Eliminar a ${p.idPersona?.nombre} ${p.idPersona?.primerApellido} como parte procesal?`, { loading: "Eliminando parte...", success: "Parte procesal eliminada", error: "Error al eliminar la parte" })}
+                                />
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -859,14 +1258,20 @@ export default function ExpedienteDetallePage() {
                               <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${audBg[a.estadoAudiencia] ?? "bg-gray-100 dark:bg-slate-700"}`}>
                                 <Calendar className={`w-4 h-4 ${audIc[a.estadoAudiencia] ?? "text-gray-500"}`} />
                               </div>
-                              <div className="min-w-0"><p className="text-sm font-semibold text-gray-800 dark:text-white truncate">{a.idTipoAudiencia?.nombre}</p><p className="text-xs text-gray-500 dark:text-gray-400">{fmtFechaHora(a.fechaHoraProgramada)}</p></div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-gray-800 dark:text-white truncate">{a.idTipoAudiencia?.nombre}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">{fmtFechaHora(a.fechaHoraProgramada)}</p>
+                              </div>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
                               <Pill className={estadoAudienciaColor[a.estadoAudiencia] ?? "bg-gray-100 text-gray-600"}>{a.estadoAudiencia}</Pill>
                               {!showForm["audiencias"] && (
                                 <div className="flex items-center gap-1">
                                   <button onClick={() => { setEditandoAud(a); abrirForm("audiencias"); }} className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
-                                  <BtnEliminar onClick={() => eliminar(() => eliminarAudiencia({ variables: { id: Number(a.idAudiencia) } }) as any, "", `¿Eliminar la audiencia del ${fmtFechaHora(a.fechaHoraProgramada)}?`)} />
+                                  <BtnEliminar
+                                    disabled={eliminandoId === a.idAudiencia}
+                                    onClick={() => eliminar(a.idAudiencia, () => eliminarAudiencia({ variables: { id: Number(a.idAudiencia) } }) as any, `¿Eliminar la audiencia del ${fmtFechaHora(a.fechaHoraProgramada)}?`, { loading: "Eliminando audiencia...", success: "Audiencia eliminada", error: "Error al eliminar la audiencia" })}
+                                  />
                                 </div>
                               )}
                             </div>
@@ -900,7 +1305,10 @@ export default function ExpedienteDetallePage() {
                           <div className="flex items-center gap-2 shrink-0">
                             <Pill className={r.estado === "VIGENTE" ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" : "bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300"}>{r.estado}</Pill>
                             {r.esRecurrible && <Pill className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">Recurrible · {r.plazoRecursoDias}d</Pill>}
-                            <BtnEliminar onClick={() => eliminar(() => eliminarResolucion({ variables: { id: Number(r.idResolucion) } }) as any, "", `¿Eliminar la resolución ${r.numeroResolucion}?`)} />
+                            <BtnEliminar
+                              disabled={eliminandoId === r.idResolucion}
+                              onClick={() => eliminar(r.idResolucion, () => eliminarResolucion({ variables: { id: Number(r.idResolucion) } }) as any, `¿Eliminar la resolución ${r.numeroResolucion}?`, { loading: "Eliminando resolución...", success: `Resolución ${r.numeroResolucion} eliminada`, error: "Error al eliminar la resolución" })}
+                            />
                           </div>
                         </div>
                         <InfoCell label="Fecha de Resolución" value={fmtFecha(r.fechaResolucion)} />
@@ -918,8 +1326,7 @@ export default function ExpedienteDetallePage() {
                   <div className="flex items-center justify-between mb-4">
                     <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">{recursos.length} recurso{recursos.length !== 1 ? "s" : ""}</p>
                     <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-slate-700/60 text-gray-400 dark:text-gray-500 text-xs">
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      Se crean desde una resolución existente
+                      <AlertCircle className="w-3.5 h-3.5" /> Se crean desde una resolución existente
                     </div>
                   </div>
                   {recursos.length === 0 ? (
@@ -954,11 +1361,7 @@ export default function ExpedienteDetallePage() {
                     <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-slate-700">
                       <table className="w-full">
                         <thead className="bg-gray-50 dark:bg-slate-800/80">
-                          <tr>
-                            {["Título", "Tipo", "Folio", "Fecha", "Firma", "Público", ""].map(h => (
-                              <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>
-                            ))}
-                          </tr>
+                          <tr>{["Título", "Tipo", "Folio", "Fecha", "Firma", "Público", ""].map(h => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>)}</tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                           {documentos.map((d: any) => (
@@ -969,7 +1372,12 @@ export default function ExpedienteDetallePage() {
                               <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{fmtFecha(d.fechaPresentacion)}</td>
                               <td className="px-4 py-3">{d.firmadoDigitalmente ? <Pill className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">Firmado</Pill> : <span className="text-xs text-gray-400">No</span>}</td>
                               <td className="px-4 py-3">{d.idTipoDoc?.esPublico ? <Pill className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">Sí</Pill> : <span className="text-xs text-gray-400">No</span>}</td>
-                              <td className="px-4 py-3 text-right"><BtnEliminar onClick={() => eliminar(() => eliminarDocumento({ variables: { id: Number(d.idDocumento) } }) as any, "", `¿Eliminar el documento "${d.titulo}"?`)} /></td>
+                              <td className="px-4 py-3 text-right">
+                                <BtnEliminar
+                                  disabled={eliminandoId === d.idDocumento}
+                                  onClick={() => eliminar(d.idDocumento, () => eliminarDocumento({ variables: { id: Number(d.idDocumento) } }) as any, `¿Eliminar el documento "${d.titulo}"?`, { loading: "Eliminando documento...", success: `"${d.titulo}" eliminado`, error: "Error al eliminar el documento" })}
+                                />
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -990,11 +1398,7 @@ export default function ExpedienteDetallePage() {
                     <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-slate-700">
                       <table className="w-full">
                         <thead className="bg-gray-50 dark:bg-slate-800/80">
-                          <tr>
-                            {["Tipo", "Fecha", "Folios", "Usuario", "Pública", "Descripción", ""].map(h => (
-                              <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>
-                            ))}
-                          </tr>
+                          <tr>{["Tipo", "Fecha", "Folios", "Usuario", "Pública", "Descripción", ""].map(h => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>)}</tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                           {actuaciones.map((a: any) => (
@@ -1005,7 +1409,12 @@ export default function ExpedienteDetallePage() {
                               <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{a.usuario?.paterno} {a.usuario?.nombres}</td>
                               <td className="px-4 py-3">{a.esPublica ? <Pill className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">Sí</Pill> : <span className="text-xs text-gray-400">No</span>}</td>
                               <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 max-w-xs truncate">{a.descripcion ?? "—"}</td>
-                              <td className="px-4 py-3 text-right"><BtnEliminar onClick={() => eliminar(() => eliminarActuacion({ variables: { id: Number(a.idActuacion) } }) as any, "", `¿Eliminar esta actuación procesal?`)} /></td>
+                              <td className="px-4 py-3 text-right">
+                                <BtnEliminar
+                                  disabled={eliminandoId === a.idActuacion}
+                                  onClick={() => eliminar(a.idActuacion, () => eliminarActuacion({ variables: { id: Number(a.idActuacion) } }) as any, `¿Eliminar esta actuación procesal?`, { loading: "Eliminando actuación...", success: "Actuación eliminada", error: "Error al eliminar la actuación" })}
+                                />
+                              </td>
                             </tr>
                           ))}
                         </tbody>

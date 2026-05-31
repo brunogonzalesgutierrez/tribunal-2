@@ -70,3 +70,27 @@ export const GET_USUARIOS_SIMPLE = gql`
     }
   }
 `;
+export const ACTUALIZAR_SOLICITUD = gql`
+  mutation ActualizarSolicitud(
+    $id: Int!, 
+    $estadoSolicitud: String!, 
+    $fechaConfirmacion: DateTime, 
+    $observacion: String
+  ) {
+    actualizarSolicitud(
+      id: $id, 
+      estadoSolicitud: $estadoSolicitud, 
+      fechaConfirmacion: $fechaConfirmacion, 
+      observacion: $observacion
+    ) {
+      ok
+      mensaje
+      solicitud {
+        idSolicitud
+        estadoSolicitud
+        fechaConfirmacion
+        observacion
+      }
+    }
+  }
+`;

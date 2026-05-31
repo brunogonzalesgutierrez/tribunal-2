@@ -70,9 +70,9 @@ function Modal({ children, onClose, title }: { children: React.ReactNode; onClos
   );
 }
 
-const Field = ({ label, value, onChange, type = "text", placeholder = "", required = false }: {
+const Field = ({ label, value, onChange, type = "text", placeholder = "", required = false, disabled = false }: {
   label: string; value: string; onChange: (v: string) => void;
-  type?: string; placeholder?: string; required?: boolean;
+  type?: string; placeholder?: string; required?: boolean; disabled?: boolean;
 }) => (
   <div className="mb-4">
     <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
@@ -81,7 +81,8 @@ const Field = ({ label, value, onChange, type = "text", placeholder = "", requir
     <input
       type={type} value={value} placeholder={placeholder}
       onChange={e => onChange(e.target.value)}
-      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+      disabled={disabled}
+      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none disabled:opacity-50 disabled:cursor-not-allowed"
     />
   </div>
 );
@@ -395,6 +396,10 @@ export default function ExpedientesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [recienCreado, setRecienCreado] = useState<{ id: number; numero: string } | null>(null);
 
+  // ✅ Estados para bloqueo de botones
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
   // Estados para buscadores modales
   const [buscadorSalaAbierto, setBuscadorSalaAbierto] = useState(false);
   const [buscadorTipoProcAbierto, setBuscadorTipoProcAbierto] = useState(false);
@@ -489,11 +494,16 @@ export default function ExpedientesPage() {
 
   const cerrarModal = () => { setModalAbierto(false); setEditando(null); };
 
+  // ✅ Guardar con bloqueo
   const guardar = async () => {
     if (!form.numeroExpediente || form.idSala === "0" || form.idTipoProceso === "0") {
       toast.error("Número de expediente, sala y tipo de proceso son obligatorios.");
       return;
     }
+    
+    if (saving) return;
+    setSaving(true);
+    
     const input = {
       numeroExpediente: form.numeroExpediente,
       ano: Number(form.ano),
@@ -503,48 +513,60 @@ export default function ExpedientesPage() {
       ...(form.idEstadoExpediente !== "0" ? { idEstadoExpediente: Number(form.idEstadoExpediente) } : {}),
     };
 
-    if (editando) {
-      await executeUpdate(async () => {
-        await actualizarExp({ variables: { id: Number(editando.idExpediente), input } });
-        await refetch();
-        cerrarModal();
-        return true;
-      });
-    } else {
-      await executeCreate(async () => {
-        const result = await crearExp({ variables: { input } });
-        await refetch();
+    try {
+      if (editando) {
+        await executeUpdate(async () => {
+          await actualizarExp({ variables: { id: Number(editando.idExpediente), input } });
+          await refetch();
+          cerrarModal();
+          return true;
+        });
+      } else {
+        await executeCreate(async () => {
+          const result = await crearExp({ variables: { input } });
+          await refetch();
 
-        const nuevoId: number | undefined = result.data?.crearExpediente?.expediente?.idExpediente;
-        const nuevoNumero = form.numeroExpediente;
+          const nuevoId: number | undefined = result.data?.crearExpediente?.expediente?.idExpediente;
+          const nuevoNumero = form.numeroExpediente;
 
-        cerrarModal();
+          cerrarModal();
 
-        if (nuevoId) {
-          setRecienCreado({ id: nuevoId, numero: nuevoNumero });
-          navigate(`/expedientes/${nuevoId}`);
-        }
+          if (nuevoId) {
+            setRecienCreado({ id: nuevoId, numero: nuevoNumero });
+            navigate(`/expedientes/${nuevoId}`);
+          }
 
-        return true;
-      });
+          return true;
+        });
+      }
+    } finally {
+      setSaving(false);
     }
   };
 
+  // ✅ Eliminar con bloqueo
   const eliminar = async (id: number, numero: string) => {
-    await executeDelete(
-      async () => {
-        const { data } = await eliminarExp({ variables: { id: Number(id) } });
-        if (!data?.eliminarExpediente?.ok) throw new Error(data?.eliminarExpediente?.mensaje ?? "No se pudo eliminar");
-        await refetch();
-        return true;
-      },
-      {
-        loading: `Eliminando expediente ${numero}...`,
-        success: `Expediente ${numero} eliminado exitosamente`,
-        error: `Error al eliminar el expediente`,
-      },
-      `¿Eliminar el expediente ${numero}? Esta acción no se puede deshacer.`
-    );
+    if (deletingId === id) return;
+    setDeletingId(id);
+    
+    try {
+      await executeDelete(
+        async () => {
+          const { data } = await eliminarExp({ variables: { id: Number(id) } });
+          if (!data?.eliminarExpediente?.ok) throw new Error(data?.eliminarExpediente?.mensaje ?? "No se pudo eliminar");
+          await refetch();
+          return true;
+        },
+        {
+          loading: `Eliminando expediente ${numero}...`,
+          success: `Expediente ${numero} eliminado exitosamente`,
+          error: `Error al eliminar el expediente`,
+        },
+        `¿Eliminar el expediente ${numero}? Esta acción no se puede deshacer.`
+      );
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -563,7 +585,8 @@ export default function ExpedientesPage() {
         </div>
         <button
           onClick={abrirCrear}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold text-sm shadow-lg shadow-blue-500/25 transition-all duration-200 transform hover:scale-[1.02]"
+          disabled={saving}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold text-sm shadow-lg shadow-blue-500/25 transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
         >
           <Plus className="w-4 h-4" />
           Nuevo expediente
@@ -604,28 +627,55 @@ export default function ExpedientesPage() {
         </div>
       )}
 
-      {/* ESTADÍSTICAS */}
+      {/* ESTADÍSTICAS - CORREGIDAS: clases fijas sin interpolación */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        {[
-          { label: "Total Expedientes", value: totalExpedientes, color: "blue",    Icon: FolderOpen,  sub: "Expedientes registrados" },
-          { label: "Activos",           value: activos,          color: "emerald", Icon: CheckCircle, sub: "En proceso" },
-          { label: "Concluidos",        value: concluidos,       color: "purple",  Icon: Scale,       sub: "Expedientes finalizados" },
-        ].map(({ label, value, color, Icon, sub }) => (
-          <div key={label} className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{label}</p>
-                <p className={`text-3xl font-bold mt-2 text-${color}-600 dark:text-${color}-400`}>{value}</p>
-              </div>
-              <div className={`w-12 h-12 rounded-xl bg-${color}-100 dark:bg-${color}-900/30 flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                <Icon className={`w-6 h-6 text-${color}-600 dark:text-${color}-400`} />
-              </div>
+        {/* Total Expedientes */}
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Expedientes</p>
+              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-2">{totalExpedientes}</p>
             </div>
-            <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
-              <p className="text-xs text-gray-500 dark:text-gray-400">{sub}</p>
+            <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <FolderOpen className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             </div>
           </div>
-        ))}
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Expedientes registrados</p>
+          </div>
+        </div>
+
+        {/* Activos */}
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Activos</p>
+              <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 mt-2">{activos}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <CheckCircle className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">En proceso</p>
+          </div>
+        </div>
+
+        {/* Concluidos */}
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Concluidos</p>
+              <p className="text-3xl font-bold text-purple-600 dark:text-purple-400 mt-2">{concluidos}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Scale className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Expedientes finalizados</p>
+          </div>
+        </div>
       </div>
 
       {/* BUSCADOR */}
@@ -731,7 +781,8 @@ export default function ExpedientesPage() {
                         <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => navigate(`/expedientes/${exp.idExpediente}`)}
-                            className={`p-2 rounded-lg transition-colors ${
+                            disabled={saving}
+                            className={`p-2 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                               esNuevo
                                 ? "text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50"
                                 : "text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
@@ -742,14 +793,16 @@ export default function ExpedientesPage() {
                           </button>
                           <button
                             onClick={() => abrirEditar(exp)}
-                            className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                            disabled={saving}
+                            className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                             title="Editar"
                           >
                             <Edit className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => eliminar(exp.idExpediente, exp.numeroExpediente)}
-                            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                            disabled={deletingId === exp.idExpediente}
+                            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                             title="Eliminar"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -803,8 +856,22 @@ export default function ExpedientesPage() {
                 <span>Al crear el expediente se abrirá su detalle automáticamente para agregar partes, audiencias y documentos.</span>
               </div>
             )}
-            <Field label="Número de expediente" value={form.numeroExpediente} onChange={f("numeroExpediente")} required placeholder="Ej: 001/2025" />
-            <Field label="Año" value={form.ano} onChange={f("ano")} type="number" required />
+            <Field 
+              label="Número de expediente" 
+              value={form.numeroExpediente} 
+              onChange={f("numeroExpediente")} 
+              required 
+              placeholder="Ej: 001/2025"
+              disabled={saving}
+            />
+            <Field 
+              label="Año" 
+              value={form.ano} 
+              onChange={f("ano")} 
+              type="number" 
+              required
+              disabled={saving}
+            />
             
             {/* Sala - Con buscador */}
             <div className="mb-4">
@@ -819,7 +886,8 @@ export default function ExpedientesPage() {
                       setForm(prev => ({ ...prev, idSala: "0" }));
                       setSalaSeleccionada("");
                     }}
-                    className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                    disabled={saving}
+                    className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -828,7 +896,8 @@ export default function ExpedientesPage() {
                 <button
                   type="button"
                   onClick={() => setBuscadorSalaAbierto(true)}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                  disabled={saving}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Plus className="w-4 h-4" />
                   Buscar y seleccionar sala
@@ -849,7 +918,8 @@ export default function ExpedientesPage() {
                       setForm(prev => ({ ...prev, idTipoProceso: "0" }));
                       setTipoProcSeleccionado("");
                     }}
-                    className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                    disabled={saving}
+                    className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -858,7 +928,8 @@ export default function ExpedientesPage() {
                 <button
                   type="button"
                   onClick={() => setBuscadorTipoProcAbierto(true)}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                  disabled={saving}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Plus className="w-4 h-4" />
                   Buscar y seleccionar tipo de proceso
@@ -879,7 +950,8 @@ export default function ExpedientesPage() {
                       setForm(prev => ({ ...prev, idEstadoExpediente: "0" }));
                       setEstadoSeleccionado("");
                     }}
-                    className="p-1 rounded-lg text-gray-500 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+                    disabled={saving}
+                    className="p-1 rounded-lg text-gray-500 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -888,7 +960,8 @@ export default function ExpedientesPage() {
                 <button
                   type="button"
                   onClick={() => setBuscadorEstadoAbierto(true)}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                  disabled={saving}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Plus className="w-4 h-4" />
                   Buscar y seleccionar estado
@@ -901,17 +974,26 @@ export default function ExpedientesPage() {
               <textarea
                 value={form.descripcion}
                 onChange={e => f("descripcion")(e.target.value)}
+                disabled={saving}
                 rows={3}
-                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-none"
+                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-none disabled:opacity-50 disabled:cursor-not-allowed"
                 placeholder="Descripción del expediente..."
               />
             </div>
             <div className="flex gap-3 justify-end pt-4">
-              <button onClick={cerrarModal} className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium">
+              <button 
+                onClick={cerrarModal} 
+                disabled={saving}
+                className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 Cancelar
               </button>
-              <button onClick={guardar} className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium text-sm shadow-md transition-all">
-                {editando ? "Guardar cambios" : "Crear y ver detalle →"}
+              <button 
+                onClick={guardar} 
+                disabled={saving}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium text-sm shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? "Guardando..." : (editando ? "Guardar cambios" : "Crear y ver detalle →")}
               </button>
             </div>
           </div>

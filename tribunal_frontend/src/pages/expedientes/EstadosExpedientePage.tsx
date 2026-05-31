@@ -43,9 +43,9 @@ function Modal({ children, onClose, title }: {
   );
 }
 
-const Field = ({ label, value, onChange, placeholder = "", required = false }: {
+const Field = ({ label, value, onChange, placeholder = "", required = false, disabled = false }: {
   label: string; value: string; onChange: (v: string) => void;
-  placeholder?: string; required?: boolean;
+  placeholder?: string; required?: boolean; disabled?: boolean;
 }) => (
   <div className="mb-4">
     <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
@@ -54,7 +54,8 @@ const Field = ({ label, value, onChange, placeholder = "", required = false }: {
     <input
       value={value} placeholder={placeholder}
       onChange={e => onChange(e.target.value)}
-      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all outline-none"
+      disabled={disabled}
+      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all outline-none disabled:opacity-50 disabled:cursor-not-allowed"
     />
   </div>
 );
@@ -67,6 +68,10 @@ export default function EstadosExpedientePage() {
   const [busqueda, setBusqueda] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  // ✅ Estados para bloqueo de botones
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const { data, loading, refetch } = useQuery(GET_ESTADOS_EXPEDIENTE);
   const [crearEstado] = useMutation(CREAR_ESTADO_EXPEDIENTE);
@@ -93,31 +98,72 @@ export default function EstadosExpedientePage() {
   };
   const cerrar = () => { setModalAbierto(false); setEditando(null); };
 
+  // ✅ Guardar con bloqueo
   const guardar = async () => {
-    if (!form.nombreEstado) { toast.error("El nombre del estado es obligatorio."); return; }
-    if (editando) {
-      await executeUpdate(async () => {
-        await actualizarEstado({ variables: { id: Number(editando.idEstado), nombreEstado: form.nombreEstado, esTerminal: form.esTerminal } });
-        await refetch(); cerrar(); return true;
-      });
-    } else {
-      await executeCreate(async () => {
-        await crearEstado({ variables: { nombreEstado: form.nombreEstado, esTerminal: form.esTerminal } });
-        await refetch(); cerrar(); return true;
-      });
+    if (!form.nombreEstado) { 
+      toast.error("El nombre del estado es obligatorio."); 
+      return; 
+    }
+    
+    if (saving) return;
+    setSaving(true);
+    
+    try {
+      if (editando) {
+        await executeUpdate(async () => {
+          await actualizarEstado({ 
+            variables: { 
+              id: Number(editando.idEstado), 
+              nombreEstado: form.nombreEstado, 
+              esTerminal: form.esTerminal 
+            } 
+          });
+          await refetch(); 
+          cerrar(); 
+          return true;
+        });
+      } else {
+        await executeCreate(async () => {
+          await crearEstado({ 
+            variables: { 
+              nombreEstado: form.nombreEstado, 
+              esTerminal: form.esTerminal 
+            } 
+          });
+          await refetch(); 
+          cerrar(); 
+          return true;
+        });
+      }
+    } finally {
+      setSaving(false);
     }
   };
 
+  // ✅ Eliminar con bloqueo
   const eliminar = async (id: number, nombre: string) => {
-    await executeDelete(
-      async () => {
-         const { data } = await eliminarEstado({ variables: { id: Number(id) } });
-        if (!data?.eliminarEstadoExpediente?.ok) throw new Error(data?.eliminarEstadoExpediente?.mensaje ?? "Error");
-        await refetch(); return true;
-      },
-      { loading: `Eliminando ${nombre}...`, success: `${nombre} eliminado`, error: "Error al eliminar" },
-      `¿Eliminar el estado "${nombre}"?`
-    );
+    if (deletingId === id) return;
+    setDeletingId(id);
+    
+    try {
+      await executeDelete(
+        async () => {
+          const { data } = await eliminarEstado({ variables: { id: Number(id) } });
+          if (!data?.eliminarEstadoExpediente?.ok) 
+            throw new Error(data?.eliminarEstadoExpediente?.mensaje ?? "Error");
+          await refetch(); 
+          return true;
+        },
+        { 
+          loading: `Eliminando ${nombre}...`, 
+          success: `${nombre} eliminado`, 
+          error: "Error al eliminar" 
+        },
+        `¿Eliminar el estado "${nombre}"?`
+      );
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -136,7 +182,8 @@ export default function EstadosExpedientePage() {
         </div>
         <button
           onClick={abrirCrear}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-semibold text-sm shadow-lg shadow-amber-500/25 transition-all duration-200 hover:scale-[1.02]"
+          disabled={saving}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-semibold text-sm shadow-lg shadow-amber-500/25 transition-all duration-200 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
         >
           <Plus className="w-4 h-4" />
           Nuevo estado
@@ -242,10 +289,20 @@ export default function EstadosExpedientePage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => abrirEditar(e)} className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors" title="Editar">
+                        <button 
+                          onClick={() => abrirEditar(e)} 
+                          disabled={saving}
+                          className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed" 
+                          title="Editar"
+                        >
                           <Edit className="w-4 h-4" />
                         </button>
-                        <button onClick={() => eliminar(e.idEstado, e.nombreEstado)} className="p-2 rounded-lg text-gray-500 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500 transition-colors" title="Eliminar">
+                        <button 
+                          onClick={() => eliminar(e.idEstado, e.nombreEstado)} 
+                          disabled={deletingId === e.idEstado}
+                          className="p-2 rounded-lg text-gray-500 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed" 
+                          title="Eliminar"
+                        >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -288,6 +345,7 @@ export default function EstadosExpedientePage() {
               onChange={v => setForm(p => ({ ...p, nombreEstado: v }))}
               placeholder="Ej: En Investigación"
               required
+              disabled={saving}
             />
             <div className="mb-4">
               <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
@@ -295,7 +353,8 @@ export default function EstadosExpedientePage() {
                   type="checkbox"
                   checked={form.esTerminal}
                   onChange={e => setForm(p => ({ ...p, esTerminal: e.target.checked }))}
-                  className="w-4 h-4 rounded accent-amber-500"
+                  disabled={saving}
+                  className="w-4 h-4 rounded accent-amber-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <div>
                   <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Estado terminal</p>
@@ -304,11 +363,19 @@ export default function EstadosExpedientePage() {
               </label>
             </div>
             <div className="flex gap-3 justify-end pt-2">
-              <button onClick={cerrar} className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium">
+              <button 
+                onClick={cerrar} 
+                disabled={saving}
+                className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 Cancelar
               </button>
-              <button onClick={guardar} className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-medium text-sm shadow-md transition-all">
-                {editando ? "Guardar cambios" : "Crear estado"}
+              <button 
+                onClick={guardar} 
+                disabled={saving}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-medium text-sm shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? "Guardando..." : (editando ? "Guardar cambios" : "Crear estado")}
               </button>
             </div>
           </div>

@@ -266,6 +266,9 @@ export default function HistorialEstadosPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
+  // ✅ Estados para bloqueo de botones
+  const [saving, setSaving] = useState(false);
+
   // Estados para buscadores modales
   const [buscadorExpAbierto, setBuscadorExpAbierto] = useState(false);
   const [buscadorEstadoAbierto, setBuscadorEstadoAbierto] = useState(false);
@@ -311,27 +314,35 @@ export default function HistorialEstadosPage() {
 
   const cerrarModal = () => { setModalAbierto(false); };
 
+  // ✅ Guardar con bloqueo
   const guardar = async () => {
     if (form.idExpediente === "0" || form.idEstadoNuevo === "0" || !form.motivo) {
       toast.error("Todos los campos son obligatorios.");
       return;
     }
 
-    await executeCreate(async () => {
-      await crearHist({
-        variables: {
-          idExpediente: Number(form.idExpediente),
-          idEstadoNuevo: Number(form.idEstadoNuevo),
-          idUsuario: 1, // TODO: Obtener del contexto
-          motivo: form.motivo,
-        },
+    if (saving) return;
+    setSaving(true);
+
+    try {
+      await executeCreate(async () => {
+        await crearHist({
+          variables: {
+            idExpediente: Number(form.idExpediente),
+            idEstadoNuevo: Number(form.idEstadoNuevo),
+            idUsuario: 1, // TODO: Obtener del contexto
+            motivo: form.motivo,
+          },
+        });
+        await refetch();
+        cerrarModal();
+        setExpedienteSeleccionado("");
+        setEstadoSeleccionado("");
+        return true;
       });
-      await refetch();
-      cerrarModal();
-      setExpedienteSeleccionado("");
-      setEstadoSeleccionado("");
-      return true;
-    });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const totalCambios = historiales.length;
@@ -354,7 +365,8 @@ export default function HistorialEstadosPage() {
         </div>
         <button
           onClick={abrirModal}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-semibold text-sm shadow-lg shadow-emerald-500/25 transition-all duration-200 transform hover:scale-[1.02]"
+          disabled={saving}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-semibold text-sm shadow-lg shadow-emerald-500/25 transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
         >
           <Plus className="w-4 h-4" />
           Cambiar estado
@@ -362,9 +374,10 @@ export default function HistorialEstadosPage() {
       </div>
 
       {/* ============================================================ */}
-      {/* TARJETAS DE ESTADÍSTICAS */}
+      {/* TARJETAS DE ESTADÍSTICAS - CLASES FIJAS */}
       {/* ============================================================ */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        {/* Total Cambios */}
         <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
           <div className="flex items-center justify-between">
             <div>
@@ -380,6 +393,7 @@ export default function HistorialEstadosPage() {
           </div>
         </div>
 
+        {/* Expedientes */}
         <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
           <div className="flex items-center justify-between">
             <div>
@@ -395,6 +409,7 @@ export default function HistorialEstadosPage() {
           </div>
         </div>
 
+        {/* Estados */}
         <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
           <div className="flex items-center justify-between">
             <div>
@@ -547,7 +562,8 @@ export default function HistorialEstadosPage() {
                       setForm(p => ({ ...p, idExpediente: "0" }));
                       setExpedienteSeleccionado("");
                     }}
-                    className="p-1 rounded-lg text-gray-500 hover:bg-emerald-200 dark:hover:bg-emerald-800 transition-colors"
+                    disabled={saving}
+                    className="p-1 rounded-lg text-gray-500 hover:bg-emerald-200 dark:hover:bg-emerald-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -556,7 +572,8 @@ export default function HistorialEstadosPage() {
                 <button
                   type="button"
                   onClick={() => setBuscadorExpAbierto(true)}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-emerald-400 dark:hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all"
+                  disabled={saving}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-emerald-400 dark:hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Plus className="w-4 h-4" />
                   Buscar y seleccionar expediente
@@ -577,7 +594,8 @@ export default function HistorialEstadosPage() {
                       setForm(p => ({ ...p, idEstadoNuevo: "0" }));
                       setEstadoSeleccionado("");
                     }}
-                    className="p-1 rounded-lg text-gray-500 hover:bg-emerald-200 dark:hover:bg-emerald-800 transition-colors"
+                    disabled={saving}
+                    className="p-1 rounded-lg text-gray-500 hover:bg-emerald-200 dark:hover:bg-emerald-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -586,7 +604,8 @@ export default function HistorialEstadosPage() {
                 <button
                   type="button"
                   onClick={() => setBuscadorEstadoAbierto(true)}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-emerald-400 dark:hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all"
+                  disabled={saving}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-emerald-400 dark:hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Plus className="w-4 h-4" />
                   Buscar y seleccionar estado
@@ -601,18 +620,27 @@ export default function HistorialEstadosPage() {
               <textarea
                 value={form.motivo}
                 onChange={e => setForm(p => ({ ...p, motivo: e.target.value }))}
+                disabled={saving}
                 rows={3}
-                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all outline-none resize-none"
+                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all outline-none resize-none disabled:opacity-50 disabled:cursor-not-allowed"
                 placeholder="Describe el motivo del cambio de estado..."
               />
             </div>
 
             <div className="flex gap-3 justify-end pt-4">
-              <button onClick={cerrarModal} className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium">
+              <button 
+                onClick={cerrarModal} 
+                disabled={saving}
+                className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 Cancelar
               </button>
-              <button onClick={guardar} className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-medium text-sm shadow-md transition-all">
-                Registrar cambio
+              <button 
+                onClick={guardar} 
+                disabled={saving}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-medium text-sm shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? "Guardando..." : "Registrar cambio"}
               </button>
             </div>
           </div>

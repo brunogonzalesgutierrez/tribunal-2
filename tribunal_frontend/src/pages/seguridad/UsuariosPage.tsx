@@ -58,9 +58,9 @@ function Modal({ children, onClose, title }: { children: React.ReactNode; onClos
 }
 
 // ─── CAMPO DE FORMULARIO ─────────────────────────────────
-const Field = ({ label, value, onChange, type = "text", placeholder = "", required = false }: {
+const Field = ({ label, value, onChange, type = "text", placeholder = "", required = false, disabled = false }: {
   label: string; value: string; onChange: (v: string) => void;
-  type?: string; placeholder?: string; required?: boolean;
+  type?: string; placeholder?: string; required?: boolean; disabled?: boolean;
 }) => (
   <div className="mb-4">
     <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
@@ -69,17 +69,20 @@ const Field = ({ label, value, onChange, type = "text", placeholder = "", requir
     <input
       type={type} value={value} placeholder={placeholder}
       onChange={e => onChange(e.target.value)}
-      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+      disabled={disabled}
+      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none disabled:opacity-50 disabled:cursor-not-allowed"
     />
   </div>
 );
 
 // ─── TARJETA DE USUARIO (para móvil/tablet) ─────────────────
-function UserCard({ usuario, onEdit, onToggleActivo, onDelete }: { 
+function UserCard({ usuario, onEdit, onToggleActivo, onDelete, isToggling, isDeleting }: { 
   usuario: Usuario; 
   onEdit: () => void; 
   onToggleActivo: () => void; 
   onDelete: () => void;
+  isToggling: boolean;
+  isDeleting: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -107,11 +110,11 @@ function UserCard({ usuario, onEdit, onToggleActivo, onDelete }: {
                 <button onClick={onEdit} className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center gap-2">
                   <Edit className="w-4 h-4" /> Editar
                 </button>
-                <button onClick={onToggleActivo} className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 ${usuario.activo ? 'text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30' : 'text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30'}`}>
-                  <Power className="w-4 h-4" /> {usuario.activo ? "Desactivar" : "Activar"}
+                <button onClick={onToggleActivo} disabled={isToggling} className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${usuario.activo ? 'text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30' : 'text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30'}`}>
+                  <Power className="w-4 h-4" /> {isToggling ? "Procesando..." : (usuario.activo ? "Desactivar" : "Activar")}
                 </button>
-                <button onClick={onDelete} className="w-full px-4 py-2 text-left text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center gap-2">
-                  <Trash2 className="w-4 h-4" /> Eliminar
+                <button onClick={onDelete} disabled={isDeleting} className="w-full px-4 py-2 text-left text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                  <Trash2 className="w-4 h-4" /> {isDeleting ? "Eliminando..." : "Eliminar"}
                 </button>
               </div>
             )}
@@ -144,10 +147,10 @@ function UserCard({ usuario, onEdit, onToggleActivo, onDelete }: {
             <button onClick={onEdit} className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">
               <Edit className="w-4 h-4" />
             </button>
-            <button onClick={onToggleActivo} className={`p-1.5 rounded-lg transition-colors ${usuario.activo ? 'text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30' : 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/30'}`}>
+            <button onClick={onToggleActivo} disabled={isToggling} className={`p-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${usuario.activo ? 'text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30' : 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/30'}`}>
               <Power className="w-4 h-4" />
             </button>
-            <button onClick={onDelete} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <button onClick={onDelete} disabled={isDeleting} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
@@ -166,6 +169,11 @@ export default function UsuariosPage() {
   const [busqueda, setBusqueda] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  // ✅ Estados para bloqueo de botones
+  const [saving, setSaving] = useState(false);
+  const [togglingUserId, setTogglingUserId] = useState<number | null>(null);
+  const [deletingUserId, setDeletingUserId] = useState<number | null>(null);
 
   const { data, loading, refetch } = useQuery(GET_USUARIOS);
   const { data: dataRoles } = useQuery(GET_ROLES);
@@ -210,109 +218,122 @@ export default function UsuariosPage() {
   const cerrarModal = () => { setModalAbierto(false); setEditando(null); };
   const f = (field: string) => (v: string) => setForm(prev => ({ ...prev, [field]: v }));
 
-  // ✅ Guardar con notificaciones
-  // ✅ Guardar con notificaciones (VERSIÓN CORREGIDA)
-const guardar = async () => {
-  if (!form.nombres || !form.paterno || !form.email || !form.idRol) {
-    toast.error("Nombres, apellido, email y rol son obligatorios.");
-    return;
-  }
-  
-  // Solo validar contraseña si es creación
-  if (!editando && !form.password) {
-    toast.error("La contraseña es obligatoria al crear un usuario.");
-    return;
-  }
-
-  if (editando) {
-    // Para edición: construir input solo con campos que cambiaron
-    const input: any = {
-      nombres: form.nombres,
-      paterno: form.paterno,
-      email: form.email,
-      cargoOficial: form.cargoOficial,
-      idRol: Number(form.idRol),
-    };
-    
-    // ✅ Solo incluir password si se ingresó una nueva
-    if (form.password && form.password.trim() !== "") {
-      input.password = form.password;
+  // ✅ Guardar con notificaciones y bloqueo
+  const guardar = async () => {
+    if (!form.nombres || !form.paterno || !form.email || !form.idRol) {
+      toast.error("Nombres, apellido, email y rol son obligatorios.");
+      return;
     }
     
-    await executeUpdate(async () => {
-      await actualizarUsuario({
-        variables: {
-          id: Number(editando.idUsuario),
-          input: input,
-        },
-      });
-      await refetch();
-      cerrarModal();
-      return true;
-    });
-  } else {
-    // Creación: todos los campos son obligatorios
-    await executeCreate(async () => {
-      await crearUsuario({
-        variables: {
-          input: {
-            nombres: form.nombres,
-            paterno: form.paterno,
-            materno: form.materno || undefined,
-            documentoIdentidad: form.documentoIdentidad,
-            email: form.email,
-            username: form.username,
-            password: form.password,
-            cargoOficial: form.cargoOficial || undefined,
-            idRol: Number(form.idRol),
-          },
-        },
-      });
-      await refetch();
-      cerrarModal();
-      return true;
-    });
-  }
-};
+    if (!editando && !form.password) {
+      toast.error("La contraseña es obligatoria al crear un usuario.");
+      return;
+    }
 
-  // ✅ Toggle activo con notificaciones
-  const toggleActivo = async (u: Usuario) => {
-    const nuevoEstado = !u.activo;
-    await executeToggle(
-      async () => {
-        await actualizarUsuario({
-          variables: { id: Number(u.idUsuario), input: { activo: nuevoEstado } },
+    if (saving) return;
+    setSaving(true);
+
+    try {
+      if (editando) {
+        const input: any = {
+          nombres: form.nombres,
+          paterno: form.paterno,
+          email: form.email,
+          cargoOficial: form.cargoOficial,
+          idRol: Number(form.idRol),
+        };
+        
+        if (form.password && form.password.trim() !== "") {
+          input.password = form.password;
+        }
+        
+        await executeUpdate(async () => {
+          await actualizarUsuario({
+            variables: { id: Number(editando.idUsuario), input: input },
+          });
+          await refetch();
+          cerrarModal();
+          return true;
         });
-        await refetch();
-        return true;
-      },
-      nuevoEstado,
-      {
-        loading: `Cambiando estado de ${u.nombres} ${u.paterno}...`,
-        success: (isActive: boolean) => `${u.nombres} ${u.paterno} ha sido ${isActive ? 'activado' : 'desactivado'}`,
-        error: `Error al cambiar estado del usuario`,
+      } else {
+        await executeCreate(async () => {
+          await crearUsuario({
+            variables: {
+              input: {
+                nombres: form.nombres,
+                paterno: form.paterno,
+                materno: form.materno || undefined,
+                documentoIdentidad: form.documentoIdentidad,
+                email: form.email,
+                username: form.username,
+                password: form.password,
+                cargoOficial: form.cargoOficial || undefined,
+                idRol: Number(form.idRol),
+              },
+            },
+          });
+          await refetch();
+          cerrarModal();
+          return true;
+        });
       }
-    );
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // ✅ Eliminar con notificaciones
-  const eliminar = async (id: number, nombreCompleto: string) => {
-    await executeDelete(
-      async () => {
-        const { data } = await eliminarUsuario({ variables: { id: Number(id) } });
-        if (!data?.eliminarUsuario?.ok) {
-          throw new Error(data?.eliminarUsuario?.mensaje ?? "No se pudo eliminar");
+  // ✅ Toggle activo con notificaciones y bloqueo
+  const toggleActivo = async (u: Usuario) => {
+    if (togglingUserId === u.idUsuario) return;
+    const nuevoEstado = !u.activo;
+    setTogglingUserId(u.idUsuario);
+    
+    try {
+      await executeToggle(
+        async () => {
+          await actualizarUsuario({
+            variables: { id: Number(u.idUsuario), input: { activo: nuevoEstado } },
+          });
+          await refetch();
+          return true;
+        },
+        nuevoEstado,
+        {
+          loading: `Cambiando estado de ${u.nombres} ${u.paterno}...`,
+          success: (isActive: boolean) => `${u.nombres} ${u.paterno} ha sido ${isActive ? 'activado' : 'desactivado'}`,
+          error: `Error al cambiar estado del usuario`,
         }
-        await refetch();
-        return true;
-      },
-      {
-        loading: `Eliminando a ${nombreCompleto}...`,
-        success: `${nombreCompleto} eliminado exitosamente`,
-        error: `Error al eliminar ${nombreCompleto}`,
-      },
-      `¿Eliminar a ${nombreCompleto}? Esta acción no se puede deshacer.`
-    );
+      );
+    } finally {
+      setTogglingUserId(null);
+    }
+  };
+
+  // ✅ Eliminar con notificaciones y bloqueo
+  const eliminar = async (id: number, nombreCompleto: string) => {
+    if (deletingUserId === id) return;
+    setDeletingUserId(id);
+    
+    try {
+      await executeDelete(
+        async () => {
+          const { data } = await eliminarUsuario({ variables: { id: Number(id) } });
+          if (!data?.eliminarUsuario?.ok) {
+            throw new Error(data?.eliminarUsuario?.mensaje ?? "No se pudo eliminar");
+          }
+          await refetch();
+          return true;
+        },
+        {
+          loading: `Eliminando a ${nombreCompleto}...`,
+          success: `${nombreCompleto} eliminado exitosamente`,
+          error: `Error al eliminar ${nombreCompleto}`,
+        },
+        `¿Eliminar a ${nombreCompleto}? Esta acción no se puede deshacer.`
+      );
+    } finally {
+      setDeletingUserId(null);
+    }
   };
 
   return (
@@ -333,18 +354,18 @@ const guardar = async () => {
         </div>
         <button
           onClick={abrirCrear}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold text-sm shadow-lg shadow-blue-500/25 transition-all duration-200 transform hover:scale-[1.02]"
+          disabled={saving}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold text-sm shadow-lg shadow-blue-500/25 transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
         >
           <Plus className="w-4 h-4" />
           Nuevo usuario
         </button>
       </div>
-{/* ============================================================ */}
+
+      {/* ============================================================ */}
       {/* TARJETAS DE ESTADÍSTICAS */}
       {/* ============================================================ */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        
-        {/* Tarjeta: Total Usuarios */}
         <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
           <div className="flex items-center justify-between">
             <div>
@@ -356,13 +377,10 @@ const guardar = async () => {
             </div>
           </div>
           <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Registrados en el sistema
-            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Registrados en el sistema</p>
           </div>
         </div>
 
-        {/* Tarjeta: Usuarios Activos */}
         <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
           <div className="flex items-center justify-between">
             <div>
@@ -382,7 +400,6 @@ const guardar = async () => {
           </div>
         </div>
 
-        {/* Tarjeta: Usuarios Inactivos */}
         <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
           <div className="flex items-center justify-between">
             <div>
@@ -402,7 +419,6 @@ const guardar = async () => {
           </div>
         </div>
 
-        {/* Tarjeta: Roles disponibles */}
         <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
           <div className="flex items-center justify-between">
             <div>
@@ -414,12 +430,11 @@ const guardar = async () => {
             </div>
           </div>
           <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Asignados a los usuarios
-            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Asignados a los usuarios</p>
           </div>
         </div>
       </div>
+
       {/* ============================================================ */}
       {/* BUSCADOR Y FILTROS */}
       {/* ============================================================ */}
@@ -502,13 +517,28 @@ const guardar = async () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => abrirEditar(usuario)} className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors" title="Editar">
+                        <button 
+                          onClick={() => abrirEditar(usuario)} 
+                          disabled={saving}
+                          className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed" 
+                          title="Editar"
+                        >
                           <Edit className="w-4 h-4" />
                         </button>
-                        <button onClick={() => toggleActivo(usuario)} className={`p-2 rounded-lg transition-colors ${usuario.activo ? 'text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30' : 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/30'}`} title={usuario.activo ? "Desactivar" : "Activar"}>
+                        <button 
+                          onClick={() => toggleActivo(usuario)} 
+                          disabled={togglingUserId === usuario.idUsuario}
+                          className={`p-2 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${usuario.activo ? 'text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30' : 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/30'}`} 
+                          title={usuario.activo ? "Desactivar" : "Activar"}
+                        >
                           <Power className="w-4 h-4" />
                         </button>
-                        <button onClick={() => eliminar(usuario.idUsuario, `${usuario.nombres} ${usuario.paterno}`)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors" title="Eliminar">
+                        <button 
+                          onClick={() => eliminar(usuario.idUsuario, `${usuario.nombres} ${usuario.paterno}`)} 
+                          disabled={deletingUserId === usuario.idUsuario}
+                          className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed" 
+                          title="Eliminar"
+                        >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -550,6 +580,8 @@ const guardar = async () => {
               onEdit={() => abrirEditar(usuario)}
               onToggleActivo={() => toggleActivo(usuario)}
               onDelete={() => eliminar(usuario.idUsuario, `${usuario.nombres} ${usuario.paterno}`)}
+              isToggling={togglingUserId === usuario.idUsuario}
+              isDeleting={deletingUserId === usuario.idUsuario}
             />
           ))
         )}
@@ -588,31 +620,26 @@ const guardar = async () => {
       {/* ============================================================ */}
       {/* MODAL CREAR/EDITAR */}
       {/* ============================================================ */}
-      {/* ============================================================ */}
-      {/* MODAL CREAR/EDITAR */}
-      {/* ============================================================ */}
       {modalAbierto && (
         <Modal onClose={cerrarModal} title={modalType}>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Nombres" value={form.nombres} onChange={f("nombres")} required />
-              <Field label="Apellido paterno" value={form.paterno} onChange={f("paterno")} required />
+              <Field label="Nombres" value={form.nombres} onChange={f("nombres")} required disabled={saving} />
+              <Field label="Apellido paterno" value={form.paterno} onChange={f("paterno")} required disabled={saving} />
             </div>
-            <Field label="Apellido materno" value={form.materno} onChange={f("materno")} />
-            <Field label="Email" value={form.email} onChange={f("email")} type="email" required />
+            <Field label="Apellido materno" value={form.materno} onChange={f("materno")} disabled={saving} />
+            <Field label="Email" value={form.email} onChange={f("email")} type="email" required disabled={saving} />
 
-            {/* Campos SOLO para creación */}
             {modalType === "crear" && (
               <>
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Username" value={form.username} onChange={f("username")} required />
-                  <Field label="CI / Documento" value={form.documentoIdentidad} onChange={f("documentoIdentidad")} required />
+                  <Field label="Username" value={form.username} onChange={f("username")} required disabled={saving} />
+                  <Field label="CI / Documento" value={form.documentoIdentidad} onChange={f("documentoIdentidad")} required disabled={saving} />
                 </div>
-                <Field label="Contraseña" value={form.password} onChange={f("password")} type="password" required />
+                <Field label="Contraseña" value={form.password} onChange={f("password")} type="password" required disabled={saving} />
               </>
             )}
 
-            {/* ✅ Campo de contraseña SOLO para edición (opcional) - ESTO ES LO QUE FALTABA */}
             {modalType === "editar" && (
               <div className="mb-4">
                 <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
@@ -622,16 +649,16 @@ const guardar = async () => {
                   type="password"
                   value={form.password}
                   onChange={e => f("password")(e.target.value)}
+                  disabled={saving}
                   placeholder="Dejar en blanco para mantener la actual"
-                  className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+                  className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <p className="text-xs text-gray-400 mt-1">Solo completar si deseas cambiar la contraseña</p>
               </div>
             )}
 
-            <Field label="Cargo oficial" value={form.cargoOficial} onChange={f("cargoOficial")} />
+            <Field label="Cargo oficial" value={form.cargoOficial} onChange={f("cargoOficial")} disabled={saving} />
 
-            {/* Selector de rol */}
             <div className="mb-4">
               <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
                 Rol <span className="text-red-500">*</span>
@@ -639,7 +666,8 @@ const guardar = async () => {
               <select
                 value={form.idRol}
                 onChange={e => setForm(prev => ({ ...prev, idRol: Number(e.target.value) }))}
-                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+                disabled={saving}
+                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value={0}>— Selecciona un rol —</option>
                 {roles.map(r => <option key={r.idRol} value={r.idRol}>{r.nombre}</option>)}
@@ -647,11 +675,19 @@ const guardar = async () => {
             </div>
 
             <div className="flex gap-3 justify-end pt-4">
-              <button onClick={cerrarModal} className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium">
+              <button 
+                onClick={cerrarModal} 
+                disabled={saving}
+                className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 Cancelar
               </button>
-              <button onClick={guardar} className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium text-sm shadow-md transition-all">
-                {modalType === "editar" ? "Guardar cambios" : "Crear usuario"}
+              <button 
+                onClick={guardar} 
+                disabled={saving}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium text-sm shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? "Guardando..." : (modalType === "editar" ? "Guardar cambios" : "Crear usuario")}
               </button>
             </div>
           </div>

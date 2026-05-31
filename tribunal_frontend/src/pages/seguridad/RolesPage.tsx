@@ -59,6 +59,11 @@ export default function RolesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
+  // ✅ Estados para bloquear botones
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [togglingPermiso, setTogglingPermiso] = useState<number | null>(null);
+
   const { data, loading, refetch } = useQuery(GET_ROLES);
   const { data: dataPermisos } = useQuery(GET_PERMISOS);
 
@@ -107,61 +112,77 @@ export default function RolesPage() {
   const cerrarForm = () => { setModalForm(false); setEditando(null); };
   const cerrarPermisos = () => { setModalPermisos(false); setRolSeleccionado(null); };
 
-  // Guardar con notificaciones
+  // ✅ Guardar con notificaciones y bloqueo
   const guardar = async () => {
     if (!form.nombre.trim()) {
       toast.error("El nombre es obligatorio.");
       return;
     }
 
-    if (editando) {
-      await executeUpdate(async () => {
-        await actualizarRol({
-          variables: { id: Number(editando.idRol), input: { nombre: form.nombre, descripcion: form.descripcion } },
+    if (saving) return; // Evita múltiples clics
+    setSaving(true);
+
+    try {
+      if (editando) {
+        await executeUpdate(async () => {
+          await actualizarRol({
+            variables: { id: Number(editando.idRol), input: { nombre: form.nombre, descripcion: form.descripcion } },
+          });
+          await refetch();
+          cerrarForm();
+          return true;
         });
-        await refetch();
-        cerrarForm();
-        return true;
-      });
-    } else {
-      await executeCreate(async () => {
-        await crearRol({ variables: { nombre: form.nombre, descripcion: form.descripcion } });
-        await refetch();
-        cerrarForm();
-        return true;
-      });
+      } else {
+        await executeCreate(async () => {
+          await crearRol({ variables: { nombre: form.nombre, descripcion: form.descripcion } });
+          await refetch();
+          cerrarForm();
+          return true;
+        });
+      }
+    } finally {
+      setSaving(false);
     }
   };
 
-  // Eliminar con notificaciones
+  // ✅ Eliminar con notificaciones y bloqueo
   const eliminar = async (id: number, nombre: string) => {
-    await executeDelete(
-      async () => {
-        const { data } = await eliminarRol({ variables: { id: Number(id) } });
-        if (!data?.eliminarRol?.ok) {
-          const msg = data?.eliminarRol?.mensaje ?? "No se pudo eliminar";
-          const estaEnUso = msg.includes("usuarios asignados");
-          throw new Error(estaEnUso 
-            ? "No se puede eliminar este rol porque tiene usuarios asignados. Reasigna esos usuarios a otro rol antes de eliminarlo."
-            : msg);
-        }
-        await refetch();
-        return true;
-      },
-      {
-        loading: `Eliminando rol ${nombre}...`,
-        success: `Rol ${nombre} eliminado exitosamente`,
-        error: `Error al eliminar el rol`,
-      },
-      `¿Eliminar el rol "${nombre}"? Esta acción no se puede deshacer.`
-    );
+    if (deletingId === id) return; // Evita múltiples clics
+    
+    setDeletingId(id);
+    try {
+      await executeDelete(
+        async () => {
+          const { data } = await eliminarRol({ variables: { id: Number(id) } });
+          if (!data?.eliminarRol?.ok) {
+            const msg = data?.eliminarRol?.mensaje ?? "No se pudo eliminar";
+            const estaEnUso = msg.includes("usuarios asignados");
+            throw new Error(estaEnUso 
+              ? "No se puede eliminar este rol porque tiene usuarios asignados. Reasigna esos usuarios a otro rol antes de eliminarlo."
+              : msg);
+          }
+          await refetch();
+          return true;
+        },
+        {
+          loading: `Eliminando rol ${nombre}...`,
+          success: `Rol ${nombre} eliminado exitosamente`,
+          error: `Error al eliminar el rol`,
+        },
+        `¿Eliminar el rol "${nombre}"? Esta acción no se puede deshacer.`
+      );
+    } finally {
+      setDeletingId(null);
+    }
   };
 
-  // Toggle permiso con notificación
+  // ✅ Toggle permiso con notificación y bloqueo
   const togglePermiso = async (idPermiso: number, permisoNombre: string) => {
     if (!rolSeleccionado) return;
+    if (togglingPermiso === idPermiso) return; // Evita múltiples clics
+    
     const yaAsignado = rolSeleccionado.permisosAsignados.some(rp => rp.permiso.idPermiso === idPermiso);
-    const action = yaAsignado ? "quitando" : "asignando";
+    setTogglingPermiso(idPermiso);
     
     const loadingId = toast.loading(`${yaAsignado ? 'Quitando' : 'Asignando'} permiso ${permisoNombre}...`);
     
@@ -178,7 +199,9 @@ export default function RolesPage() {
       toast.success(`Permiso ${yaAsignado ? 'removido' : 'asignado'} exitosamente`);
     } catch (error: any) {
       toast.dismiss(loadingId);
-      toast.error(error.message || `Error al ${action} el permiso`);
+      toast.error(error.message || `Error al ${yaAsignado ? 'quitar' : 'asignar'} el permiso`);
+    } finally {
+      setTogglingPermiso(null);
     }
   };
 
@@ -210,7 +233,8 @@ export default function RolesPage() {
         </div>
         <button
           onClick={abrirCrear}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold text-sm shadow-lg shadow-blue-500/25 transition-all duration-200 transform hover:scale-[1.02]"
+          disabled={saving}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold text-sm shadow-lg shadow-blue-500/25 transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
         >
           <Plus className="w-4 h-4" />
           Nuevo rol
@@ -357,13 +381,28 @@ export default function RolesPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => abrirEditar(rol)} className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors" title="Editar">
+                        <button 
+                          onClick={() => abrirEditar(rol)} 
+                          disabled={saving}
+                          className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed" 
+                          title="Editar"
+                        >
                           <Edit className="w-4 h-4" />
                         </button>
-                        <button onClick={() => abrirPermisos(rol)} className="p-2 rounded-lg text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors" title="Permisos">
+                        <button 
+                          onClick={() => abrirPermisos(rol)} 
+                          disabled={saving}
+                          className="p-2 rounded-lg text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed" 
+                          title="Permisos"
+                        >
                           <Key className="w-4 h-4" />
                         </button>
-                        <button onClick={() => eliminar(rol.idRol, rol.nombre)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors" title="Eliminar">
+                        <button 
+                          onClick={() => eliminar(rol.idRol, rol.nombre)} 
+                          disabled={deletingId === rol.idRol}
+                          className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed" 
+                          title="Eliminar"
+                        >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -419,7 +458,8 @@ export default function RolesPage() {
               <input
                 value={form.nombre}
                 onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))}
-                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+                disabled={saving}
+                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                 placeholder="Ej: Administrador, Juez, Secretario..."
               />
             </div>
@@ -428,18 +468,27 @@ export default function RolesPage() {
               <textarea
                 value={form.descripcion}
                 onChange={e => setForm(p => ({ ...p, descripcion: e.target.value }))}
+                disabled={saving}
                 rows={3}
-                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-none"
+                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-none disabled:opacity-50 disabled:cursor-not-allowed"
                 placeholder="Descripción del rol..."
               />
             </div>
 
             <div className="flex gap-3 justify-end pt-4">
-              <button onClick={cerrarForm} className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium">
+              <button 
+                onClick={cerrarForm} 
+                disabled={saving}
+                className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 Cancelar
               </button>
-              <button onClick={guardar} className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium text-sm shadow-md transition-all">
-                {editando ? "Guardar cambios" : "Crear rol"}
+              <button 
+                onClick={guardar} 
+                disabled={saving}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium text-sm shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? "Guardando..." : (editando ? "Guardar cambios" : "Crear rol")}
               </button>
             </div>
           </div>
@@ -488,6 +537,7 @@ export default function RolesPage() {
                   <div className="space-y-2 pl-3">
                     {permsMod.map(p => {
                       const asignado = rolSeleccionado.permisosAsignados.some(rp => rp.permiso.idPermiso === p.idPermiso);
+                      const isToggling = togglingPermiso === p.idPermiso;
                       return (
                         <div key={p.idPermiso} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-slate-900/50 border border-gray-100 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-800 transition-colors">
                           <div>
@@ -496,13 +546,14 @@ export default function RolesPage() {
                           </div>
                           <button
                             onClick={() => togglePermiso(p.idPermiso, p.nombre)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                            disabled={isToggling}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                               asignado 
                                 ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50' 
                                 : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-900/50'
                             }`}
                           >
-                            {asignado ? "Quitar" : "Asignar"}
+                            {isToggling ? "Procesando..." : (asignado ? "Quitar" : "Asignar")}
                           </button>
                         </div>
                       );
