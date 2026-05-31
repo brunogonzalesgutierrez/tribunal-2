@@ -8,7 +8,7 @@ import {
   ACTUALIZAR_ASISTENCIA,
   ELIMINAR_ASISTENCIA,
 } from "../../graphql/audiencias";
-import { Users, Plus, Edit, Trash2, CheckCircle, Circle, Search, X } from "lucide-react";
+import { Users, Plus, Edit, Trash2, CheckCircle, Circle, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   Asistencia,
   fmt, Modal, Field, TextareaField,
@@ -230,17 +230,6 @@ function BuscadorPersona({
 // PÁGINA PRINCIPAL
 // ════════════════════════════════════════════════════════
 export default function AsistenciasPage() {
-  const { data, loading, refetch } = useQuery(GET_ASISTENCIAS);
-  const { data: dAud }  = useQuery(GET_AUDIENCIAS);
-  const { data: dPers } = useQuery(GET_PERSONAS_SIMPLE);
-  const [registrar]  = useMutation(REGISTRAR_ASISTENCIA);
-  const [actualizar] = useMutation(ACTUALIZAR_ASISTENCIA);
-  const [eliminarAs] = useMutation(ELIMINAR_ASISTENCIA);
-
-  // ✅ HOOK DE NOTIFICACIONES
-  const { executeCreate, executeUpdate, executeDelete } = useCrudNotifications('Asistencia');
-  const toast = useToast();
-
   const [modal, setModal] = useState(false);
   const [buscadorAudAbierto, setBuscadorAudAbierto] = useState(false);
   const [buscadorPersAbierto, setBuscadorPersAbierto] = useState(false);
@@ -248,6 +237,26 @@ export default function AsistenciasPage() {
   const [audienciaSeleccionada, setAudienciaSeleccionada] = useState("");
   const [personaSeleccionada, setPersonaSeleccionada] = useState("");
   const [err, setErr] = useState("");
+  
+  // ✅ Estado para búsqueda en la página principal
+  const [busquedaPrincipal, setBusquedaPrincipal] = useState("");
+  
+  // ✅ Estados para paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+  
+  // ✅ Estado para bloqueo de botones
+  const [saving, setSaving] = useState(false);
+
+  const { data, loading, refetch } = useQuery(GET_ASISTENCIAS);
+  const { data: dAud }  = useQuery(GET_AUDIENCIAS);
+  const { data: dPers } = useQuery(GET_PERSONAS_SIMPLE);
+  const [registrar]  = useMutation(REGISTRAR_ASISTENCIA);
+  const [actualizar] = useMutation(ACTUALIZAR_ASISTENCIA);
+  const [eliminarAs] = useMutation(ELIMINAR_ASISTENCIA);
+
+  const { executeCreate, executeUpdate, executeDelete } = useCrudNotifications('Asistencia');
+  const toast = useToast();
 
   const initForm = { 
     idAudiencia: 0, 
@@ -255,7 +264,7 @@ export default function AsistenciasPage() {
     rolEnAudiencia: "", 
     asistio: true, 
     motivoInasistencia: "",
-    horaIngreso: getCurrentTime()  // ← Prellenar con hora actual
+    horaIngreso: getCurrentTime()
   };
   const [form, setForm] = useState(initForm);
   const f = (k: string) => (v: string) => setForm(p => ({ ...p, [k]: v }));
@@ -263,6 +272,17 @@ export default function AsistenciasPage() {
   const asistencias: Asistencia[] = data?.allAsistencias ?? [];
   const audiencias                = dAud?.allAudiencias ?? [];
   const personas                  = dPers?.allPersonas ?? [];
+
+  // ✅ Filtrar asistencias por búsqueda
+  const asistenciasFiltradas = asistencias.filter(a =>
+    `${a.idPersona.nombre} ${a.idPersona.primerApellido} ${a.idAudiencia.idExpediente.numeroExpediente} ${a.rolEnAudiencia}`
+      .toLowerCase().includes(busquedaPrincipal.toLowerCase())
+  );
+
+  // ✅ Paginación
+  const totalPages = Math.ceil(asistenciasFiltradas.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedAsistencias = asistenciasFiltradas.slice(startIndex, startIndex + itemsPerPage);
 
   const asistieron   = asistencias.filter(a => a.asistio).length;
   const noAsistieron = asistencias.filter(a => !a.asistio).length;
@@ -306,7 +326,7 @@ export default function AsistenciasPage() {
     setModal(true);
   };
 
-  // ✅ GUARDAR CON NOTIFICACIONES
+  // ✅ GUARDAR CON BLOQUEO
   const guardar = async () => {
     const convertirHoraAIso = (horaStr: string) => {
       if (!horaStr || horaStr.trim() === "") return null;
@@ -316,48 +336,55 @@ export default function AsistenciasPage() {
       return hoy.toISOString();
     };
 
-    if (editando) {
-      await executeUpdate(async () => {
-        await actualizar({
-          variables: {
-            id: Number(editando.idAsistencia),
-            input: { 
-              asistio: form.asistio, 
-              motivoInasistencia: form.motivoInasistencia || undefined,
+    if (saving) return;
+    setSaving(true);
+
+    try {
+      if (editando) {
+        await executeUpdate(async () => {
+          await actualizar({
+            variables: {
+              id: Number(editando.idAsistencia),
+              input: { 
+                asistio: form.asistio, 
+                motivoInasistencia: form.motivoInasistencia || undefined,
+                horaIngreso: form.asistio ? convertirHoraAIso(form.horaIngreso) : null
+              },
+            },
+          });
+          await refetch();
+          setModal(false);
+          return true;
+        });
+      } else {
+        if (!form.idAudiencia || !form.idPersona || !form.rolEnAudiencia) {
+          toast.error("Audiencia, persona y rol son obligatorios."); 
+          return;
+        }
+        
+        await executeCreate(async () => {
+          await registrar({
+            variables: {
+              idAudiencia: Number(form.idAudiencia),
+              idPersona: Number(form.idPersona),
+              rolEnAudiencia: form.rolEnAudiencia,
+              asistio: form.asistio,
               horaIngreso: form.asistio ? convertirHoraAIso(form.horaIngreso) : null
             },
-          },
+          });
+          await refetch();
+          setModal(false);
+          setAudienciaSeleccionada("");
+          setPersonaSeleccionada("");
+          return true;
         });
-        await refetch();
-        setModal(false);
-        return true;
-      });
-    } else {
-      if (!form.idAudiencia || !form.idPersona || !form.rolEnAudiencia) {
-        toast.error("Audiencia, persona y rol son obligatorios."); 
-        return;
       }
-      
-      await executeCreate(async () => {
-        await registrar({
-          variables: {
-            idAudiencia: Number(form.idAudiencia),
-            idPersona: Number(form.idPersona),
-            rolEnAudiencia: form.rolEnAudiencia,
-            asistio: form.asistio,
-            horaIngreso: form.asistio ? convertirHoraAIso(form.horaIngreso) : null
-          },
-        });
-        await refetch();
-        setModal(false);
-        setAudienciaSeleccionada("");
-        setPersonaSeleccionada("");
-        return true;
-      });
+    } finally {
+      setSaving(false);
     }
   };
 
-  // ✅ ELIMINAR CON NOTIFICACIONES
+  // ✅ ELIMINAR CON BLOQUEO
   const eliminar = async (a: Asistencia) => {
     await executeDelete(
       async () => {
@@ -377,6 +404,12 @@ export default function AsistenciasPage() {
     );
   };
 
+  // Resetear página cuando cambia la búsqueda
+  const handleBusquedaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setBusquedaPrincipal(e.target.value);
+    setCurrentPage(1);
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
 
@@ -393,32 +426,80 @@ export default function AsistenciasPage() {
         </div>
         <button
           onClick={abrirCrear}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold text-sm shadow-lg shadow-blue-500/25 transition-all hover:scale-[1.02]"
+          disabled={saving}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold text-sm shadow-lg shadow-blue-500/25 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
         >
           <Plus className="w-4 h-4" /> Registrar asistencia
         </button>
       </div>
 
-      {/* Stats */}
+      {/* Stats - Clases fijas */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Total registros" value={asistencias.length} color="text-blue-600 dark:text-blue-400"
-          icon={<Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />} sub="Participantes registrados" />
-        <StatCard label="Asistieron" value={asistieron} color="text-emerald-600 dark:text-emerald-400"
-          icon={<CheckCircle className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />}
-          sub={`${Math.round((asistieron / (asistencias.length || 1)) * 100)}% del total`} />
-        <StatCard label="Inasistencias" value={noAsistieron} color="text-red-600 dark:text-red-400"
-          icon={<Circle className="w-6 h-6 text-red-600 dark:text-red-400" />}
-          sub={`${Math.round((noAsistieron / (asistencias.length || 1)) * 100)}% del total`} />
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total registros</p>
+              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-2">{asistencias.length}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Participantes registrados</p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Asistieron</p>
+              <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 mt-2">{asistieron}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <CheckCircle className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">{Math.round((asistieron / (asistencias.length || 1)) * 100)}% del total</p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Inasistencias</p>
+              <p className="text-3xl font-bold text-red-600 dark:text-red-400 mt-2">{noAsistieron}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Circle className="w-6 h-6 text-red-600 dark:text-red-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">{Math.round((noAsistieron / (asistencias.length || 1)) * 100)}% del total</p>
+          </div>
+        </div>
       </div>
 
-      {/* Tabla Desktop */}
+      {/* ✅ BUSCADOR EN LA PÁGINA PRINCIPAL */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          placeholder="Buscar por persona, expediente o rol..."
+          value={busquedaPrincipal}
+          onChange={handleBusquedaChange}
+          className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white dark:bg-slate-800/90 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+        />
+      </div>
+
+      {/* Tabla Desktop con datos paginados */}
       <TablaDesktop
         headers={["Persona", "Audiencia", "Rol", "Asistió", "Hora ingreso", "Motivo", "Acciones"]}
         loading={loading}
         emptyMsg="No hay registros de asistencia"
         emptyIcon={<Users className="w-12 h-12 text-gray-300 dark:text-gray-600" />}
       >
-        {asistencias.map(a => (
+        {paginatedAsistencias.map(a => (
           <tr key={a.idAsistencia} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
             <td className="px-6 py-4">
               <div className="flex items-center gap-3">
@@ -454,15 +535,15 @@ export default function AsistenciasPage() {
               {!a.asistio && a.motivoInasistencia ? a.motivoInasistencia : "—"}
             </td>
             <td className="px-6 py-4">
-              <ActionBtns onEdit={() => abrirEditar(a)} onDelete={() => eliminar(a)} />
+              <ActionBtns onEdit={() => abrirEditar(a)} onDelete={() => eliminar(a)} disabled={saving} />
             </td>
           </tr>
         ))}
       </TablaDesktop>
 
-      {/* Cards Móvil */}
+      {/* Cards Móvil con datos paginados */}
       <div className="lg:hidden space-y-3">
-        {asistencias.map(a => (
+        {paginatedAsistencias.map(a => (
           <div key={a.idAsistencia} className="bg-white dark:bg-slate-800/90 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
             <div className="flex justify-between items-start">
               <div className="flex items-center gap-2">
@@ -491,16 +572,52 @@ export default function AsistenciasPage() {
               </div>
             )}
             <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700 flex justify-end gap-1">
-              <button onClick={() => abrirEditar(a)} className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30">
+              <button 
+                onClick={() => abrirEditar(a)} 
+                disabled={saving}
+                className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
                 <Edit className="w-4 h-4" />
               </button>
-              <button onClick={() => eliminar(a)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
+              <button 
+                onClick={() => eliminar(a)} 
+                disabled={saving}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
           </div>
         ))}
       </div>
+
+      {/* PAGINACIÓN */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Mostrando {startIndex + 1} - {Math.min(startIndex + itemsPerPage, asistenciasFiltradas.length)} de {asistenciasFiltradas.length}
+          </p>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">
+              Página {currentPage} de {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Modal */}
       {modal && (
@@ -524,7 +641,8 @@ export default function AsistenciasPage() {
                         setForm(f => ({ ...f, idAudiencia: 0 }));
                         setAudienciaSeleccionada("");
                       }}
-                      className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                      disabled={saving}
+                      className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -533,7 +651,8 @@ export default function AsistenciasPage() {
                   <button
                     type="button"
                     onClick={() => setBuscadorAudAbierto(true)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                    disabled={saving}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Plus className="w-4 h-4" />
                     Buscar y seleccionar audiencia
@@ -554,7 +673,8 @@ export default function AsistenciasPage() {
                         setForm(f => ({ ...f, idPersona: 0 }));
                         setPersonaSeleccionada("");
                       }}
-                      className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                      disabled={saving}
+                      className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -563,7 +683,8 @@ export default function AsistenciasPage() {
                   <button
                     type="button"
                     onClick={() => setBuscadorPersAbierto(true)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                    disabled={saving}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Plus className="w-4 h-4" />
                     Buscar y seleccionar persona
@@ -571,8 +692,14 @@ export default function AsistenciasPage() {
                 )}
               </div>
 
-              <Field label="Rol en audiencia" value={form.rolEnAudiencia} onChange={f("rolEnAudiencia")}
-                placeholder="Ej: Demandante, Abogado defensor..." required />
+              <Field 
+                label="Rol en audiencia" 
+                value={form.rolEnAudiencia} 
+                onChange={f("rolEnAudiencia")}
+                placeholder="Ej: Demandante, Abogado defensor..." 
+                required 
+                disabled={saving}
+              />
             </>
           )}
 
@@ -585,7 +712,13 @@ export default function AsistenciasPage() {
               <div className="mb-4 p-2.5 rounded-xl bg-gray-100 dark:bg-slate-700/50 text-gray-700 dark:text-gray-300 text-sm">
                 Persona: {personaSeleccionada}
               </div>
-              <Field label="Rol en audiencia" value={form.rolEnAudiencia} onChange={f("rolEnAudiencia")} required />
+              <Field 
+                label="Rol en audiencia" 
+                value={form.rolEnAudiencia} 
+                onChange={f("rolEnAudiencia")} 
+                required 
+                disabled={saving}
+              />
             </>
           )}
 
@@ -595,7 +728,8 @@ export default function AsistenciasPage() {
                 type="checkbox" 
                 checked={form.asistio}
                 onChange={e => setForm(p => ({ ...p, asistio: e.target.checked }))} 
-                className="rounded" 
+                disabled={saving}
+                className="rounded disabled:opacity-50 disabled:cursor-not-allowed" 
               />
               Asistió a la audiencia
             </label>
@@ -611,7 +745,8 @@ export default function AsistenciasPage() {
                 value={form.horaIngreso}
                 onChange={e => setForm(p => ({ ...p, horaIngreso: e.target.value }))}
                 step="60"
-                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+                disabled={saving}
+                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none disabled:opacity-50 disabled:cursor-not-allowed"
               />
               <p className="text-xs text-gray-400 mt-1">Formato HH:MM - Dejar vacío para usar la hora actual</p>
             </div>
@@ -621,7 +756,8 @@ export default function AsistenciasPage() {
             <TextareaField 
               label="Motivo de inasistencia" 
               value={form.motivoInasistencia} 
-              onChange={f("motivoInasistencia")} 
+              onChange={f("motivoInasistencia")}
+              disabled={saving}
             />
           )}
 
@@ -630,6 +766,7 @@ export default function AsistenciasPage() {
             onCancel={() => setModal(false)} 
             onSave={guardar}
             saveLabel={editando ? "Guardar" : "Registrar"}
+            saving={saving}
           />
         </Modal>
       )}

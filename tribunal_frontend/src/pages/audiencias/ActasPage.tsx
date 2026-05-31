@@ -8,7 +8,7 @@ import {
   ACTUALIZAR_ACTA,
   ELIMINAR_ACTA,
 } from "../../graphql/audiencias";
-import { FileText, Plus, Edit, Trash2, CheckCircle, AlertCircle, Mic, Search, X } from "lucide-react";
+import { FileText, Plus, Edit, Trash2, CheckCircle, AlertCircle, Mic, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   Acta,
   fmt, Modal, Field, TextareaField,
@@ -24,7 +24,7 @@ import { useToast } from '../../context/ToastContext';
 function BuscadorAudiencia({
   onSelect,
   onClose,
-  actas, // <- Recibimos las actas existentes para filtrar
+  actas,
 }: {
   onSelect: (id: number, nombre: string) => void;
   onClose: () => void;
@@ -35,10 +35,7 @@ function BuscadorAudiencia({
 
   const audiencias = data?.allAudiencias ?? [];
 
-  // Obtener IDs de audiencias que YA tienen acta
   const idsConActa = new Set(actas.map(a => a.idAudiencia.idAudiencia));
-
-  // ✅ Filtrar: solo audiencias que NO tienen acta
   const audienciasDisponibles = audiencias.filter((a: any) => !idsConActa.has(a.idAudiencia));
 
   const filtrados = audienciasDisponibles.filter((a: any) =>
@@ -227,17 +224,6 @@ function BuscadorUsuario({
 // PÁGINA PRINCIPAL
 // ════════════════════════════════════════════════════════
 export default function ActasPage() {
-  const { data, loading, refetch } = useQuery(GET_ACTAS);
-  const { data: dAud } = useQuery(GET_AUDIENCIAS);
-  const { data: dUsu } = useQuery(GET_USUARIOS_SIMPLE);
-  const [crearActa]    = useMutation(CREAR_ACTA);
-  const [actualizarAc] = useMutation(ACTUALIZAR_ACTA);
-  const [eliminarAc]   = useMutation(ELIMINAR_ACTA);
-
-  // ✅ HOOK DE NOTIFICACIONES
-  const { executeCreate, executeUpdate, executeDelete } = useCrudNotifications('Acta');
-  const toast = useToast();
-
   const [modal, setModal] = useState(false);
   const [buscadorAudAbierto, setBuscadorAudAbierto] = useState(false);
   const [buscadorUsuAbierto, setBuscadorUsuAbierto] = useState(false);
@@ -245,6 +231,26 @@ export default function ActasPage() {
   const [audienciaSeleccionada, setAudienciaSeleccionada] = useState("");
   const [usuarioSeleccionado, setUsuarioSeleccionado] = useState("");
   const [err, setErr] = useState("");
+  
+  // ✅ Estado para búsqueda en la página principal
+  const [busquedaPrincipal, setBusquedaPrincipal] = useState("");
+  
+  // ✅ Estados para paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // ✅ Estado para bloqueo de botones
+  const [saving, setSaving] = useState(false);
+
+  const { data, loading, refetch } = useQuery(GET_ACTAS);
+  const { data: dAud } = useQuery(GET_AUDIENCIAS);
+  const { data: dUsu } = useQuery(GET_USUARIOS_SIMPLE);
+  const [crearActa]    = useMutation(CREAR_ACTA);
+  const [actualizarAc] = useMutation(ACTUALIZAR_ACTA);
+  const [eliminarAc]   = useMutation(ELIMINAR_ACTA);
+
+  const { executeCreate, executeUpdate, executeDelete } = useCrudNotifications('Acta');
+  const toast = useToast();
 
   const initForm = { idAudiencia: 0, idUsuario: 0, contenido: "", firmada: false, urlGrabacion: "" };
   const [form, setForm] = useState(initForm);
@@ -253,6 +259,17 @@ export default function ActasPage() {
   const actas: Acta[] = data?.allActas ?? [];
   const audiencias    = dAud?.allAudiencias ?? [];
   const usuarios      = dUsu?.allUsuarios ?? [];
+
+  // ✅ Filtrar actas por búsqueda
+  const actasFiltradas = actas.filter(a =>
+    `${a.idAudiencia.idExpediente.numeroExpediente} ${a.usuario.nombres} ${a.usuario.paterno}`
+      .toLowerCase().includes(busquedaPrincipal.toLowerCase())
+  );
+
+  // ✅ Paginación
+  const totalPages = Math.ceil(actasFiltradas.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedActas = actasFiltradas.slice(startIndex, startIndex + itemsPerPage);
 
   const firmadas   = actas.filter(a => a.firmada).length;
   const pendientes = actas.filter(a => !a.firmada).length;
@@ -291,62 +308,68 @@ export default function ActasPage() {
     setModal(true);
   };
 
-  // ✅ GUARDAR CON NOTIFICACIONES
+  // ✅ GUARDAR CON BLOQUEO
   const guardar = async () => {
     if (!form.contenido) { 
       toast.error("El contenido del acta es obligatorio."); 
       return; 
     }
     
-    if (editando) {
-      await executeUpdate(async () => {
-        await actualizarAc({
-          variables: {
-            id: Number(editando.idActa),
-            input: {
+    if (saving) return;
+    setSaving(true);
+
+    try {
+      if (editando) {
+        await executeUpdate(async () => {
+          await actualizarAc({
+            variables: {
+              id: Number(editando.idActa),
+              input: {
+                contenido: form.contenido,
+                firmada: form.firmada,
+                urlGrabacion: form.urlGrabacion || undefined,
+              },
+            },
+          });
+          await refetch();
+          setModal(false);
+          return true;
+        });
+      } else {
+        if (!form.idAudiencia || !form.idUsuario) {
+          toast.error("Audiencia y usuario son obligatorios.");
+          return;
+        }
+        
+        const yaTieneActa = actas.some(a => a.idAudiencia.idAudiencia === form.idAudiencia);
+        if (yaTieneActa) {
+          toast.error("Esta audiencia ya tiene un acta registrada. Use la opción de edición.");
+          return;
+        }
+
+        await executeCreate(async () => {
+          await crearActa({
+            variables: {
+              idAudiencia: Number(form.idAudiencia),
+              idUsuario: Number(form.idUsuario),
               contenido: form.contenido,
               firmada: form.firmada,
               urlGrabacion: form.urlGrabacion || undefined,
             },
-          },
+          });
+          await refetch();
+          setModal(false);
+          setAudienciaSeleccionada("");
+          setUsuarioSeleccionado("");
+          return true;
         });
-        await refetch();
-        setModal(false);
-        return true;
-      });
-    } else {
-      if (!form.idAudiencia || !form.idUsuario) {
-        toast.error("Audiencia y usuario son obligatorios.");
-        return;
       }
-      
-      // ✅ Validación extra: verificar que la audiencia no tenga ya un acta
-      const yaTieneActa = actas.some(a => a.idAudiencia.idAudiencia === form.idAudiencia);
-      if (yaTieneActa) {
-        toast.error("Esta audiencia ya tiene un acta registrada. Use la opción de edición.");
-        return;
-      }
-
-      await executeCreate(async () => {
-        await crearActa({
-          variables: {
-            idAudiencia: Number(form.idAudiencia),
-            idUsuario: Number(form.idUsuario),
-            contenido: form.contenido,
-            firmada: form.firmada,
-            urlGrabacion: form.urlGrabacion || undefined,
-          },
-        });
-        await refetch();
-        setModal(false);
-        setAudienciaSeleccionada("");
-        setUsuarioSeleccionado("");
-        return true;
-      });
+    } finally {
+      setSaving(false);
     }
   };
 
-  // ✅ ELIMINAR CON NOTIFICACIONES
+  // ✅ ELIMINAR CON BLOQUEO
   const eliminar = async (a: Acta) => {
     await executeDelete(
       async () => {
@@ -366,6 +389,12 @@ export default function ActasPage() {
     );
   };
 
+  // Resetear página cuando cambia la búsqueda
+  const handleBusquedaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setBusquedaPrincipal(e.target.value);
+    setCurrentPage(1);
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
 
@@ -382,31 +411,80 @@ export default function ActasPage() {
         </div>
         <button
           onClick={abrirCrear}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold text-sm shadow-lg shadow-blue-500/25 transition-all hover:scale-[1.02]"
+          disabled={saving}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold text-sm shadow-lg shadow-blue-500/25 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
         >
           <Plus className="w-4 h-4" /> Nueva acta
         </button>
       </div>
 
-      {/* Stats */}
+      {/* Stats - Clases fijas */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Total actas" value={actas.length} color="text-blue-600 dark:text-blue-400"
-          icon={<FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />} sub="Registradas en el sistema" />
-        <StatCard label="Firmadas" value={firmadas} color="text-emerald-600 dark:text-emerald-400"
-          icon={<CheckCircle className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />}
-          sub={`${Math.round((firmadas / (actas.length || 1)) * 100)}% del total`} />
-        <StatCard label="Pendientes" value={pendientes} color="text-amber-600 dark:text-amber-400"
-          icon={<AlertCircle className="w-6 h-6 text-amber-600 dark:text-amber-400" />} sub="Esperando firma" />
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total actas</p>
+              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-2">{actas.length}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Registradas en el sistema</p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Firmadas</p>
+              <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 mt-2">{firmadas}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <CheckCircle className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">{Math.round((firmadas / (actas.length || 1)) * 100)}% del total</p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Pendientes</p>
+              <p className="text-3xl font-bold text-amber-600 dark:text-amber-400 mt-2">{pendientes}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <AlertCircle className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Esperando firma</p>
+          </div>
+        </div>
       </div>
 
-      {/* Tabla Desktop */}
+      {/* BUSCADOR EN LA PÁGINA PRINCIPAL */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          placeholder="Buscar por expediente o usuario..."
+          value={busquedaPrincipal}
+          onChange={handleBusquedaChange}
+          className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white dark:bg-slate-800/90 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+        />
+      </div>
+
+      {/* Tabla Desktop con datos paginados */}
       <TablaDesktop
         headers={["Expediente", "Fecha acta", "Registrado por", "Firmada", "Grabación", "Acciones"]}
         loading={loading}
         emptyMsg="No hay actas registradas"
         emptyIcon={<FileText className="w-12 h-12 text-gray-300 dark:text-gray-600" />}
       >
-        {actas.map(a => (
+        {paginatedActas.map(a => (
           <tr key={a.idActa} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
             <td className="px-6 py-4">
               <span className="text-blue-500 font-bold">#{a.idAudiencia.idExpediente.numeroExpediente}</span>
@@ -440,9 +518,9 @@ export default function ActasPage() {
         ))}
       </TablaDesktop>
 
-      {/* Cards Móvil */}
+      {/* Cards Móvil con datos paginados */}
       <div className="lg:hidden space-y-3">
-        {actas.map(a => (
+        {paginatedActas.map(a => (
           <div key={a.idActa} className="bg-white dark:bg-slate-800/90 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
             <div className="flex justify-between items-start mb-3">
               <div>
@@ -450,10 +528,18 @@ export default function ActasPage() {
                 <p className="text-sm text-gray-600 dark:text-gray-300 mt-0.5">{a.usuario.nombres} {a.usuario.paterno}</p>
               </div>
               <div className="flex gap-1">
-                <button onClick={() => abrirEditar(a)} className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30">
+                <button 
+                  onClick={() => abrirEditar(a)} 
+                  disabled={saving}
+                  className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
                   <Edit className="w-4 h-4" />
                 </button>
-                <button onClick={() => eliminar(a)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
+                <button 
+                  onClick={() => eliminar(a)} 
+                  disabled={saving}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -472,6 +558,34 @@ export default function ActasPage() {
         ))}
       </div>
 
+      {/* PAGINACIÓN */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Mostrando {startIndex + 1} - {Math.min(startIndex + itemsPerPage, actasFiltradas.length)} de {actasFiltradas.length}
+          </p>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">
+              Página {currentPage} de {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Modal */}
       {modal && (
         <Modal
@@ -481,7 +595,7 @@ export default function ActasPage() {
         >
           {!editando && (
             <>
-              {/* Audiencia - Con buscador (ahora recibe actas) */}
+              {/* Audiencia - Con buscador */}
               <div className="mb-4">
                 <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
                   Audiencia <span className="text-red-500">*</span>
@@ -494,7 +608,8 @@ export default function ActasPage() {
                         setForm(f => ({ ...f, idAudiencia: 0 }));
                         setAudienciaSeleccionada("");
                       }}
-                      className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                      disabled={saving}
+                      className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -503,7 +618,8 @@ export default function ActasPage() {
                   <button
                     type="button"
                     onClick={() => setBuscadorAudAbierto(true)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                    disabled={saving}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Plus className="w-4 h-4" />
                     Buscar y seleccionar audiencia (sin acta)
@@ -524,7 +640,8 @@ export default function ActasPage() {
                         setForm(f => ({ ...f, idUsuario: 0 }));
                         setUsuarioSeleccionado("");
                       }}
-                      className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                      disabled={saving}
+                      className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -533,7 +650,8 @@ export default function ActasPage() {
                   <button
                     type="button"
                     onClick={() => setBuscadorUsuAbierto(true)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                    disabled={saving}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Plus className="w-4 h-4" />
                     Buscar y seleccionar usuario
@@ -555,13 +673,31 @@ export default function ActasPage() {
             </>
           )}
 
-          <TextareaField label="Contenido del acta" value={form.contenido} onChange={f("contenido")} rows={6} required />
-          <Field label="URL de grabación" value={form.urlGrabacion} onChange={f("urlGrabacion")} placeholder="https://..." />
+          <TextareaField 
+            label="Contenido del acta" 
+            value={form.contenido} 
+            onChange={f("contenido")} 
+            rows={6} 
+            required 
+            disabled={saving}
+          />
+          <Field 
+            label="URL de grabación" 
+            value={form.urlGrabacion} 
+            onChange={f("urlGrabacion")} 
+            placeholder="https://..." 
+            disabled={saving}
+          />
           
           <div className="mb-4">
             <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 cursor-pointer">
-              <input type="checkbox" checked={form.firmada}
-                onChange={e => setForm(p => ({ ...p, firmada: e.target.checked }))} className="rounded" />
+              <input 
+                type="checkbox" 
+                checked={form.firmada}
+                onChange={e => setForm(p => ({ ...p, firmada: e.target.checked }))} 
+                disabled={saving}
+                className="rounded disabled:opacity-50 disabled:cursor-not-allowed" 
+              />
               Acta firmada
             </label>
           </div>
@@ -571,6 +707,7 @@ export default function ActasPage() {
             onCancel={() => setModal(false)} 
             onSave={guardar}
             saveLabel={editando ? "Guardar cambios" : "Crear acta"}
+            saving={saving}
           />
         </Modal>
       )}
@@ -580,7 +717,7 @@ export default function ActasPage() {
         <BuscadorAudiencia
           onSelect={seleccionarAudiencia}
           onClose={() => setBuscadorAudAbierto(false)}
-          actas={actas} // ✅ Pasamos las actas existentes para filtrar
+          actas={actas}
         />
       )}
       {buscadorUsuAbierto && (

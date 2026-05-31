@@ -136,10 +136,10 @@ export function Modal({
 // CAMPOS DE FORMULARIO
 // ════════════════════════════════════════════════════════
 export const Field = ({
-  label, value, onChange, type = "text", placeholder = "", required = false,
+  label, value, onChange, type = "text", placeholder = "", required = false, disabled = false,
 }: {
   label: string; value: string; onChange: (v: string) => void;
-  type?: string; placeholder?: string; required?: boolean;
+  type?: string; placeholder?: string; required?: boolean; disabled?: boolean;
 }) => (
   <div className="mb-4">
     <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
@@ -148,16 +148,17 @@ export const Field = ({
     <input
       type={type} value={value} placeholder={placeholder}
       onChange={e => onChange(e.target.value)}
-      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+      disabled={disabled}
+      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none disabled:opacity-50 disabled:cursor-not-allowed"
     />
   </div>
 );
 
 export const SelectField = ({
-  label, value, onChange, children, required = false,
+  label, value, onChange, children, required = false, disabled = false,
 }: {
   label: string; value: string | number; onChange: (v: string) => void;
-  children: React.ReactNode; required?: boolean;
+  children: React.ReactNode; required?: boolean; disabled?: boolean;
 }) => (
   <div className="mb-4">
     <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
@@ -165,7 +166,8 @@ export const SelectField = ({
     </label>
     <select
       value={value} onChange={e => onChange(e.target.value)}
-      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+      disabled={disabled}
+      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none disabled:opacity-50 disabled:cursor-not-allowed"
     >
       {children}
     </select>
@@ -173,10 +175,10 @@ export const SelectField = ({
 );
 
 export const TextareaField = ({
-  label, value, onChange, rows = 3, required = false,
+  label, value, onChange, rows = 3, required = false, disabled = false,
 }: {
   label: string; value: string; onChange: (v: string) => void;
-  rows?: number; required?: boolean;
+  rows?: number; required?: boolean; disabled?: boolean;
 }) => (
   <div className="mb-4">
     <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
@@ -185,7 +187,8 @@ export const TextareaField = ({
     <textarea
       value={value} rows={rows}
       onChange={e => onChange(e.target.value)}
-      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-vertical"
+      disabled={disabled}
+      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-vertical disabled:opacity-50 disabled:cursor-not-allowed"
     />
   </div>
 );
@@ -199,22 +202,24 @@ export const ErrorBox = ({ msg }: { msg: string }) =>
   ) : null;
 
 export const ModalFooter = ({
-  onCancel, onSave, saveLabel,
+  onCancel, onSave, saveLabel, saving = false,
 }: {
-  onCancel: () => void; onSave: () => void; saveLabel: string;
+  onCancel: () => void; onSave: () => void; saveLabel: string; saving?: boolean;
 }) => (
   <div className="flex gap-3 justify-end pt-4">
     <button
       onClick={onCancel}
-      className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+      disabled={saving}
+      className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
     >
       Cancelar
     </button>
     <button
       onClick={onSave}
-      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium text-sm shadow-md transition-all"
+      disabled={saving}
+      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium text-sm shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
     >
-      {saveLabel}
+      {saving ? "Guardando..." : saveLabel}
     </button>
   </div>
 );
@@ -316,21 +321,23 @@ export function TablaDesktop({
 // ACTION BUTTONS
 // ════════════════════════════════════════════════════════
 export const ActionBtns = ({
-  onEdit, onDelete,
+  onEdit, onDelete, disabled = false,
 }: {
-  onEdit: () => void; onDelete: () => void;
+  onEdit: () => void; onDelete: () => void; disabled?: boolean;
 }) => (
   <div className="flex items-center justify-end gap-1">
     <button
       onClick={onEdit}
-      className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+      disabled={disabled}
+      className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
       title="Editar"
     >
       <Edit className="w-4 h-4" />
     </button>
     <button
       onClick={onDelete}
-      className="p-2 rounded-lg text-gray-500 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-500 transition-colors"
+      disabled={disabled}
+      className="p-2 rounded-lg text-gray-500 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
       title="Eliminar"
     >
       <Trash2 className="w-4 h-4" />
