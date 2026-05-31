@@ -7,7 +7,7 @@ import {
   CREAR_CONFORMACION,
   ELIMINAR_CONFORMACION,
 } from "../../graphql/tribunal";
-import { Link2, Plus, Search, X } from "lucide-react";
+import { Link2, Plus, Search, X, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import {
   Conformacion, VocalTribunal, ExpedienteSimple,
   nombreCompleto, fmtFecha,
@@ -26,9 +26,11 @@ const initForm = { idExpediente: "0", idVocal: "0", rolEnCaso: "" };
 function BuscadorExpediente({
   onSelect,
   onClose,
+  disabled,
 }: {
   onSelect: (id: number, nombre: string) => void;
   onClose: () => void;
+  disabled?: boolean;
 }) {
   const [busqueda, setBusqueda] = useState("");
   const { data, loading } = useQuery(GET_EXPEDIENTES_SIMPLE);
@@ -85,7 +87,8 @@ function BuscadorExpediente({
                     onSelect(e.idExpediente, `${e.numeroExpediente} (${e.ano})`);
                     onClose();
                   }}
-                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-700 ${
+                  disabled={disabled}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-700 disabled:opacity-50 disabled:cursor-not-allowed ${
                     index === filtrados.length - 1 ? 'mb-0' : ''
                   }`}
                 >
@@ -125,9 +128,11 @@ function BuscadorExpediente({
 function BuscadorVocal({
   onSelect,
   onClose,
+  disabled,
 }: {
   onSelect: (id: number, nombre: string) => void;
   onClose: () => void;
+  disabled?: boolean;
 }) {
   const [busqueda, setBusqueda] = useState("");
   const { data, loading } = useQuery(GET_VOCALES);
@@ -184,7 +189,8 @@ function BuscadorVocal({
                     onSelect(v.idVocal, `${nombreCompleto(v.idPersona)} - ${v.cargo}`);
                     onClose();
                   }}
-                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-700 ${
+                  disabled={disabled}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-700 disabled:opacity-50 disabled:cursor-not-allowed ${
                     index === filtrados.length - 1 ? 'mb-0' : ''
                   }`}
                 >
@@ -226,9 +232,16 @@ export default function ConformacionesPage() {
   const [crearConf]    = useMutation(CREAR_CONFORMACION);
   const [eliminarConf] = useMutation(ELIMINAR_CONFORMACION);
 
-  // ✅ HOOK DE NOTIFICACIONES
   const { executeCreate, executeDelete } = useCrudNotifications('Conformación');
   const toast = useToast();
+
+  // ✅ Estado para paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // ✅ Estado para bloqueo de botones
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const [modal, setModal]                 = useState(false);
   const [buscadorExpAbierto, setBuscadorExpAbierto] = useState(false);
@@ -243,10 +256,16 @@ export default function ConformacionesPage() {
   const vocales:        VocalTribunal[]   = dVoc?.allVocales         ?? [];
   const expedientes:    ExpedienteSimple[] = dExp?.allExpedientes     ?? [];
 
-  const filtrados = conformaciones.filter(c =>
+  // ✅ Filtrar conformaciones por búsqueda
+  const conformacionesFiltradas = conformaciones.filter(c =>
     `${c.idExpediente.numeroExpediente} ${c.idVocal.idPersona.nombre} ${c.idVocal.idPersona.primerApellido} ${c.rolEnCaso} ${c.idVocal.cargo}`
       .toLowerCase().includes(busqueda.toLowerCase())
   );
+
+  // ✅ Paginación
+  const totalPages = Math.ceil(conformacionesFiltradas.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedConformaciones = conformacionesFiltradas.slice(startIndex, startIndex + itemsPerPage);
 
   const rolesUnicos      = [...new Set(conformaciones.map(c => c.rolEnCaso))].length;
   const expedientesUnicos = [...new Set(conformaciones.map(c => c.idExpediente.numeroExpediente))].length;
@@ -271,45 +290,67 @@ export default function ConformacionesPage() {
     setVocalSeleccionado(nombre);
   };
 
-  // ✅ GUARDAR CON NOTIFICACIONES
+  // Resetear página cuando cambia la búsqueda
+  const handleBusquedaChange = (value: string) => {
+    setBusq(value);
+    setCurrentPage(1);
+  };
+
+  // ✅ GUARDAR CON BLOQUEO
   const guardar = async () => {
     if (form.idExpediente === "0" || form.idVocal === "0" || !form.rolEnCaso) {
       toast.error("Todos los campos son obligatorios.");
       return;
     }
     
-    await executeCreate(async () => {
-      await crearConf({
-        variables: {
-          idExpediente: Number(form.idExpediente),
-          idVocal:      Number(form.idVocal),
-          rolEnCaso:    form.rolEnCaso,
-        },
+    if (saving) return;
+    setSaving(true);
+    
+    try {
+      await executeCreate(async () => {
+        await crearConf({
+          variables: {
+            idExpediente: Number(form.idExpediente),
+            idVocal:      Number(form.idVocal),
+            rolEnCaso:    form.rolEnCaso,
+          },
+        });
+        await refetch();
+        setModal(false);
+        return true;
       });
-      await refetch();
-      setModal(false);
-      return true;
-    });
+    } catch (e: any) { 
+      setErr(e.message ?? "Error."); 
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // ✅ ELIMINAR CON NOTIFICACIONES
+  // ✅ ELIMINAR CON BLOQUEO
   const eliminar = async (c: Conformacion) => {
-    await executeDelete(
-      async () => {
-        const { data } = await eliminarConf({ variables: { id: Number(c.idConformacion) } });
-        if (!data?.eliminarConformacion?.ok) {
-          throw new Error(data?.eliminarConformacion?.mensaje ?? "No se pudo eliminar.");
-        }
-        await refetch();
-        return true;
-      },
-      {
-        loading: `Eliminando conformación del expediente ${c.idExpediente.numeroExpediente}...`,
-        success: `Conformación eliminada exitosamente`,
-        error: `Error al eliminar conformación`,
-      },
-      `¿Remover la conformación del vocal en el expediente ${c.idExpediente.numeroExpediente}?`
-    );
+    if (deletingId === c.idConformacion) return;
+    setDeletingId(c.idConformacion);
+    
+    try {
+      await executeDelete(
+        async () => {
+          const { data } = await eliminarConf({ variables: { id: Number(c.idConformacion) } });
+          if (!data?.eliminarConformacion?.ok) {
+            throw new Error(data?.eliminarConformacion?.mensaje ?? "No se pudo eliminar.");
+          }
+          await refetch();
+          return true;
+        },
+        {
+          loading: `Eliminando conformación del expediente ${c.idExpediente.numeroExpediente}...`,
+          success: `Conformación eliminada exitosamente`,
+          error: `Error al eliminar conformación`,
+        },
+        `¿Remover la conformación del vocal en el expediente ${c.idExpediente.numeroExpediente}?`
+      );
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -328,37 +369,76 @@ export default function ConformacionesPage() {
         </div>
         <button
           onClick={abrirCrear}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-semibold text-sm shadow-lg shadow-amber-500/25 transition-all hover:scale-[1.02]"
+          disabled={saving}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-semibold text-sm shadow-lg shadow-amber-500/25 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
         >
           <Plus className="w-4 h-4" /> Nueva conformación
         </button>
       </div>
 
-      {/* Stats */}
+      {/* Stats - Clases fijas */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Total conformaciones" value={conformaciones.length} color="text-amber-600 dark:text-amber-400"
-          icon={<Link2 className="w-6 h-6 text-amber-600 dark:text-amber-400" />} sub="Asignaciones registradas" />
-        <StatCard label="Expedientes con vocal" value={expedientesUnicos} color="text-blue-600 dark:text-blue-400"
-          icon={<Link2 className="w-6 h-6 text-blue-600 dark:text-blue-400" />} sub="Expedientes asignados" />
-        <StatCard label="Roles distintos" value={rolesUnicos} color="text-purple-600 dark:text-purple-400"
-          icon={<Link2 className="w-6 h-6 text-purple-600 dark:text-purple-400" />} sub="Tipos de rol en caso" />
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total conformaciones</p>
+              <p className="text-3xl font-bold text-amber-600 dark:text-amber-400 mt-2">{conformaciones.length}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Link2 className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Asignaciones registradas</p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Expedientes con vocal</p>
+              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-2">{expedientesUnicos}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Link2 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Expedientes asignados</p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Roles distintos</p>
+              <p className="text-3xl font-bold text-purple-600 dark:text-purple-400 mt-2">{rolesUnicos}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Link2 className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Tipos de rol en caso</p>
+          </div>
+        </div>
       </div>
 
       {/* Buscador de tabla */}
-      <div className="flex justify-between items-center">
-        <SearchBar value={busqueda} onChange={setBusq} placeholder="Buscar por expediente, vocal o rol..." />
-        <span className="text-sm text-gray-500 dark:text-gray-400">
-          {filtrados.length} resultado{filtrados.length !== 1 ? "s" : ""}
+      <div className="flex justify-between items-center gap-4">
+        <SearchBar value={busqueda} onChange={handleBusquedaChange} placeholder="Buscar por expediente, vocal o rol..." />
+        <span className="text-sm text-gray-500 dark:text-gray-400 shrink-0">
+          {conformacionesFiltradas.length} resultado{conformacionesFiltradas.length !== 1 ? "s" : ""}
         </span>
       </div>
 
-      {/* Tabla */}
+      {/* Tabla con datos paginados */}
       <TablaDesktop
         headers={["Expediente", "Vocal", "Cargo del vocal", "Rol en caso", "Fecha asignación", "Acciones"]}
         loading={loading}
         emptyMsg="No hay conformaciones registradas"
       >
-        {filtrados.map(c => (
+        {paginatedConformaciones.map(c => (
           <tr key={c.idConformacion} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
             <td className="px-6 py-4 font-mono text-sm font-bold text-blue-600 dark:text-blue-400">
               {c.idExpediente.numeroExpediente}
@@ -376,11 +456,67 @@ export default function ConformacionesPage() {
               {fmtFecha(c.fechaAsignacion)}
             </td>
             <td className="px-6 py-4">
-              <ActionBtns onDelete={() => eliminar(c)} />
+              <ActionBtns onDelete={() => eliminar(c)} disabled={saving} />
             </td>
           </tr>
         ))}
       </TablaDesktop>
+
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Mostrando {startIndex + 1} - {Math.min(startIndex + itemsPerPage, conformacionesFiltradas.length)} de {conformacionesFiltradas.length}
+          </p>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">
+              Página {currentPage} de {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Cards Móvil con datos paginados */}
+      <div className="lg:hidden space-y-3">
+        {paginatedConformaciones.map(c => (
+          <div key={c.idConformacion} className="bg-white dark:bg-slate-800/90 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+            <div className="flex justify-between items-start mb-3">
+              <div className="flex-1">
+                <p className="font-mono font-bold text-blue-600 text-sm">{c.idExpediente.numeroExpediente}</p>
+                <p className="text-sm text-gray-800 dark:text-white mt-0.5">
+                  {c.idVocal.idPersona.nombre} {c.idVocal.idPersona.primerApellido}
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">{c.rolEnCaso}</p>
+              </div>
+              <button 
+                onClick={() => eliminar(c)} 
+                disabled={deletingId === c.idConformacion}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex items-center justify-between">
+              <CargoBadge cargo={c.idVocal.cargo} />
+              <span className="text-xs text-gray-400">{fmtFecha(c.fechaAsignacion)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
 
       {/* Modal CREAR con buscadores */}
       {modal && (
@@ -402,7 +538,8 @@ export default function ConformacionesPage() {
                     setForm(f => ({ ...f, idExpediente: "0" }));
                     setExpedienteSeleccionado("");
                   }}
-                  className="p-1 rounded-lg text-gray-500 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors"
+                  disabled={saving}
+                  className="p-1 rounded-lg text-gray-500 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -411,7 +548,8 @@ export default function ConformacionesPage() {
               <button
                 type="button"
                 onClick={() => setBuscadorExpAbierto(true)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-amber-400 dark:hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 transition-all"
+                disabled={saving}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-amber-400 dark:hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Plus className="w-4 h-4" />
                 Buscar y seleccionar expediente
@@ -432,7 +570,8 @@ export default function ConformacionesPage() {
                     setForm(f => ({ ...f, idVocal: "0" }));
                     setVocalSeleccionado("");
                   }}
-                  className="p-1 rounded-lg text-gray-500 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors"
+                  disabled={saving}
+                  className="p-1 rounded-lg text-gray-500 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -441,7 +580,8 @@ export default function ConformacionesPage() {
               <button
                 type="button"
                 onClick={() => setBuscadorVocalAbierto(true)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-amber-400 dark:hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 transition-all"
+                disabled={saving}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-amber-400 dark:hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Plus className="w-4 h-4" />
                 Buscar y seleccionar vocal
@@ -455,6 +595,7 @@ export default function ConformacionesPage() {
             onChange={p("rolEnCaso")}
             required
             placeholder="Ej: Presidente, Vocal Relator, Vocal..."
+            disabled={saving}
           />
 
           <ErrorBox msg={err} />
@@ -462,6 +603,7 @@ export default function ConformacionesPage() {
             onCancel={() => setModal(false)}
             onSave={guardar}
             saveLabel="Asignar conformación"
+            saving={saving}
           />
         </Modal>
       )}
@@ -471,12 +613,14 @@ export default function ConformacionesPage() {
         <BuscadorExpediente
           onSelect={seleccionarExpediente}
           onClose={() => setBuscadorExpAbierto(false)}
+          disabled={saving}
         />
       )}
       {buscadorVocalAbierto && (
         <BuscadorVocal
           onSelect={seleccionarVocal}
           onClose={() => setBuscadorVocalAbierto(false)}
+          disabled={saving}
         />
       )}
     </div>

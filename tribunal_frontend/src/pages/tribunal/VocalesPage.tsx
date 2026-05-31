@@ -8,7 +8,7 @@ import {
   ACTUALIZAR_VOCAL,
   ELIMINAR_VOCAL,
 } from "../../graphql/tribunal";
-import { Users, Plus, UserCheck, UserX, Search, X } from "lucide-react";
+import { Users, Plus, UserCheck, UserX, Search, X, ChevronLeft, ChevronRight, Edit, Trash2 } from "lucide-react";
 import {
   VocalTribunal, Persona, SalaTribunal,
   nombreCompleto, fmtFecha,
@@ -27,9 +27,11 @@ const initForm = { idPersona: "0", idSala: "0", cargo: "", fechaPosesion: "", id
 function BuscadorPersona({
   onSelect,
   onClose,
+  disabled,
 }: {
   onSelect: (id: number, nombre: string) => void;
   onClose: () => void;
+  disabled?: boolean;
 }) {
   const [busqueda, setBusqueda] = useState("");
   const { data, loading } = useQuery(GET_PERSONAS);
@@ -86,7 +88,8 @@ function BuscadorPersona({
                     onSelect(p.idPersona, `${p.nombre} ${p.primerApellido} - ${p.numeroDocumento}`);
                     onClose();
                   }}
-                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-700 ${
+                  disabled={disabled}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed ${
                     index === filtrados.length - 1 ? 'mb-0' : ''
                   }`}
                 >
@@ -126,9 +129,11 @@ function BuscadorPersona({
 function BuscadorSala({
   onSelect,
   onClose,
+  disabled,
 }: {
   onSelect: (id: number, nombre: string) => void;
   onClose: () => void;
+  disabled?: boolean;
 }) {
   const [busqueda, setBusqueda] = useState("");
   const { data, loading } = useQuery(GET_SALAS_TRIBUNAL);
@@ -185,7 +190,8 @@ function BuscadorSala({
                     onSelect(s.idSala, `${s.nombreSala} - ${s.idTribunal.nombreTribunal}`);
                     onClose();
                   }}
-                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-700 ${
+                  disabled={disabled}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed ${
                     index === filtrados.length - 1 ? 'mb-0' : ''
                   }`}
                 >
@@ -228,9 +234,17 @@ export default function VocalesPage() {
   const [actualizarVocal] = useMutation(ACTUALIZAR_VOCAL);
   const [eliminarVocal]   = useMutation(ELIMINAR_VOCAL);
 
-  // ✅ HOOK DE NOTIFICACIONES
   const { executeCreate, executeUpdate, executeDelete, executeToggle } = useCrudNotifications('Vocal');
   const toast = useToast();
+
+  // ✅ Estado para paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // ✅ Estado para bloqueo de botones
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [togglingId, setTogglingId] = useState<number | null>(null);
 
   const [modal, setModal]           = useState(false);
   const [buscadorPersonaAbierto, setBuscadorPersonaAbierto] = useState(false);
@@ -246,10 +260,16 @@ export default function VocalesPage() {
   const personas: Persona[]       = dPers?.allPersonas       ?? [];
   const salas:    SalaTribunal[]  = dSala?.allSalasTribunal  ?? [];
 
-  const filtrados = vocales.filter(v =>
+  // ✅ Filtrar vocales por búsqueda
+  const vocalesFiltrados = vocales.filter(v =>
     `${nombreCompleto(v.idPersona)} ${v.cargo} ${v.idSala?.nombreSala ?? ""} ${v.idPersona.numeroDocumento}`
       .toLowerCase().includes(busqueda.toLowerCase())
   );
+
+  // ✅ Paginación
+  const totalPages = Math.ceil(vocalesFiltrados.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedVocales = vocalesFiltrados.slice(startIndex, startIndex + itemsPerPage);
 
   const activos   = vocales.filter(v => v.activo).length;
   const inactivos = vocales.filter(v => !v.activo).length;
@@ -290,86 +310,115 @@ export default function VocalesPage() {
     setSalaSeleccionada(nombre);
   };
 
-  // ✅ GUARDAR CON NOTIFICACIONES (con sala editable en edición)
+  // Resetear página cuando cambia la búsqueda
+  const handleBusquedaChange = (value: string) => {
+    setBusq(value);
+    setCurrentPage(1);
+  };
+
+  // ✅ GUARDAR CON BLOQUEO
   const guardar = async () => {
     if (form.idPersona === "0" || !form.cargo || !form.fechaPosesion) {
       toast.error("Persona, cargo y fecha de posesión son obligatorios.");
       return;
     }
     
-    if (editando) {
-      await executeUpdate(async () => {
-        await actualizarVocal({
-          variables: {
-            id: Number(editando.idVocal),
-            input: {
-              idSala: form.idSala !== "0" ? Number(form.idSala) : null,
-              cargo:  form.cargo,
+    if (saving) return;
+    setSaving(true);
+    
+    try {
+      if (editando) {
+        await executeUpdate(async () => {
+          await actualizarVocal({
+            variables: {
+              id: Number(editando.idVocal),
+              input: {
+                idSala: form.idSala !== "0" ? Number(form.idSala) : null,
+                cargo:  form.cargo,
+              },
             },
-          },
+          });
+          await refetch();
+          setModal(false);
+          return true;
         });
-        await refetch();
-        setModal(false);
-        return true;
-      });
-    } else {
-      await executeCreate(async () => {
-        await crearVocal({
-          variables: {
-            idPersona:    Number(form.idPersona),
-            cargo:        form.cargo,
-            fechaPosesion: form.fechaPosesion,
-            idUsuario:    Number(form.idUsuario),
-            idSala:       form.idSala !== "0" ? Number(form.idSala) : undefined,
-          },
+      } else {
+        await executeCreate(async () => {
+          await crearVocal({
+            variables: {
+              idPersona:    Number(form.idPersona),
+              cargo:        form.cargo,
+              fechaPosesion: form.fechaPosesion,
+              idUsuario:    Number(form.idUsuario),
+              idSala:       form.idSala !== "0" ? Number(form.idSala) : undefined,
+            },
+          });
+          await refetch();
+          setModal(false);
+          return true;
         });
-        await refetch();
-        setModal(false);
-        return true;
-      });
+      }
+    } catch (e: any) { 
+      setErr(e.message ?? "Error."); 
+    } finally {
+      setSaving(false);
     }
   };
 
-  // ✅ TOGGLE ACTIVO CON NOTIFICACIONES
+  // ✅ TOGGLE ACTIVO CON BLOQUEO
   const toggleActivo = async (v: VocalTribunal) => {
-    await executeToggle(
-      async () => {
-        await actualizarVocal({ 
-          variables: { 
-            id: Number(v.idVocal), 
-            input: { activo: !v.activo } 
-          } 
-        });
-        await refetch();
-        return true;
-      },
-      !v.activo,
-      {
-        loading: `Cambiando estado de ${nombreCompleto(v.idPersona)}...`,
-        success: (isActive: boolean) => `${nombreCompleto(v.idPersona)} ha sido ${isActive ? 'activado' : 'desactivado'}`,
-        error: `Error al cambiar estado`,
-      }
-    );
+    if (togglingId === v.idVocal) return;
+    setTogglingId(v.idVocal);
+    
+    try {
+      await executeToggle(
+        async () => {
+          await actualizarVocal({ 
+            variables: { 
+              id: Number(v.idVocal), 
+              input: { activo: !v.activo } 
+            } 
+          });
+          await refetch();
+          return true;
+        },
+        !v.activo,
+        {
+          loading: `Cambiando estado de ${nombreCompleto(v.idPersona)}...`,
+          success: (isActive: boolean) => `${nombreCompleto(v.idPersona)} ha sido ${isActive ? 'activado' : 'desactivado'}`,
+          error: `Error al cambiar estado`,
+        }
+      );
+    } finally {
+      setTogglingId(null);
+    }
   };
 
-  // ✅ ELIMINAR CON NOTIFICACIONES
+  // ✅ ELIMINAR CON BLOQUEO
   const eliminar = async (v: VocalTribunal) => {
-    await executeDelete(
-      async () => {
-        const { data } = await eliminarVocal({ variables: { id: Number(v.idVocal) } });
-        if (!data?.eliminarVocal?.ok) {
-          throw new Error(data?.eliminarVocal?.mensaje ?? "No se pudo eliminar.");
-        }
-        await refetch();
-        return true;
-      },
-      {
-        loading: `Eliminando a ${nombreCompleto(v.idPersona)}...`,
-        success: `${nombreCompleto(v.idPersona)} eliminado exitosamente`,
-        error: `Error al eliminar vocal`,
-      },
-      `¿Eliminar al vocal ${nombreCompleto(v.idPersona)}?`
-    );
+    if (deletingId === v.idVocal) return;
+    setDeletingId(v.idVocal);
+    
+    try {
+      await executeDelete(
+        async () => {
+          const { data } = await eliminarVocal({ variables: { id: Number(v.idVocal) } });
+          if (!data?.eliminarVocal?.ok) {
+            throw new Error(data?.eliminarVocal?.mensaje ?? "No se pudo eliminar.");
+          }
+          await refetch();
+          return true;
+        },
+        {
+          loading: `Eliminando a ${nombreCompleto(v.idPersona)}...`,
+          success: `${nombreCompleto(v.idPersona)} eliminado exitosamente`,
+          error: `Error al eliminar vocal`,
+        },
+        `¿Eliminar al vocal ${nombreCompleto(v.idPersona)}?`
+      );
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -388,38 +437,76 @@ export default function VocalesPage() {
         </div>
         <button
           onClick={abrirCrear}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-semibold text-sm shadow-lg shadow-emerald-500/25 transition-all hover:scale-[1.02]"
+          disabled={saving}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-semibold text-sm shadow-lg shadow-emerald-500/25 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
         >
           <Plus className="w-4 h-4" /> Nuevo vocal
         </button>
       </div>
 
-      {/* Stats */}
+      {/* Stats - Clases fijas */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Total vocales" value={vocales.length} color="text-emerald-600 dark:text-emerald-400"
-          icon={<Users className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />} sub="Registrados en el sistema" />
-        <StatCard label="Activos" value={activos} color="text-blue-600 dark:text-blue-400"
-          icon={<UserCheck className="w-6 h-6 text-blue-600 dark:text-blue-400" />}
-          sub={`${Math.round((activos / (vocales.length || 1)) * 100)}% del total`} />
-        <StatCard label="Inactivos" value={inactivos} color="text-red-600 dark:text-red-400"
-          icon={<UserX className="w-6 h-6 text-red-600 dark:text-red-400" />} sub="Con mandato concluido" />
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total vocales</p>
+              <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 mt-2">{vocales.length}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Users className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Registrados en el sistema</p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Activos</p>
+              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-2">{activos}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <UserCheck className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">{Math.round((activos / (vocales.length || 1)) * 100)}% del total</p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Inactivos</p>
+              <p className="text-3xl font-bold text-red-600 dark:text-red-400 mt-2">{inactivos}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <UserX className="w-6 h-6 text-red-600 dark:text-red-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Con mandato concluido</p>
+          </div>
+        </div>
       </div>
 
       {/* Buscador de tabla */}
-      <div className="flex justify-between items-center">
-        <SearchBar value={busqueda} onChange={setBusq} placeholder="Buscar por nombre, cargo o sala..." />
-        <span className="text-sm text-gray-500 dark:text-gray-400">
-          {filtrados.length} resultado{filtrados.length !== 1 ? "s" : ""}
+      <div className="flex justify-between items-center gap-4">
+        <SearchBar value={busqueda} onChange={handleBusquedaChange} placeholder="Buscar por nombre, cargo o sala..." />
+        <span className="text-sm text-gray-500 dark:text-gray-400 shrink-0">
+          {vocalesFiltrados.length} resultado{vocalesFiltrados.length !== 1 ? "s" : ""}
         </span>
       </div>
 
-      {/* Tabla */}
+      {/* Tabla con datos paginados */}
       <TablaDesktop
         headers={["Vocal", "Documento", "Cargo", "Sala asignada", "Posesión", "Estado", "Acciones"]}
         loading={loading}
         emptyMsg="No hay vocales registrados"
       >
-        {filtrados.map(v => (
+        {paginatedVocales.map(v => (
           <tr key={v.idVocal} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
             <td className="px-6 py-4">
               <p className="font-semibold text-sm text-gray-800 dark:text-white">
@@ -455,6 +542,7 @@ export default function VocalesPage() {
               <ActionBtns
                 onEdit={() => abrirEditar(v)}
                 onDelete={() => eliminar(v)}
+                disabled={saving}
                 extraLabel={v.activo ? "Desactivar" : "Activar"}
                 extraVariant={v.activo ? "red" : "emerald"}
                 onExtra={() => toggleActivo(v)}
@@ -463,6 +551,71 @@ export default function VocalesPage() {
           </tr>
         ))}
       </TablaDesktop>
+
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Mostrando {startIndex + 1} - {Math.min(startIndex + itemsPerPage, vocalesFiltrados.length)} de {vocalesFiltrados.length}
+          </p>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">
+              Página {currentPage} de {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Cards Móvil con datos paginados */}
+      <div className="lg:hidden space-y-3">
+        {paginatedVocales.map(v => (
+          <div key={v.idVocal} className="bg-white dark:bg-slate-800/90 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+            <div className="flex justify-between items-start mb-3">
+              <div className="flex-1">
+                <p className="font-semibold text-gray-800 dark:text-white text-sm">{nombreCompleto(v.idPersona)}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{v.cargo}</p>
+                {v.idSala && (
+                  <p className="text-xs text-gray-400 mt-0.5">{v.idSala.nombreSala}</p>
+                )}
+              </div>
+              <div className="flex gap-1">
+                <button 
+                  onClick={() => abrirEditar(v)} 
+                  disabled={saving}
+                  className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Edit className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={() => eliminar(v)} 
+                  disabled={deletingId === v.idVocal}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <EstadoBadge activo={v.activo} />
+              <span className="text-xs text-gray-400">{fmtFecha(v.fechaPosesion)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
 
       {/* Modal CREAR/EDITAR con buscadores */}
       {modal && (
@@ -486,7 +639,8 @@ export default function VocalesPage() {
                         setForm(f => ({ ...f, idPersona: "0" }));
                         setPersonaSeleccionada("");
                       }}
-                      className="p-1 rounded-lg text-gray-500 hover:bg-emerald-200 dark:hover:bg-emerald-800 transition-colors"
+                      disabled={saving}
+                      className="p-1 rounded-lg text-gray-500 hover:bg-emerald-200 dark:hover:bg-emerald-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -495,7 +649,8 @@ export default function VocalesPage() {
                   <button
                     type="button"
                     onClick={() => setBuscadorPersonaAbierto(true)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-emerald-400 dark:hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all"
+                    disabled={saving}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-emerald-400 dark:hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Plus className="w-4 h-4" />
                     Buscar y seleccionar persona
@@ -515,9 +670,10 @@ export default function VocalesPage() {
             onChange={p("cargo")}
             required
             placeholder="Ej: Vocal Titular"
+            disabled={saving}
           />
 
-          {/* ✅ Selección de Sala - Con buscador (editable también en edición) */}
+          {/* Selección de Sala - Con buscador */}
           <div className="mb-4">
             <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
               Sala asignada
@@ -530,7 +686,8 @@ export default function VocalesPage() {
                     setForm(f => ({ ...f, idSala: "0" }));
                     setSalaSeleccionada("");
                   }}
-                  className="p-1 rounded-lg text-gray-500 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+                  disabled={saving}
+                  className="p-1 rounded-lg text-gray-500 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -539,7 +696,8 @@ export default function VocalesPage() {
               <button
                 type="button"
                 onClick={() => setBuscadorSalaAbierto(true)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-emerald-400 dark:hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all"
+                disabled={saving}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-emerald-400 dark:hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Plus className="w-4 h-4" />
                 Buscar y seleccionar sala
@@ -554,6 +712,7 @@ export default function VocalesPage() {
               onChange={p("fechaPosesion")}
               type="date"
               required
+              disabled={saving}
             />
           )}
 
@@ -562,6 +721,7 @@ export default function VocalesPage() {
             onCancel={() => setModal(false)}
             onSave={guardar}
             saveLabel={editando ? "Guardar cambios" : "Registrar vocal"}
+            saving={saving}
           />
         </Modal>
       )}
@@ -571,12 +731,14 @@ export default function VocalesPage() {
         <BuscadorPersona
           onSelect={seleccionarPersona}
           onClose={() => setBuscadorPersonaAbierto(false)}
+          disabled={saving}
         />
       )}
       {buscadorSalaAbierto && (
         <BuscadorSala
           onSelect={seleccionarSala}
           onClose={() => setBuscadorSalaAbierto(false)}
+          disabled={saving}
         />
       )}
     </div>

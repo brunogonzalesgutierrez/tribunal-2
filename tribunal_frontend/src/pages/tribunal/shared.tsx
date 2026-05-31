@@ -1,7 +1,7 @@
 // ─── shared.tsx ─────────────────────────────────────────
 // Componentes, tipos y utilidades compartidas del módulo Tribunal
 
-import { X, Edit, Trash2, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, Edit, Trash2, AlertCircle, ChevronLeft, ChevronRight, Search } from "lucide-react";
 
 // ════════════════════════════════════════════════════════
 // TIPOS
@@ -140,14 +140,14 @@ export function Modal({
 }
 
 // ════════════════════════════════════════════════════════
-// CAMPOS DE FORMULARIO
+// CAMPOS DE FORMULARIO - CON DISABLED
 // ════════════════════════════════════════════════════════
 
 export const Field = ({
-  label, value, onChange, type = "text", placeholder = "", required = false,
+  label, value, onChange, type = "text", placeholder = "", required = false, disabled = false,
 }: {
   label: string; value: string; onChange: (v: string) => void;
-  type?: string; placeholder?: string; required?: boolean;
+  type?: string; placeholder?: string; required?: boolean; disabled?: boolean;
 }) => (
   <div className="mb-4">
     <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
@@ -156,16 +156,17 @@ export const Field = ({
     <input
       type={type} value={value} placeholder={placeholder}
       onChange={e => onChange(e.target.value)}
-      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+      disabled={disabled}
+      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none disabled:opacity-50 disabled:cursor-not-allowed"
     />
   </div>
 );
 
 export const SelectField = ({
-  label, value, onChange, children, required = false,
+  label, value, onChange, children, required = false, disabled = false,
 }: {
   label: string; value: string | number; onChange: (v: string) => void;
-  children: React.ReactNode; required?: boolean;
+  children: React.ReactNode; required?: boolean; disabled?: boolean;
 }) => (
   <div className="mb-4">
     <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
@@ -173,7 +174,8 @@ export const SelectField = ({
     </label>
     <select
       value={value} onChange={e => onChange(e.target.value)}
-      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+      disabled={disabled}
+      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none disabled:opacity-50 disabled:cursor-not-allowed"
     >
       {children}
     </select>
@@ -181,10 +183,10 @@ export const SelectField = ({
 );
 
 export const TextAreaField = ({
-  label, value, onChange, required = false, placeholder = "", rows = 3,
+  label, value, onChange, required = false, placeholder = "", rows = 3, disabled = false,
 }: {
   label: string; value: string; onChange: (v: string) => void;
-  required?: boolean; placeholder?: string; rows?: number;
+  required?: boolean; placeholder?: string; rows?: number; disabled?: boolean;
 }) => (
   <div className="mb-4">
     <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
@@ -195,7 +197,8 @@ export const TextAreaField = ({
       onChange={e => onChange(e.target.value)}
       placeholder={placeholder}
       rows={rows}
-      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-vertical"
+      disabled={disabled}
+      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-vertical disabled:opacity-50 disabled:cursor-not-allowed"
     />
   </div>
 );
@@ -209,22 +212,24 @@ export const ErrorBox = ({ msg }: { msg: string }) =>
   ) : null;
 
 export const ModalFooter = ({
-  onCancel, onSave, saveLabel,
+  onCancel, onSave, saveLabel, saving = false,
 }: {
-  onCancel: () => void; onSave: () => void; saveLabel: string;
+  onCancel: () => void; onSave: () => void; saveLabel: string; saving?: boolean;
 }) => (
   <div className="flex gap-3 justify-end pt-4">
     <button
       onClick={onCancel}
-      className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+      disabled={saving}
+      className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
     >
       Cancelar
     </button>
     <button
       onClick={onSave}
-      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium text-sm shadow-md transition-all"
+      disabled={saving}
+      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium text-sm shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
     >
-      {saveLabel}
+      {saving ? "Guardando..." : saveLabel}
     </button>
   </div>
 );
@@ -317,23 +322,25 @@ export function TablaDesktop({
 }
 
 // ════════════════════════════════════════════════════════
-// ACTION BUTTONS
+// ACTION BUTTONS - CON DISABLED
 // ════════════════════════════════════════════════════════
 
 export const ActionBtns = ({
-  onEdit, onDelete, extraLabel, extraVariant, onExtra,
+  onEdit, onDelete, extraLabel, extraVariant, onExtra, disabled = false,
 }: {
   onEdit?: () => void;
   onDelete?: () => void;
   extraLabel?: string;
   extraVariant?: "emerald" | "red" | "amber";
   onExtra?: () => void;
+  disabled?: boolean;
 }) => (
   <div className="flex items-center justify-end gap-1">
     {onEdit && (
       <button
         onClick={onEdit}
-        className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+        disabled={disabled}
+        className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         title="Editar"
       >
         <Edit className="w-4 h-4" />
@@ -342,7 +349,8 @@ export const ActionBtns = ({
     {onExtra && extraLabel && (
       <button
         onClick={onExtra}
-        className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+        disabled={disabled}
+        className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
           extraVariant === "emerald"
             ? "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
             : extraVariant === "amber"
@@ -356,7 +364,8 @@ export const ActionBtns = ({
     {onDelete && (
       <button
         onClick={onDelete}
-        className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+        disabled={disabled}
+        className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         title="Eliminar"
       >
         <Trash2 className="w-4 h-4" />
@@ -366,7 +375,7 @@ export const ActionBtns = ({
 );
 
 // ════════════════════════════════════════════════════════
-// SEARCH BAR
+// SEARCH BAR - ACTUALIZADO CON ÍCONO Y ANCHO FLEXIBLE
 // ════════════════════════════════════════════════════════
 
 export const SearchBar = ({
@@ -374,10 +383,46 @@ export const SearchBar = ({
 }: {
   value: string; onChange: (v: string) => void; placeholder: string;
 }) => (
-  <input
-    value={value}
-    onChange={e => onChange(e.target.value)}
-    placeholder={placeholder}
-    className="pl-4 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none w-72"
-  />
+  <div className="relative flex-1 max-w-lg">
+    <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+    <input
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+    />
+  </div>
 );
+
+// ════════════════════════════════════════════════════════
+// PAGINACIÓN
+// ════════════════════════════════════════════════════════
+
+export function Paginacion({
+  currentPage, totalPages, startIndex, total, itemsPerPage, onPrev, onNext,
+}: {
+  currentPage: number; totalPages: number; startIndex: number;
+  total: number; itemsPerPage: number; onPrev: () => void; onNext: () => void;
+}) {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex items-center justify-between pt-2">
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        Mostrando {startIndex + 1}–{Math.min(startIndex + itemsPerPage, total)} de {total}
+      </p>
+      <div className="flex gap-1">
+        <button onClick={onPrev} disabled={currentPage === 1}
+          className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <span className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">
+          Página {currentPage} de {totalPages}
+        </span>
+        <button onClick={onNext} disabled={currentPage === totalPages}
+          className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}

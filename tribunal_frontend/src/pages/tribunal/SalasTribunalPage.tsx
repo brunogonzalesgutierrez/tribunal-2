@@ -7,7 +7,7 @@ import {
   ACTUALIZAR_SALA_TRIBUNAL,
   ELIMINAR_SALA_TRIBUNAL,
 } from "../../graphql/tribunal";
-import { DoorOpen, Plus, Search, X } from "lucide-react";
+import { DoorOpen, Plus, Search, X, ChevronLeft, ChevronRight, Edit, Trash2 } from "lucide-react";
 import {
   SalaTribunal, Tribunal,
   InstanciaBadge, EstadoBadge,
@@ -15,6 +15,7 @@ import {
   StatCard, TablaDesktop, ActionBtns, SearchBar,
 } from "./shared";
 import { useCrudNotifications } from '../../hooks/useCrudNotifications';
+import { useToast } from '../../context/ToastContext';
 
 const initForm = { idTribunal: "0", nombreSala: "", activa: "true" };
 
@@ -24,9 +25,11 @@ const initForm = { idTribunal: "0", nombreSala: "", activa: "true" };
 function BuscadorTribunal({
   onSelect,
   onClose,
+  disabled,
 }: {
   onSelect: (id: number, nombre: string) => void;
   onClose: () => void;
+  disabled?: boolean;
 }) {
   const [busqueda, setBusqueda] = useState("");
   const { data, loading } = useQuery(GET_TRIBUNALES);
@@ -84,7 +87,8 @@ function BuscadorTribunal({
                     onSelect(t.idTribunal, t.nombreTribunal);
                     onClose();
                   }}
-                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-purple-300 dark:hover:border-purple-700 ${
+                  disabled={disabled}
+                  className={`w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-purple-300 dark:hover:border-purple-700 disabled:opacity-50 disabled:cursor-not-allowed ${
                     index === filtrados.length - 1 ? 'mb-0' : ''
                   }`}
                 >
@@ -126,8 +130,16 @@ export default function SalasTribunalPage() {
   const [actualizarSala] = useMutation(ACTUALIZAR_SALA_TRIBUNAL);
   const [eliminarSala]   = useMutation(ELIMINAR_SALA_TRIBUNAL);
 
-  // ✅ HOOK DE NOTIFICACIONES
   const { executeCreate, executeUpdate, executeDelete } = useCrudNotifications('Sala');
+  const toast = useToast();
+
+  // ✅ Estado para paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // ✅ Estado para bloqueo de botones
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const [modal, setModal]         = useState(false);
   const [buscadorAbierto, setBuscadorAbierto] = useState(false);
@@ -140,10 +152,16 @@ export default function SalasTribunalPage() {
   const salas:      SalaTribunal[] = dSala?.allSalasTribunal ?? [];
   const tribunales: Tribunal[]     = dTrib?.allTribunales    ?? [];
 
-  const filtradas = salas.filter(s =>
+  // ✅ Filtrar salas por búsqueda
+  const salasFiltradas = salas.filter(s =>
     `${s.nombreSala} ${s.idTribunal.nombreTribunal} ${s.idTribunal.instancia}`
       .toLowerCase().includes(busqueda.toLowerCase())
   );
+
+  // ✅ Paginación
+  const totalPages = Math.ceil(salasFiltradas.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedSalas = salasFiltradas.slice(startIndex, startIndex + itemsPerPage);
 
   const activas   = salas.filter(s => s.activa).length;
   const inactivas = salas.filter(s => !s.activa).length;
@@ -175,63 +193,84 @@ export default function SalasTribunalPage() {
     setTribunalSeleccionado(nombre);
   };
 
-  // ✅ GUARDAR CON NOTIFICACIONES
+  // Resetear página cuando cambia la búsqueda
+  const handleBusquedaChange = (value: string) => {
+    setBusq(value);
+    setCurrentPage(1);
+  };
+
+  // ✅ GUARDAR CON BLOQUEO
   const guardar = async () => {
     if (form.idTribunal === "0" || !form.nombreSala) {
-      setErr("Tribunal y nombre son obligatorios.");
+      toast.error("Tribunal y nombre son obligatorios.");
       return;
     }
     
-    if (editando) {
-      await executeUpdate(async () => {
-        await actualizarSala({
-          variables: {
-            id:         Number(editando.idSala),
-            nombreSala: form.nombreSala,
-            activa:     form.activa === "true",
-          },
+    if (saving) return;
+    setSaving(true);
+    
+    try {
+      if (editando) {
+        await executeUpdate(async () => {
+          await actualizarSala({
+            variables: {
+              id:         Number(editando.idSala),
+              nombreSala: form.nombreSala,
+              activa:     form.activa === "true",
+            },
+          });
+          await refetch();
+          setModal(false);
+          return true;
         });
-        await refetch();
-        setModal(false);
-        return true;
-      });
-    } else {
-      await executeCreate(async () => {
-        await crearSala({
-          variables: {
-            idTribunal: Number(form.idTribunal),
-            nombreSala: form.nombreSala,
-            activa:     form.activa === "true",
-          },
+      } else {
+        await executeCreate(async () => {
+          await crearSala({
+            variables: {
+              idTribunal: Number(form.idTribunal),
+              nombreSala: form.nombreSala,
+              activa:     form.activa === "true",
+            },
+          });
+          await refetch();
+          setModal(false);
+          return true;
         });
-        await refetch();
-        setModal(false);
-        return true;
-      });
+      }
+    } catch (e: any) { 
+      setErr(e.message ?? "Error."); 
+    } finally {
+      setSaving(false);
     }
   };
 
-  // ✅ ELIMINAR CON NOTIFICACIONES
+  // ✅ ELIMINAR CON BLOQUEO
   const eliminar = async (s: SalaTribunal) => {
-    await executeDelete(
-      async () => {
-        const { data } = await eliminarSala({ variables: { id: Number(s.idSala) } });
-        if (!data?.eliminarSalaTribunal?.ok) {
-          throw new Error(data?.eliminarSalaTribunal?.mensaje ?? "No se pudo eliminar.");
-        }
-        await refetch();
-        return true;
-      },
-      {
-        loading: `Eliminando sala ${s.nombreSala}...`,
-        success: `Sala ${s.nombreSala} eliminada exitosamente`,
-        error: `Error al eliminar la sala`,
-      },
-      `¿Eliminar la sala "${s.nombreSala}"?`
-    );
+    if (deletingId === s.idSala) return;
+    setDeletingId(s.idSala);
+    
+    try {
+      await executeDelete(
+        async () => {
+          const { data } = await eliminarSala({ variables: { id: Number(s.idSala) } });
+          if (!data?.eliminarSalaTribunal?.ok) {
+            throw new Error(data?.eliminarSalaTribunal?.mensaje ?? "No se pudo eliminar.");
+          }
+          await refetch();
+          return true;
+        },
+        {
+          loading: `Eliminando sala ${s.nombreSala}...`,
+          success: `Sala ${s.nombreSala} eliminada exitosamente`,
+          error: `Error al eliminar la sala`,
+        },
+        `¿Eliminar la sala "${s.nombreSala}"?`
+      );
+    } finally {
+      setDeletingId(null);
+    }
   };
 
-  // ✅ RESTE DEL COMPONENTE (EL JSX SE QUEDA IGUAL)
   return (
     <div className="space-y-6 animate-fade-in">
 
@@ -248,38 +287,76 @@ export default function SalasTribunalPage() {
         </div>
         <button
           onClick={abrirCrear}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-semibold text-sm shadow-lg shadow-purple-500/25 transition-all hover:scale-[1.02]"
+          disabled={saving}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-semibold text-sm shadow-lg shadow-purple-500/25 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
         >
           <Plus className="w-4 h-4" /> Nueva sala
         </button>
       </div>
 
-      {/* Stats */}
+      {/* Stats - Clases fijas */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Total salas" value={salas.length} color="text-purple-600 dark:text-purple-400"
-          icon={<DoorOpen className="w-6 h-6 text-purple-600 dark:text-purple-400" />} sub="Registradas en el sistema" />
-        <StatCard label="Activas" value={activas} color="text-emerald-600 dark:text-emerald-400"
-          icon={<DoorOpen className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />}
-          sub={`${Math.round((activas / (salas.length || 1)) * 100)}% del total`} />
-        <StatCard label="Inactivas" value={inactivas} color="text-red-600 dark:text-red-400"
-          icon={<DoorOpen className="w-6 h-6 text-red-600 dark:text-red-400" />} sub="Fuera de servicio" />
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total salas</p>
+              <p className="text-3xl font-bold text-purple-600 dark:text-purple-400 mt-2">{salas.length}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <DoorOpen className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Registradas en el sistema</p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Activas</p>
+              <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 mt-2">{activas}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <DoorOpen className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">{Math.round((activas / (salas.length || 1)) * 100)}% del total</p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Inactivas</p>
+              <p className="text-3xl font-bold text-red-600 dark:text-red-400 mt-2">{inactivas}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <DoorOpen className="w-6 h-6 text-red-600 dark:text-red-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Fuera de servicio</p>
+          </div>
+        </div>
       </div>
 
       {/* Buscador de tabla */}
-      <div className="flex justify-between items-center">
-        <SearchBar value={busqueda} onChange={setBusq} placeholder="Buscar por nombre, tribunal o instancia..." />
-        <span className="text-sm text-gray-500 dark:text-gray-400">
-          {filtradas.length} resultado{filtradas.length !== 1 ? "s" : ""}
+      <div className="flex justify-between items-center gap-4">
+        <SearchBar value={busqueda} onChange={handleBusquedaChange} placeholder="Buscar por nombre, tribunal o instancia..." />
+        <span className="text-sm text-gray-500 dark:text-gray-400 shrink-0">
+          {salasFiltradas.length} resultado{salasFiltradas.length !== 1 ? "s" : ""}
         </span>
       </div>
 
-      {/* Tabla */}
+      {/* Tabla con datos paginados */}
       <TablaDesktop
         headers={["Nombre de sala", "Tribunal", "Instancia", "Estado", "Acciones"]}
         loading={loading}
         emptyMsg="No hay salas registradas"
       >
-        {filtradas.map(s => (
+        {paginatedSalas.map(s => (
           <tr key={s.idSala} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
             <td className="px-6 py-4 font-semibold text-gray-800 dark:text-white text-sm">
               {s.nombreSala}
@@ -294,11 +371,73 @@ export default function SalasTribunalPage() {
               <EstadoBadge activo={s.activa} />
             </td>
             <td className="px-6 py-4">
-              <ActionBtns onEdit={() => abrirEditar(s)} onDelete={() => eliminar(s)} />
+              <ActionBtns onEdit={() => abrirEditar(s)} onDelete={() => eliminar(s)} disabled={saving} />
             </td>
           </tr>
         ))}
       </TablaDesktop>
+
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Mostrando {startIndex + 1} - {Math.min(startIndex + itemsPerPage, salasFiltradas.length)} de {salasFiltradas.length}
+          </p>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">
+              Página {currentPage} de {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Cards Móvil con datos paginados */}
+      <div className="lg:hidden space-y-3">
+        {paginatedSalas.map(s => (
+          <div key={s.idSala} className="bg-white dark:bg-slate-800/90 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+            <div className="flex justify-between items-start mb-3">
+              <div className="flex-1">
+                <p className="font-semibold text-gray-800 dark:text-white text-sm">{s.nombreSala}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{s.idTribunal.nombreTribunal}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{s.idTribunal.instancia}</p>
+              </div>
+              <div className="flex gap-1">
+                <button 
+                  onClick={() => abrirEditar(s)} 
+                  disabled={saving}
+                  className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Edit className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={() => eliminar(s)} 
+                  disabled={deletingId === s.idSala}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <EstadoBadge activo={s.activa} />
+            </div>
+          </div>
+        ))}
+      </div>
 
       {/* Modal */}
       {modal && (
@@ -321,7 +460,8 @@ export default function SalasTribunalPage() {
                         setForm(f => ({ ...f, idTribunal: "0" }));
                         setTribunalSeleccionado("");
                       }}
-                      className="p-1 rounded-lg text-gray-500 hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors"
+                      disabled={saving}
+                      className="p-1 rounded-lg text-gray-500 hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -330,7 +470,8 @@ export default function SalasTribunalPage() {
                   <button
                     type="button"
                     onClick={() => setBuscadorAbierto(true)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-purple-400 dark:hover:border-purple-500 hover:text-purple-600 dark:hover:text-purple-400 transition-all"
+                    disabled={saving}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-purple-400 dark:hover:border-purple-500 hover:text-purple-600 dark:hover:text-purple-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Plus className="w-4 h-4" />
                     Buscar y seleccionar tribunal
@@ -350,9 +491,10 @@ export default function SalasTribunalPage() {
             onChange={p("nombreSala")}
             required
             placeholder="Ej: Sala A"
+            disabled={saving}
           />
 
-          <SelectField label="Estado" value={form.activa} onChange={p("activa")}>
+          <SelectField label="Estado" value={form.activa} onChange={p("activa")} disabled={saving}>
             <option value="true">Activa</option>
             <option value="false">Inactiva</option>
           </SelectField>
@@ -362,6 +504,7 @@ export default function SalasTribunalPage() {
             onCancel={() => setModal(false)}
             onSave={guardar}
             saveLabel={editando ? "Guardar cambios" : "Crear sala"}
+            saving={saving}
           />
         </Modal>
       )}
@@ -370,6 +513,7 @@ export default function SalasTribunalPage() {
         <BuscadorTribunal
           onSelect={seleccionarTribunal}
           onClose={() => setBuscadorAbierto(false)}
+          disabled={saving}
         />
       )}
     </div>
