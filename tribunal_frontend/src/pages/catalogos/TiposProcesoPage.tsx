@@ -43,9 +43,9 @@ function Modal({ children, onClose, title }: {
   );
 }
 
-const Field = ({ label, value, onChange, placeholder = "", required = false }: {
+const Field = ({ label, value, onChange, placeholder = "", required = false, disabled = false }: {
   label: string; value: string; onChange: (v: string) => void;
-  placeholder?: string; required?: boolean;
+  placeholder?: string; required?: boolean; disabled?: boolean;
 }) => (
   <div className="mb-4">
     <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
@@ -54,7 +54,8 @@ const Field = ({ label, value, onChange, placeholder = "", required = false }: {
     <input
       value={value} placeholder={placeholder}
       onChange={e => onChange(e.target.value)}
-      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all outline-none"
+      disabled={disabled}
+      className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all outline-none disabled:opacity-50 disabled:cursor-not-allowed"
     />
   </div>
 );
@@ -67,6 +68,10 @@ export default function TiposProcesoPage() {
   const [busqueda, setBusqueda] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  // ✅ Estado para bloqueo de botones
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const { data, loading, refetch } = useQuery(GET_TIPOS_PROCESO);
   const [crearTipo] = useMutation(CREAR_TIPO_PROCESO);
@@ -91,34 +96,62 @@ export default function TiposProcesoPage() {
   };
   const cerrar = () => { setModalAbierto(false); setEditando(null); };
 
+  // Resetear página cuando cambia la búsqueda
+  const handleBusquedaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setBusqueda(e.target.value);
+    setCurrentPage(1);
+  };
+
+  // ✅ GUARDAR CON BLOQUEO
   const guardar = async () => {
     if (!form.nombre || !form.codigo) {
       toast.error("Nombre y código son obligatorios.");
       return;
     }
-    if (editando) {
-      await executeUpdate(async () => {
-        await actualizarTipo({ variables: { id: Number(editando.idTipoProceso), nombre: form.nombre, codigo: form.codigo } });
-        await refetch(); cerrar(); return true;
-      });
-    } else {
-      await executeCreate(async () => {
-        await crearTipo({ variables: { nombre: form.nombre, codigo: form.codigo } });
-        await refetch(); cerrar(); return true;
-      });
+    
+    if (saving) return;
+    setSaving(true);
+    
+    try {
+      if (editando) {
+        await executeUpdate(async () => {
+          await actualizarTipo({ variables: { id: Number(editando.idTipoProceso), nombre: form.nombre, codigo: form.codigo } });
+          await refetch(); 
+          cerrar(); 
+          return true;
+        });
+      } else {
+        await executeCreate(async () => {
+          await crearTipo({ variables: { nombre: form.nombre, codigo: form.codigo } });
+          await refetch(); 
+          cerrar(); 
+          return true;
+        });
+      }
+    } finally {
+      setSaving(false);
     }
   };
 
+  // ✅ ELIMINAR CON BLOQUEO
   const eliminar = async (id: number, nombre: string) => {
-    await executeDelete(
-      async () => {
-        const { data } = await eliminarTipo({ variables: { id: Number(id) } });
-        if (!data?.eliminarTipoProceso?.ok) throw new Error(data?.eliminarTipoProceso?.mensaje ?? "Error");
-        await refetch(); return true;
-      },
-      { loading: `Eliminando ${nombre}...`, success: `${nombre} eliminado`, error: "Error al eliminar" },
-      `¿Eliminar el tipo de proceso "${nombre}"?`
-    );
+    if (deletingId === id) return;
+    setDeletingId(id);
+    
+    try {
+      await executeDelete(
+        async () => {
+          const { data } = await eliminarTipo({ variables: { id: Number(id) } });
+          if (!data?.eliminarTipoProceso?.ok) throw new Error(data?.eliminarTipoProceso?.mensaje ?? "Error");
+          await refetch(); 
+          return true;
+        },
+        { loading: `Eliminando ${nombre}...`, success: `${nombre} eliminado`, error: "Error al eliminar" },
+        `¿Eliminar el tipo de proceso "${nombre}"?`
+      );
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -137,14 +170,15 @@ export default function TiposProcesoPage() {
         </div>
         <button
           onClick={abrirCrear}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white font-semibold text-sm shadow-lg shadow-sky-500/25 transition-all duration-200 hover:scale-[1.02]"
+          disabled={saving}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white font-semibold text-sm shadow-lg shadow-sky-500/25 transition-all duration-200 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
         >
           <Plus className="w-4 h-4" />
           Nuevo tipo
         </button>
       </div>
 
-      {/* STATS */}
+      {/* STATS - Clases fijas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg hover:shadow-xl transition-all group">
           <div className="flex items-center justify-between">
@@ -182,36 +216,40 @@ export default function TiposProcesoPage() {
         <input
           placeholder="Buscar por nombre o código..."
           value={busqueda}
-          onChange={e => { setBusqueda(e.target.value); setCurrentPage(1); }}
+          onChange={handleBusquedaChange}
           className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white dark:bg-slate-800/90 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all outline-none"
         />
       </div>
 
-      {/* TABLA */}
+      {/* TABLA CORREGIDA */}
       <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-slate-900/50 border-b border-gray-200 dark:border-slate-700">
               <tr>
-                {["Código", "Nombre", "Acciones"].map(h => (
-                  <th key={h} className={`px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${h === "Acciones" ? "text-right" : "text-left"}`}>{h}</th>
-                ))}
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Código</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Nombre</th>
+                <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
               {loading ? (
                 [...Array(4)].map((_, i) => (
-                  <tr key={i}>{[...Array(3)].map((_, j) => (
-                    <td key={j} className="px-6 py-4"><div className="h-3 bg-gray-200 dark:bg-slate-700 rounded-full animate-pulse w-24" /></td>
-                  ))}</tr>
+                  <tr key={i}>
+                    <td className="px-6 py-4"><div className="h-3 bg-gray-200 dark:bg-slate-700 rounded-full animate-pulse w-24" /></td>
+                    <td className="px-6 py-4"><div className="h-3 bg-gray-200 dark:bg-slate-700 rounded-full animate-pulse w-32" /></td>
+                    <td className="px-6 py-4"><div className="h-3 bg-gray-200 dark:bg-slate-700 rounded-full animate-pulse w-16 ml-auto" /></td>
+                  </tr>
                 ))
               ) : paginados.length === 0 ? (
-                <tr><td colSpan={3} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                  <div className="flex flex-col items-center gap-2">
-                    <Layers className="w-12 h-12 text-gray-300 dark:text-gray-600" />
-                    <p>No se encontraron tipos de proceso</p>
-                  </div>
-                </td></tr>
+                <tr>
+                  <td colSpan={3} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                    <div className="flex flex-col items-center gap-2">
+                      <Layers className="w-12 h-12 text-gray-300 dark:text-gray-600" />
+                      <p>No se encontraron tipos de proceso</p>
+                    </div>
+                  </td>
+                </tr>
               ) : (
                 paginados.map(t => (
                   <tr key={t.idTipoProceso} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors group">
@@ -223,10 +261,20 @@ export default function TiposProcesoPage() {
                     <td className="px-6 py-4 text-sm font-medium text-gray-800 dark:text-white">{t.nombre}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => abrirEditar(t)} className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors" title="Editar">
+                        <button 
+                          onClick={() => abrirEditar(t)} 
+                          disabled={saving}
+                          className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed" 
+                          title="Editar"
+                        >
                           <Edit className="w-4 h-4" />
                         </button>
-                        <button onClick={() => eliminar(t.idTipoProceso, t.nombre)} className="p-2 rounded-lg text-gray-500 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500 transition-colors" title="Eliminar">
+                        <button 
+                          onClick={() => eliminar(t.idTipoProceso, t.nombre)} 
+                          disabled={deletingId === t.idTipoProceso}
+                          className="p-2 rounded-lg text-gray-500 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed" 
+                          title="Eliminar"
+                        >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -246,12 +294,16 @@ export default function TiposProcesoPage() {
             Mostrando {startIndex + 1}–{Math.min(startIndex + itemsPerPage, tiposFiltrados.length)} de {tiposFiltrados.length}
           </p>
           <div className="flex gap-1">
-            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+            <button 
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+              disabled={currentPage === 1}
               className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
               <ChevronLeft className="w-4 h-4" />
             </button>
             <span className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">Página {currentPage} de {totalPages}</span>
-            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+            <button 
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+              disabled={currentPage === totalPages}
               className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -263,14 +315,36 @@ export default function TiposProcesoPage() {
       {modalAbierto && (
         <Modal onClose={cerrar} title={editando ? "Editar tipo de proceso" : "Nuevo tipo de proceso"}>
           <div className="space-y-1">
-            <Field label="Código" value={form.codigo} onChange={v => setForm(p => ({ ...p, codigo: v }))} placeholder="Ej: PENAL-ORD" required />
-            <Field label="Nombre" value={form.nombre} onChange={v => setForm(p => ({ ...p, nombre: v }))} placeholder="Ej: Proceso Penal Ordinario" required />
+            <Field 
+              label="Código" 
+              value={form.codigo} 
+              onChange={v => setForm(p => ({ ...p, codigo: v }))} 
+              placeholder="Ej: PENAL-ORD" 
+              required 
+              disabled={saving}
+            />
+            <Field 
+              label="Nombre" 
+              value={form.nombre} 
+              onChange={v => setForm(p => ({ ...p, nombre: v }))} 
+              placeholder="Ej: Proceso Penal Ordinario" 
+              required 
+              disabled={saving}
+            />
             <div className="flex gap-3 justify-end pt-4">
-              <button onClick={cerrar} className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium">
+              <button 
+                onClick={cerrar} 
+                disabled={saving}
+                className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 Cancelar
               </button>
-              <button onClick={guardar} className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white font-medium text-sm shadow-md transition-all">
-                {editando ? "Guardar cambios" : "Crear tipo"}
+              <button 
+                onClick={guardar} 
+                disabled={saving}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white font-medium text-sm shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? "Guardando..." : (editando ? "Guardar cambios" : "Crear tipo")}
               </button>
             </div>
           </div>
