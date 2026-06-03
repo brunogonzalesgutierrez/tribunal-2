@@ -1,0 +1,251 @@
+================================================================
+GUÍA COMPLETA — MÓDULO DE ASISTENCIA EN AUDIENCIAS
+================================================================
+Lee esto PRIMERO antes de abrir cualquier archivo.
+Sigue los pasos EN ORDEN. No te saltes ninguno.
+================================================================
+
+
+RESUMEN DE LO QUE VAS A HACER:
+  1. Cambiar schema.py en el backend (3 cosas pequeñas)
+  2. Cambiar audiencias.ts en el frontend (pegar al final)
+  3. Cambiar ExpedienteDetallePage.tsx (6 cosas pequeñas)
+
+Cuando termines: un ícono de lista (📋) aparecerá en cada
+card de audiencia. Al hacer clic se abre el modal para marcar
+PRESENTE / AUSENTE / JUSTIFICADO a cada parte.
+
+
+================================================================
+PASO 1 — Abrir schema.py (backend)
+================================================================
+
+Ubicación: tu carpeta de Django, el archivo schema.py
+
+CAMBIO 1A: Agregar la declaración de la query
+──────────────────────────────────────────────
+Busca esta línea:
+    all_asistencias = graphene.List(AsistenciaAudienciaType)
+
+Justo DEBAJO agrega:
+    asistencias_por_audiencia = graphene.List(AsistenciaAudienciaType, id_audiencia=graphene.Int(required=True))
+
+
+CAMBIO 1B: Agregar el resolver de la query
+──────────────────────────────────────────
+Busca esta línea:
+    def resolve_all_asistencias(root, info):
+        return AsistenciaAudiencia.objects.all()
+
+Justo DEBAJO agrega:
+    def resolve_asistencias_por_audiencia(root, info, id_audiencia):
+        return AsistenciaAudiencia.objects.filter(
+            id_audiencia__id_audiencia=id_audiencia
+        ).select_related("id_persona", "id_audiencia")
+
+
+CAMBIO 1C: Agregar la mutation batch (ANTES de la clase Mutation)
+──────────────────────────────────────────────────────────────────
+Busca esta línea (está casi al final del archivo):
+    # ============================================================
+    # MUTATION PRINCIPAL
+    # ============================================================
+
+Justo ANTES de esa línea, pega todo el contenido del
+ARCHIVO_1_schema_cambios.py — específicamente el bloque
+que empieza con:
+    class RegistroAsistenciaInput(graphene.InputObjectType):
+y termina con:
+    )
+
+
+CAMBIO 1D: Registrar la mutation en la clase Mutation
+──────────────────────────────────────────────────────
+Busca esta línea (dentro de la clase Mutation):
+    registrar_asistencia  = RegistrarAsistencia.Field()
+
+Justo DEBAJO agrega:
+    registrar_asistencia_batch = RegistrarAsistenciaBatch.Field()
+
+
+CUANDO TERMINES EL PASO 1: reinicia el servidor Django
+    (Ctrl+C y luego python manage.py runserver)
+
+
+================================================================
+PASO 2 — Abrir audiencias.ts (frontend)
+================================================================
+
+Ubicación: src/graphql/audiencias.ts
+
+Ve al FINAL del archivo y pega estas 2 exportaciones:
+
+──────────────────────────────────────────────────────────────
+export const GET_ASISTENCIAS_AUDIENCIA = gql`
+  query AsistenciasPorAudiencia($idAudiencia: Int!) {
+    asistenciasPorAudiencia(idAudiencia: $idAudiencia) {
+      idAsistencia
+      rolEnAudiencia
+      asistio
+      motivoInasistencia
+      horaIngreso
+      idPersona {
+        idPersona
+        nombre
+        primerApellido
+        numeroDocumento
+      }
+    }
+  }
+`;
+
+export const REGISTRAR_ASISTENCIA_BATCH = gql`
+  mutation RegistrarAsistenciaBatch($idAudiencia: Int!, $registros: [RegistroAsistenciaInput!]!) {
+    registrarAsistenciaBatch(idAudiencia: $idAudiencia, registros: $registros) {
+      ok
+      mensaje
+      registros
+    }
+  }
+`;
+──────────────────────────────────────────────────────────────
+
+Guarda el archivo.
+
+
+================================================================
+PASO 3 — Abrir ExpedienteDetallePage.tsx (frontend)
+================================================================
+
+Ubicación: src/pages/... (donde tengas ExpedienteDetallePage.tsx)
+
+HAY 6 CAMBIOS PEQUEÑOS. Hazlos en orden:
+
+
+CAMBIO 3A: Agregar useEffect al import de React
+────────────────────────────────────────────────
+Busca al INICIO del archivo:
+    import { useState } from "react";
+
+Reemplaza por:
+    import { useState, useEffect } from "react";
+
+
+CAMBIO 3B: Agregar los imports de GraphQL
+────────────────────────────────────────────────
+Busca estas líneas (están arriba, en los imports):
+    } from "../../graphql/audiencias";
+
+Reemplaza esa línea final con:
+    GET_ASISTENCIAS_AUDIENCIA,
+    REGISTRAR_ASISTENCIA_BATCH,
+} from "../../graphql/audiencias";
+
+(o sea, agrega las 2 líneas nuevas antes del cierre })
+
+
+CAMBIO 3C: Pegar el componente ModalAsistencia
+────────────────────────────────────────────────
+Busca en el archivo esta función:
+    function ModalCitaciones({
+
+Justo ANTES de "function ModalCitaciones({" pega todo el
+componente ModalAsistencia que está en el ARCHIVO_3.
+Es el bloque grande que empieza con:
+
+    // ─── Tipos de estado de asistencia ────────────────────────
+    type EstadoAsistencia = "PRESENTE" | "AUSENTE" | "JUSTIFICADO" | null;
+
+y termina con el cierre de la función:
+    }   ← el último } de function ModalAsistencia
+
+
+CAMBIO 3D: Agregar el estado asistenciaAud
+────────────────────────────────────────────────
+Busca dentro de "export default function ExpedienteDetallePage()" esta línea:
+    const [citacionAud, setCitacionAud] = useState<any | null>(null);
+
+Justo DEBAJO agrega:
+    const [asistenciaAud, setAsistenciaAud] = useState<any | null>(null);
+
+
+CAMBIO 3E: Agregar el botón de asistencia en cada card
+────────────────────────────────────────────────────────
+Busca el botón de citaciones (está dentro del map de audiencias):
+    <button
+      onClick={() => setCitacionAud(a)}
+      title="Enviar citaciones por email"
+      className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+    >
+      <Send className="w-3.5 h-3.5" />
+    </button>
+
+Justo DESPUÉS de ese </button>, agrega este nuevo botón:
+    <button
+      onClick={() => setAsistenciaAud(a)}
+      title="Tomar asistencia"
+      className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
+    >
+      <ClipboardList className="w-3.5 h-3.5" />
+    </button>
+
+
+CAMBIO 3F: Agregar el modal al final de la sección audiencias
+─────────────────────────────────────────────────────────────
+Busca este bloque (está al final de la sección {tabActiva === "audiencias"}):
+    {citacionAud && (
+      <ModalCitaciones
+        audiencia={citacionAud}
+        partes={partes.filter((p: any) => p.activo)}
+        onClose={() => setCitacionAud(null)}
+      />
+    )}
+
+Justo DESPUÉS de ese bloque (después del último }), agrega:
+    {asistenciaAud && (
+      <ModalAsistencia
+        audiencia={asistenciaAud}
+        partes={partes.filter((p: any) => p.activo)}
+        onClose={() => setAsistenciaAud(null)}
+      />
+    )}
+
+
+================================================================
+LISTO — Qué debería pasar cuando termines:
+================================================================
+
+✅ En cada card de audiencia verás 3 íconos:
+   📧 Send (citaciones)  📋 ClipboardList (asistencia)  ✏️ Editar  🗑️ Eliminar
+
+✅ Al hacer clic en 📋:
+   - Si NO hay asistencia guardada → abre directo en modo edición
+   - Si YA hay asistencia → muestra los estados guardados con botón "Editar"
+
+✅ En modo edición:
+   - Cada parte tiene 3 botones: Presente (verde) / Ausente (rojo) / Justificado (amarillo)
+   - Si marcas Ausente o Justificado, aparece un campo opcional de motivo
+   - El botón "Guardar" se activa cuando todos están marcados
+
+✅ Al guardar:
+   - Se borran los registros anteriores y se crean los nuevos
+   - El modal cambia a modo "ver" mostrando el resumen
+
+
+================================================================
+PROBLEMAS COMUNES:
+================================================================
+
+❌ Error "Cannot find name 'useEffect'"
+   → Asegúrate de haber hecho el CAMBIO 3A (agregar useEffect al import)
+
+❌ Error "GET_ASISTENCIAS_AUDIENCIA is not exported"
+   → Revisa que hayas pegado las 2 queries en audiencias.ts (PASO 2)
+
+❌ Error en el backend "Cannot query field asistenciasPorAudiencia"
+   → Reinicia el servidor Django después del PASO 1
+
+❌ Error "RegistrarAsistenciaBatch is not defined"
+   → Asegúrate de haber pegado la clase completa en schema.py
+     Y de haber agregado la línea en la clase Mutation (CAMBIO 1D)
+================================================================

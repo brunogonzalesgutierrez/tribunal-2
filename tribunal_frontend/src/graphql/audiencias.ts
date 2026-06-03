@@ -383,3 +383,32 @@ export const ENVIAR_CITACIONES_AUDIENCIA = gql`
     }
   }
 `;
+
+
+export const GET_ASISTENCIAS_AUDIENCIA = gql`
+  query AsistenciasPorAudiencia($idAudiencia: Int!) {
+    asistenciasPorAudiencia(idAudiencia: $idAudiencia) {
+      idAsistencia
+      rolEnAudiencia
+      asistio
+      motivoInasistencia
+      horaIngreso
+      idPersona {
+        idPersona
+        nombre
+        primerApellido
+        numeroDocumento
+      }
+    }
+  }
+`;
+
+export const REGISTRAR_ASISTENCIA_BATCH = gql`
+  mutation RegistrarAsistenciaBatch($idAudiencia: Int!, $registros: [RegistroAsistenciaInput!]!) {
+    registrarAsistenciaBatch(idAudiencia: $idAudiencia, registros: $registros) {
+      ok
+      mensaje
+      registros
+    }
+  }
+`;

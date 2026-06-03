@@ -542,7 +542,7 @@ function ModalSubirDocumento({ expedientes, tipos, onClose, onExito }: ModalSubi
 }
 
 // ─── MODAL EDITAR ─────────────────────────────────────────
-const initFormEditar = { titulo: "", numeroFolio: "", rutaArchivo: "" };
+const initFormEditar = { titulo: "", numeroFolio: "" };
 
 // ─── PAGINACIÓN ───────────────────────────────────────────
 const PER_PAGE = 10;
@@ -597,7 +597,6 @@ export default function DocumentosListPage() {
     setFormEditar({
       titulo:      d.titulo,
       numeroFolio: d.numeroFolio != null ? String(d.numeroFolio) : "",
-      rutaArchivo: d.rutaArchivo ?? "",
     });
     setErr(""); setModalEditar(true);
   };
@@ -618,10 +617,9 @@ export default function DocumentosListPage() {
           variables: {
             id: Number(editando!.idDocumento),
             input: {
-              titulo:      formEditar.titulo,
-              numeroFolio: formEditar.numeroFolio ? Number(formEditar.numeroFolio) : undefined,
-              rutaArchivo: formEditar.rutaArchivo || undefined,
-            },
+            titulo:      formEditar.titulo,
+            numeroFolio: formEditar.numeroFolio ? Number(formEditar.numeroFolio) : undefined,
+          },
           },
         });
         await refetch(); 
@@ -923,13 +921,6 @@ export default function DocumentosListPage() {
             value={formEditar.numeroFolio} 
             onChange={fe("numeroFolio")} 
             type="number" 
-            disabled={saving}
-          />
-          <Field 
-            label="Ruta / URL del archivo" 
-            value={formEditar.rutaArchivo} 
-            onChange={fe("rutaArchivo")} 
-            placeholder="ej: /docs/archivo.pdf" 
             disabled={saving}
           />
           <ErrorBox msg={err} />

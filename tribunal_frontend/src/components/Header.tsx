@@ -424,14 +424,14 @@ export default function Header({
           </button>
         )}
 
-        {/* Configuración */}
+        {/* Configuración
         <button className={`p-2 rounded-lg transition-all duration-200 ${darkMode ? "text-gray-400 hover:bg-gray-700" : "text-gray-600 hover:bg-gray-100"}`}>
           <Settings className="w-5 h-5" />
-        </button>
+        </button> */}
 
         {/* Notificaciones */}
 
-        <NotificacionesPanel darkMode={darkMode} />
+        <NotificacionesPanel/>
 
         {/* Separador */}
         <div className={`w-px h-8 ${darkMode ? "bg-gray-700" : "bg-gray-200"}`} />
@@ -469,10 +469,10 @@ export default function Header({
                 <User className="w-4 h-4" />
                 Mi Perfil
               </NavLink>
-              <button className={`w-full text-left px-4 py-2 text-sm ${darkMode ? "text-gray-300 hover:bg-gray-700" : "text-gray-700 hover:bg-gray-100"} transition-colors flex items-center gap-3`}>
+              {/* <button className={`w-full text-left px-4 py-2 text-sm ${darkMode ? "text-gray-300 hover:bg-gray-700" : "text-gray-700 hover:bg-gray-100"} transition-colors flex items-center gap-3`}>
                 <HelpCircle className="w-4 h-4" />
                 Ayuda
-              </button>
+              </button> */}
               <div className={`border-t ${darkMode ? "border-gray-700" : "border-gray-100"} my-1`} />
               <button
                 onClick={handleLogout}
