@@ -203,10 +203,10 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
       name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard,
       type: 'link', description: 'Vista principal', requiredPermissions: [],
     },
-    { 
-      name: 'Perfil', path: '/perfil', icon: UserCircle,
-      type: 'link', description: 'Mi información personal', requiredPermissions: [],
-    },
+    // { 
+    //   name: 'Perfil', path: '/perfil', icon: UserCircle,
+    //   type: 'link', description: 'Mi información personal', requiredPermissions: [],
+    // },
     { 
       name: 'Seguridad', icon: ShieldCheck, type: 'dropdown',
       description: 'Usuarios y permisos',

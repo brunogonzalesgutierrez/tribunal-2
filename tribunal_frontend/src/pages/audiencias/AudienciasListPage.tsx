@@ -225,14 +225,14 @@ function BuscadorTipoAudiencia({
 }
 
 // ============================================================
-// COMPONENTE: Buscador de Salas (Modal)
+// COMPONENTE: Buscador de Salas (Modal) - ACTUALIZADO
 // ============================================================
 function BuscadorSalaAudiencia({
   onSelect,
   onClose,
   disabled,
 }: {
-  onSelect: (id: number, nombre: string) => void;
+  onSelect: (id: number, nombre: string, enlaceVirtual?: string) => void;  // ✅ Agregado enlaceVirtual
   onClose: () => void;
   disabled?: boolean;
 }) {
@@ -288,7 +288,8 @@ function BuscadorSalaAudiencia({
                 <button
                   key={s.idSalaAud}
                   onClick={() => {
-                    onSelect(s.idSalaAud, `${s.nombreSala} (Cap. ${s.capacidad})`);
+                    // ✅ Enviar también el enlace virtual si existe
+                    onSelect(s.idSalaAud, `${s.nombreSala} (Cap. ${s.capacidad})`, s.enlaceVirtual);
                     onClose();
                   }}
                   disabled={disabled}
@@ -300,6 +301,12 @@ function BuscadorSalaAudiencia({
                     <div>
                       <p className="font-semibold text-gray-800 dark:text-white">{s.nombreSala}</p>
                       <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Capacidad: {s.capacidad} personas</p>
+                      {/* ✅ Mostrar indicador si tiene videoconferencia */}
+                      {s.enlaceVirtual && (
+                        <p className="text-xs text-blue-500 mt-0.5 flex items-center gap-1">
+                          <Video className="w-3 h-3" /> Con videoconferencia
+                        </p>
+                      )}
                     </div>
                     <div className="text-blue-500">
                       <Plus className="w-5 h-5" />
@@ -323,7 +330,6 @@ function BuscadorSalaAudiencia({
     </div>
   );
 }
-
 // ─── CARD MÓVIL ──────────────────────────────────────────
 function AudienciaCard({
   a, onEdit, onDelete, disabled,
@@ -495,10 +501,14 @@ export default function AudienciasListPage() {
     setTipoSeleccionado(nombre);
   };
 
-  const seleccionarSala = (id: number, nombre: string) => {
-    setForm(f => ({ ...f, idSalaAud: id }));
-    setSalaSeleccionada(nombre);
-  };
+const seleccionarSala = (id: number, nombre: string, enlaceVirtual?: string) => {
+  setForm(f => ({ ...f, idSalaAud: id }));
+  setSalaSeleccionada(nombre);
+  
+  if (enlaceVirtual) {
+    setForm(f => ({ ...f, linkVideoconferencia: enlaceVirtual }));
+  }
+};
 
   const resetBusqueda = () => {
     setBusq("");
