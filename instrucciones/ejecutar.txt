@@ -12,3 +12,5 @@ terminal 2:
 cd tribunal_frontend
 
 npm run dev
+
+npm install jspdf

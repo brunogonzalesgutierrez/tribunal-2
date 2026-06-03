@@ -40,7 +40,7 @@ para subir:
 git remote -v
 
 git add .
-git commit -m "ordenado audiencia"
+git commit -m "arreglado"
 git push origin main
 
 o para forzar a subir:
@@ -125,3 +125,26 @@ https://claude.ai/share/e743942a-102c-47d5-80ab-c99d1aaa0857
 
 
 https://claude.ai/share/d6991dac-d129-463b-9e8a-441405441d9a
+
+
+
+
+
+
+
+
+Perfecto, ya tengo todo el contexto. Entonces quieres un botón "Generar PDF" en la tab de Resoluciones de ExpedienteDetallePage.tsx que descargue un PDF oficial de la resolución con todos los datos del caso.
+
+Para hacerlo en el frontend (sin tocar el backend) uso la librería jsPDF que ya está disponible. El PDF incluirá:
+
+Encabezado del tribunal y expediente
+Datos de la resolución (número, fecha, tipo)
+Partes procesales
+Parte dispositiva y fundamentación
+Pie de página oficial
+
+Utilidad para generar PDF de resolución judicial desde el frontend
+Utilidad para generar PDF de resolución judicial desde el frontend
+Ahora el botón que va dentro de la tab Resoluciones en ExpedienteDetallePage.tsx. Solo hay que reemplazar la sección {/* ══ RESOLUCIONES ══ */}:
+
+

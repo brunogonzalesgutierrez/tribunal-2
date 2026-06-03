@@ -368,3 +368,18 @@ export const GET_USUARIOS_SIMPLE = gql`
     }
   }
 `;
+
+
+
+export const ENVIAR_CITACIONES_AUDIENCIA = gql`
+  mutation EnviarCitacionesAudiencia($idAudiencia: Int!) {
+    enviarCitacionesAudiencia(idAudiencia: $idAudiencia) {
+      ok
+      mensaje
+      enviados
+      fallidos
+      sinEmail
+      destinatarios
+    }
+  }
+`;

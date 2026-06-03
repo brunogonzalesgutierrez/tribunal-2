@@ -34,8 +34,14 @@ export const GET_DETALLE_EXPEDIENTE = gql`
         numeroDocumento
         esAbogado
         estamento
+        contactos {         
+          idContacto
+          tipoContacto
+          valor
+          esPrincipal
+        }
       }
-      idRol { idRol nombreRol }
+            idRol { idRol nombreRol }
     }
 
     conformacionesPorExpediente(idExpediente: $id) {

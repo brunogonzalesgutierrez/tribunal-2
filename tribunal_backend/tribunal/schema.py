@@ -3032,6 +3032,341 @@ class EnviarReportesPorEmail(graphene.Mutation):
 
 
 
+class ResultadoCitacionType(graphene.ObjectType):
+    ok            = graphene.Boolean()
+    mensaje       = graphene.String()
+    enviados      = graphene.Int()
+    fallidos      = graphene.Int()
+    sin_email     = graphene.List(graphene.String)
+    destinatarios = graphene.List(graphene.String)
+
+
+class EnviarCitacionesAudiencia(graphene.Mutation):
+    """
+    Envía un correo de citación personalizado a cada parte procesal
+    del expediente al que pertenece la audiencia.
+
+    Uso desde GraphQL:
+        mutation {
+          enviarCitacionesAudiencia(idAudiencia: 5) {
+            ok
+            mensaje
+            enviados
+            fallidos
+            sinEmail
+            destinatarios
+          }
+        }
+    """
+    class Arguments:
+        id_audiencia = graphene.Int(required=True)
+
+    Output = ResultadoCitacionType
+
+    def mutate(self, info, id_audiencia):
+        # 1. Obtener la audiencia
+        try:
+            audiencia = Audiencia.objects.select_related(
+                "id_expediente",
+                "id_tipo_audiencia",
+                "id_sala_aud",
+                "id_expediente__id_sala__id_tribunal",
+            ).get(id_audiencia=id_audiencia)
+        except Audiencia.DoesNotExist:
+            return ResultadoCitacionType(
+                ok=False,
+                mensaje="Audiencia no encontrada.",
+                enviados=0, fallidos=0, sin_email=[], destinatarios=[],
+            )
+
+        expediente   = audiencia.id_expediente
+        tipo_aud     = audiencia.id_tipo_audiencia.nombre if audiencia.id_tipo_audiencia else "Audiencia"
+        sala_nombre  = audiencia.id_sala_aud.nombre_sala if audiencia.id_sala_aud else "Por confirmar"
+        tribunal     = expediente.id_sala.id_tribunal.nombre_tribunal if expediente.id_sala else "Tribunal"
+        link         = audiencia.link_videoconferencia or ""
+
+        # Formatear fecha
+        from django.utils.timezone import localtime
+        fecha_local  = localtime(audiencia.fecha_hora_programada)
+        import locale
+        try:
+            locale.setlocale(locale.LC_TIME, 'es_BO.UTF-8')
+        except:
+            try:
+                locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')
+            except:
+                pass
+        fecha_str = fecha_local.strftime("%d de %B de %Y")
+        hora_str  = fecha_local.strftime("%H:%M")
+
+        # 2. Obtener partes activas del expediente
+        partes = ParteProcesal.objects.filter(
+            id_expediente=expediente,
+            activo=True,
+        ).select_related("id_persona", "id_rol")
+
+        if not partes.exists():
+            return ResultadoCitacionType(
+                ok=False,
+                mensaje="El expediente no tiene partes procesales activas.",
+                enviados=0, fallidos=0, sin_email=[], destinatarios=[],
+            )
+
+        enviados      = 0
+        fallidos      = 0
+        sin_email     = []
+        destinatarios = []
+
+        for parte in partes:
+            persona = parte.id_persona
+            rol     = parte.id_rol.nombre_rol if parte.id_rol else "Parte procesal"
+
+            nombre_completo = f"{persona.nombre} {persona.primer_apellido}"
+            if persona.segundo_apellido:
+                nombre_completo += f" {persona.segundo_apellido}"
+
+            # 3. Buscar email principal; si no hay, cualquier EMAIL
+            contacto = (
+                ContactoPersona.objects.filter(
+                    id_persona=persona,
+                    tipo_contacto__iexact="EMAIL",
+                    es_principal=True,
+                ).first()
+                or
+                ContactoPersona.objects.filter(
+                    id_persona=persona,
+                    tipo_contacto__iexact="EMAIL",
+                ).first()
+            )
+
+            if not contacto:
+                sin_email.append(f"{nombre_completo} ({rol})")
+                continue
+
+            email_destino = contacto.valor.strip()
+
+            # 4. Construir el cuerpo del correo
+            link_seccion = ""
+            if link:
+                link_seccion = f"\n  Enlace de videoconferencia: {link}\n"
+
+            cuerpo = f"""Estimado/a {nombre_completo},
+
+Por medio del presente, el {tribunal} le cita formalmente a comparecer a la siguiente audiencia:
+
+  Expediente N°  : {expediente.numero_expediente} ({expediente.ano})
+  Tipo de audiencia: {tipo_aud}
+  Fecha          : {fecha_str}
+  Hora           : {hora_str} hrs.
+  Sala           : {sala_nombre}{link_seccion}
+
+Su participación en calidad de: {rol}
+
+Se le recuerda que la inasistencia sin justificación puede tener consecuencias procesales conforme a la normativa vigente.
+
+Este mensaje fue generado automáticamente por el Sistema de Gestión Judicial.
+Por favor no responda a este correo electrónico.
+
+Atentamente,
+{tribunal}
+Sistema de Gestión Judicial
+"""
+
+            asunto = (
+                f"CITACIÓN — {tipo_aud} · Exp. {expediente.numero_expediente} · "
+                f"{fecha_str} {hora_str} hrs."
+            )
+
+            # 5. Enviar
+            try:
+                html_cuerpo = f"""
+                <!DOCTYPE html>
+                <html lang="es">
+                <head><meta charset="UTF-8"></head>
+                <body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,sans-serif;">
+                <table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 0;">
+                    <tr><td align="center">
+                    <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+
+                        <!-- Franja superior -->
+                        <tr>
+                        <td style="background:#1a37db;padding:28px 40px;">
+                            <p style="margin:0;color:#ffffff;font-size:11px;letter-spacing:2px;text-transform:uppercase;">Estado Plurinacional de Bolivia</p>
+                            <h1 style="margin:6px 0 0;color:#ffffff;font-size:20px;font-weight:700;">{tribunal}</h1>
+                            <p style="margin:4px 0 0;color:#bfcfff;font-size:12px;">Sistema de Gestión Judicial</p>
+                        </td>
+                        </tr>
+
+                        <!-- Etiqueta CITACIÓN JUDICIAL -->
+                        <tr>
+                        <td style="background:#1e40af;padding:10px 40px;">
+                            <p style="margin:0;color:#ffffff;font-size:13px;font-weight:700;letter-spacing:1px;">⚖ CITACIÓN JUDICIAL</p>
+                        </td>
+                        </tr>
+
+                        <!-- Saludo -->
+                        <tr>
+                        <td style="padding:32px 40px 16px;">
+                            <p style="margin:0;color:#374151;font-size:15px;">Estimado/a <strong>{nombre_completo}</strong>,</p>
+                            <p style="margin:12px 0 0;color:#6b7280;font-size:14px;line-height:1.6;">
+                            Por medio del presente, el <strong>{tribunal}</strong> le cita formalmente
+                            a comparecer a la siguiente audiencia judicial:
+                            </p>
+                        </td>
+                        </tr>
+
+                        <!-- Tabla de datos -->
+                        <tr>
+                        <td style="padding:0 40px 24px;">
+                            <table width="100%" cellpadding="0" cellspacing="0"
+                                style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+                            <tr style="background:#f9fafb;">
+                                <td style="padding:10px 16px;font-size:11px;color:#6b7280;font-weight:700;
+                                        letter-spacing:1px;text-transform:uppercase;width:40%;
+                                        border-bottom:1px solid #e5e7eb;">
+                                Expediente N°
+                                </td>
+                                <td style="padding:10px 16px;font-size:14px;color:#111827;font-weight:700;
+                                        border-bottom:1px solid #e5e7eb;">
+                                {expediente.numero_expediente} &nbsp;·&nbsp; {expediente.ano}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding:10px 16px;font-size:11px;color:#6b7280;font-weight:700;
+                                        letter-spacing:1px;text-transform:uppercase;
+                                        border-bottom:1px solid #e5e7eb;background:#f9fafb;">
+                                Tipo de audiencia
+                                </td>
+                                <td style="padding:10px 16px;font-size:14px;color:#111827;
+                                        border-bottom:1px solid #e5e7eb;">
+                                {tipo_aud}
+                                </td>
+                            </tr>
+                            <tr style="background:#f9fafb;">
+                                <td style="padding:10px 16px;font-size:11px;color:#6b7280;font-weight:700;
+                                        letter-spacing:1px;text-transform:uppercase;
+                                        border-bottom:1px solid #e5e7eb;">
+                                Fecha
+                                </td>
+                                <td style="padding:10px 16px;font-size:14px;color:#111827;font-weight:600;
+                                        border-bottom:1px solid #e5e7eb;">
+                                {fecha_str}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding:10px 16px;font-size:11px;color:#6b7280;font-weight:700;
+                                        letter-spacing:1px;text-transform:uppercase;
+                                        border-bottom:1px solid #e5e7eb;background:#f9fafb;">
+                                Hora
+                                </td>
+                                <td style="padding:10px 16px;font-size:14px;color:#111827;font-weight:600;
+                                        border-bottom:1px solid #e5e7eb;">
+                                {hora_str} hrs.
+                                </td>
+                            </tr>
+                            <tr style="background:#f9fafb;">
+                                <td style="padding:10px 16px;font-size:11px;color:#6b7280;font-weight:700;
+                                        letter-spacing:1px;text-transform:uppercase;">
+                                Sala
+                                </td>
+                                <td style="padding:10px 16px;font-size:14px;color:#111827;">
+                                {sala_nombre}
+                                </td>
+                            </tr>
+                            </table>
+                        </td>
+                        </tr>
+
+                        <!-- Rol -->
+                        <tr>
+                        <td style="padding:0 40px 24px;">
+                            <table width="100%" cellpadding="0" cellspacing="0"
+                                style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;">
+                            <tr>
+                                <td style="padding:14px 20px;">
+                                <p style="margin:0;font-size:12px;color:#1d4ed8;font-weight:700;
+                                            text-transform:uppercase;letter-spacing:1px;">
+                                    Su participación en calidad de:
+                                </p>
+                                <p style="margin:4px 0 0;font-size:16px;color:#1e3a8a;font-weight:700;">
+                                    {rol}
+                                </p>
+                                </td>
+                            </tr>
+                            </table>
+                        </td>
+                        </tr>
+
+                        {'<!-- Link videoconferencia --><tr><td style="padding:0 40px 24px;"><table width="100%" cellpadding="0" cellspacing="0" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;"><tr><td style="padding:14px 20px;"><p style="margin:0;font-size:12px;color:#15803d;font-weight:700;text-transform:uppercase;letter-spacing:1px;">🎥 Enlace de videoconferencia</p><a href="' + link + '" style="display:inline-block;margin-top:6px;color:#16a34a;font-size:14px;word-break:break-all;">' + link + '</a></td></tr></table></td></tr>' if link else ''}
+
+                        <!-- Advertencia -->
+                        <tr>
+                        <td style="padding:0 40px 32px;">
+                            <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.6;
+                                    border-top:1px solid #e5e7eb;padding-top:20px;">
+                            ⚠ Se le recuerda que la inasistencia sin justificación puede tener
+                            consecuencias procesales conforme a la normativa vigente.
+                            </p>
+                            <p style="margin:16px 0 0;font-size:12px;color:#9ca3af;">
+                            Este mensaje fue generado automáticamente por el Sistema de Gestión Judicial.
+                            Por favor no responda a este correo electrónico.
+                            </p>
+                        </td>
+                        </tr>
+
+                        <!-- Pie -->
+                        <tr>
+                        <td style="background:#1a37db;padding:20px 40px;text-align:center;">
+                            <p style="margin:0;color:#bfcfff;font-size:12px;">
+                            {tribunal} &nbsp;·&nbsp; Sistema de Gestión Judicial
+                            </p>
+                        </td>
+                        </tr>
+
+                    </table>
+                    </td></tr>
+                </table>
+                </body>
+                </html>
+                """
+
+                from django.core.mail import EmailMultiAlternatives
+                msg = EmailMultiAlternatives(
+                    subject=asunto,
+                    body=cuerpo,        # versión texto plano (fallback)
+                    from_email=django_settings.DEFAULT_FROM_EMAIL,
+                    to=[email_destino],
+                )
+                msg.attach_alternative(html_cuerpo, "text/html")
+                msg.send(fail_silently=False)
+                enviados += 1
+                destinatarios.append(f"{nombre_completo} <{email_destino}>")
+            except Exception as e:
+                fallidos += 1
+
+        # 6. Resultado
+        if enviados == 0 and fallidos == 0 and sin_email:
+            return ResultadoCitacionType(
+                ok=False,
+                mensaje="Ninguna parte tiene email registrado en el sistema.",
+                enviados=0, fallidos=0,
+                sin_email=sin_email, destinatarios=[],
+            )
+
+        mensaje = f"Citaciones enviadas: {enviados}."
+        if fallidos:
+            mensaje += f" Fallidos: {fallidos}."
+        if sin_email:
+            mensaje += f" Sin email: {len(sin_email)} parte(s)."
+
+        return ResultadoCitacionType(
+            ok=fallidos == 0,
+            mensaje=mensaje,
+            enviados=enviados,
+            fallidos=fallidos,
+            sin_email=sin_email,
+            destinatarios=destinatarios,
+        )
 
 
 
@@ -3171,6 +3506,7 @@ class Mutation(graphene.ObjectType):
     obtener_qr    = ObtenerQr.Field()
     regenerar_qr  = RegenerarQr.Field()
     enviar_reportes_por_email = EnviarReportesPorEmail.Field()
+    enviar_citaciones_audiencia = EnviarCitacionesAudiencia.Field()
 
 
 
