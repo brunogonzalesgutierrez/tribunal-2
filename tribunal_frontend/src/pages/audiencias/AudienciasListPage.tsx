@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@apollo/client";
 import {
   GET_AUDIENCIAS,
@@ -14,7 +15,7 @@ import {
 import {
   Scale, Plus, Search, Edit, Trash2,
   Calendar, DoorOpen, Video, MoreVertical,
-  CheckCircle, Circle, AlertCircle, X, ChevronLeft, ChevronRight,
+  CheckCircle, Circle, AlertCircle, X, ChevronLeft, ChevronRight, Eye,
 } from "lucide-react";
 import {
   Audiencia, Expediente, TipoAudiencia, SalaAudiencia,
@@ -32,7 +33,7 @@ function BuscadorExpediente({
   onClose,
   disabled,
 }: {
-  onSelect: (id: number, nombre: string) => void;
+  onSelect: (id: number, nombre: string, enlaceVirtual?: string) => void;
   onClose: () => void;
   disabled?: boolean;
 }) {
@@ -232,7 +233,7 @@ function BuscadorSalaAudiencia({
   onClose,
   disabled,
 }: {
-  onSelect: (id: number, nombre: string, enlaceVirtual?: string) => void;  // ✅ Agregado enlaceVirtual
+  onSelect: (id: number, nombre: string, enlaceVirtual?: string) => void;
   onClose: () => void;
   disabled?: boolean;
 }) {
@@ -288,7 +289,6 @@ function BuscadorSalaAudiencia({
                 <button
                   key={s.idSalaAud}
                   onClick={() => {
-                    // ✅ Enviar también el enlace virtual si existe
                     onSelect(s.idSalaAud, `${s.nombreSala} (Cap. ${s.capacidad})`, s.enlaceVirtual);
                     onClose();
                   }}
@@ -301,7 +301,6 @@ function BuscadorSalaAudiencia({
                     <div>
                       <p className="font-semibold text-gray-800 dark:text-white">{s.nombreSala}</p>
                       <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Capacidad: {s.capacidad} personas</p>
-                      {/* ✅ Mostrar indicador si tiene videoconferencia */}
                       {s.enlaceVirtual && (
                         <p className="text-xs text-blue-500 mt-0.5 flex items-center gap-1">
                           <Video className="w-3 h-3" /> Con videoconferencia
@@ -408,6 +407,7 @@ function AudienciaCard({
 // PÁGINA PRINCIPAL
 // ════════════════════════════════════════════════════════
 export default function AudienciasListPage() {
+  const navigate = useNavigate();
   const { data, loading, refetch } = useQuery(GET_AUDIENCIAS);
   const { data: dExp }  = useQuery(GET_EXPEDIENTES_SIMPLE);
   const { data: dTipo } = useQuery(GET_TIPOS_AUDIENCIA);
@@ -501,14 +501,13 @@ export default function AudienciasListPage() {
     setTipoSeleccionado(nombre);
   };
 
-const seleccionarSala = (id: number, nombre: string, enlaceVirtual?: string) => {
-  setForm(f => ({ ...f, idSalaAud: id }));
-  setSalaSeleccionada(nombre);
-  
-  if (enlaceVirtual) {
-    setForm(f => ({ ...f, linkVideoconferencia: enlaceVirtual }));
-  }
-};
+  const seleccionarSala = (id: number, nombre: string, enlaceVirtual?: string) => {
+    setForm(f => ({ ...f, idSalaAud: id }));
+    setSalaSeleccionada(nombre);
+    if (enlaceVirtual) {
+      setForm(f => ({ ...f, linkVideoconferencia: enlaceVirtual }));
+    }
+  };
 
   const resetBusqueda = () => {
     setBusq("");
@@ -730,7 +729,16 @@ const seleccionarSala = (id: number, nombre: string, enlaceVirtual?: string) => 
               ) : <span className="text-gray-400 text-sm">—</span>}
             </td>
             <td className="px-6 py-4">
-              <ActionBtns onEdit={() => abrirEditar(a)} onDelete={() => eliminar(a)} disabled={saving} />
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => navigate(`/audiencias/${a.idAudiencia}`)}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                  title="Ver detalle"
+                >
+                  <Eye className="w-4 h-4" />
+                </button>
+                <ActionBtns onEdit={() => abrirEditar(a)} onDelete={() => eliminar(a)} disabled={saving} />
+              </div>
             </td>
           </tr>
         ))}

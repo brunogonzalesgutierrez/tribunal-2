@@ -451,6 +451,7 @@ class Query(graphene.ObjectType):
     all_actuaciones        = graphene.List(ActuacionProcesalType)
     all_tipos_actuacion    = graphene.List(TipoActuacionType)
     all_asistencias        = graphene.List(AsistenciaAudienciaType)
+    asistencias_por_audiencia = graphene.List(AsistenciaAudienciaType, id_audiencia=graphene.Int(required=True))
     all_vocales            = graphene.List(VocalTribunalType)
     all_partes_procesales  = graphene.List(ParteProcesalType)
     all_tipos_resolucion   = graphene.List(TipoResolucionType)
@@ -515,6 +516,13 @@ class Query(graphene.ObjectType):
     def resolve_all_actuaciones(root, info):        return ActuacionProcesal.objects.all()
     def resolve_all_tipos_actuacion(root, info):    return TipoActuacion.objects.all()
     def resolve_all_asistencias(root, info):        return AsistenciaAudiencia.objects.all()
+
+
+    def resolve_asistencias_por_audiencia(root, info, id_audiencia):
+        return AsistenciaAudiencia.objects.filter(
+            id_audiencia__id_audiencia=id_audiencia
+        ).select_related("id_persona", "id_audiencia")
+
     def resolve_all_vocales(root, info):            return VocalTribunal.objects.all()
     def resolve_all_partes_procesales(root, info):  return ParteProcesal.objects.all()
     def resolve_all_tipos_resolucion(root, info):   return TipoResolucion.objects.all()
@@ -3371,6 +3379,75 @@ Sistema de Gestión Judicial
 
 
 
+class RegistroAsistenciaInput(graphene.InputObjectType):
+    id_persona          = graphene.Int(required=True)
+    rol_en_audiencia    = graphene.String(required=True)
+    estado              = graphene.String(required=True)   # PRESENTE | AUSENTE | JUSTIFICADO
+    motivo_inasistencia = graphene.String()
+ 
+ 
+class ResultadoBatchAsistenciaType(graphene.ObjectType):
+    ok       = graphene.Boolean()
+    mensaje  = graphene.String()
+    registros = graphene.Int()
+ 
+ 
+class RegistrarAsistenciaBatch(graphene.Mutation):
+    """
+    Guarda la asistencia de TODAS las partes de una audiencia de una sola vez.
+    Borra los registros anteriores de esa audiencia y crea los nuevos.
+    """
+    class Arguments:
+        id_audiencia = graphene.Int(required=True)
+        registros    = graphene.List(RegistroAsistenciaInput, required=True)
+ 
+    Output = ResultadoBatchAsistenciaType
+ 
+    def mutate(self, info, id_audiencia, registros):
+        try:
+            audiencia = Audiencia.objects.get(id_audiencia=id_audiencia)
+        except Audiencia.DoesNotExist:
+            return ResultadoBatchAsistenciaType(
+                ok=False, mensaje="Audiencia no encontrada.", registros=0
+            )
+ 
+        # Borrar asistencias anteriores de esta audiencia
+        AsistenciaAudiencia.objects.filter(id_audiencia=audiencia).delete()
+ 
+        # Crear las nuevas
+        creados = 0
+        for r in registros:
+            try:
+                persona = Persona.objects.get(id_persona=r.id_persona)
+            except Persona.DoesNotExist:
+                continue
+ 
+            # Traducir estado al modelo
+            asistio             = r.estado == "PRESENTE"
+            motivo_inasistencia = None
+ 
+            if r.estado == "JUSTIFICADO":
+                motivo_inasistencia = r.motivo_inasistencia or "Justificado"
+            elif r.estado == "AUSENTE":
+                motivo_inasistencia = r.motivo_inasistencia or None
+ 
+            from django.utils import timezone
+            AsistenciaAudiencia.objects.create(
+                id_audiencia        = audiencia,
+                id_persona          = persona,
+                rol_en_audiencia    = r.rol_en_audiencia,
+                asistio             = asistio,
+                hora_ingreso        = timezone.now() if asistio else None,
+                motivo_inasistencia = motivo_inasistencia,
+            )
+            creados += 1
+ 
+        return ResultadoBatchAsistenciaType(
+            ok=True,
+            mensaje=f"Asistencia registrada para {creados} persona(s).",
+            registros=creados,
+        )
+
 
 
 
@@ -3507,6 +3584,8 @@ class Mutation(graphene.ObjectType):
     regenerar_qr  = RegenerarQr.Field()
     enviar_reportes_por_email = EnviarReportesPorEmail.Field()
     enviar_citaciones_audiencia = EnviarCitacionesAudiencia.Field()
+    registrar_asistencia  = RegistrarAsistencia.Field()
+    registrar_asistencia_batch = RegistrarAsistenciaBatch.Field()
 
 
 

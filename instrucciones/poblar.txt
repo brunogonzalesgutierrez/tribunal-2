@@ -1,0 +1,15 @@
+psql -U postgres
+
+\list
+DROP DATABASE tribunal_db;
+
+CREATE DATABASE tribunal_db;
+
+
+python manage.py migrate
+
+
+python poblar_db.py
+
+
+admin        → Admin123!

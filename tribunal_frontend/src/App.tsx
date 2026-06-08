@@ -22,6 +22,7 @@ import ContactosPage from "./pages/personas/ContactosPage";
 import RolesProcesalesPage from "./pages/personas/RolesProcesalesPage";
 import PartesPage from "./pages/personas/PartesPage";
 import AudienciasListPage from "./pages/audiencias/AudienciasListPage";
+import AudienciaDetallePage from "./pages/audiencias/AudienciaDetallePage";
 import TiposAudienciaPage from "./pages/audiencias/TiposAudienciaPage";
 import SalasAudienciaPage from "./pages/audiencias/SalasAudienciaPage";
 import AsistenciasPage from "./pages/audiencias/AsistenciasPage";
@@ -108,6 +109,7 @@ function App() {
           {/* ============================================================ */}
           <Route element={<ProtectedRoute requiredPermissions={[PERMISOS.AUDIENCIAS_VER]} />}>
             <Route path="/audiencias" element={<AudienciasListPage />} />
+            <Route path="/audiencias/:id" element={<AudienciaDetallePage />} />
           </Route>
           <Route element={<ProtectedRoute requiredPermissions={[PERMISOS.TIPOS_AUDIENCIA_VER]} />}>
             <Route path="/tipos-audiencia" element={<TiposAudienciaPage />} />
