@@ -1,49 +1,44 @@
 import { gql } from "@apollo/client";
 
-// ── Audiencias por estado ────────────────────────────────
 export const GET_REPORTE_AUDIENCIAS_ESTADO = gql`
-  query ReporteAudienciasEstado($anio: Int) {
-    reporteAudienciasPorEstado(anio: $anio) {
+  query ReporteAudienciasEstado($anio: Int, $mes: Int, $fechaInicio: String, $fechaFin: String) {
+    reporteAudienciasPorEstado(anio: $anio, mes: $mes, fechaInicio: $fechaInicio, fechaFin: $fechaFin) {
       estado
       cantidad
     }
   }
 `;
 
-// ── Audiencias por mes ───────────────────────────────────
 export const GET_REPORTE_AUDIENCIAS_MES = gql`
-  query ReporteAudienciasMes($anio: Int) {
-    reporteAudienciasPorMes(anio: $anio) {
+  query ReporteAudienciasMes($anio: Int, $mes: Int, $fechaInicio: String, $fechaFin: String) {
+    reporteAudienciasPorMes(anio: $anio, mes: $mes, fechaInicio: $fechaInicio, fechaFin: $fechaFin) {
       mes
       cantidad
     }
   }
 `;
 
-// ── Expedientes por tipo de proceso ──────────────────────
 export const GET_REPORTE_EXPEDIENTES_TIPO = gql`
-  query ReporteExpedientesTipo($anio: Int) {
-    reporteExpedientesPorTipo(anio: $anio) {
+  query ReporteExpedientesTipo($anio: Int, $mes: Int, $fechaInicio: String, $fechaFin: String) {
+    reporteExpedientesPorTipo(anio: $anio, mes: $mes, fechaInicio: $fechaInicio, fechaFin: $fechaFin) {
       tipo
       cantidad
     }
   }
 `;
 
-// ── Expedientes por estado ───────────────────────────────
 export const GET_REPORTE_EXPEDIENTES_ESTADO = gql`
-  query ReporteExpedientesEstado($anio: Int) {
-    reporteExpedientesPorEstado(anio: $anio) {
+  query ReporteExpedientesEstado($anio: Int, $mes: Int, $fechaInicio: String, $fechaFin: String) {
+    reporteExpedientesPorEstado(anio: $anio, mes: $mes, fechaInicio: $fechaInicio, fechaFin: $fechaFin) {
       estado
       cantidad
     }
   }
 `;
 
-// ── Carga por sala ───────────────────────────────────────
 export const GET_REPORTE_CARGA_SALA = gql`
-  query ReporteCargaSala($anio: Int) {
-    reporteCargaPorSala(anio: $anio) {
+  query ReporteCargaSala($anio: Int, $mes: Int, $fechaInicio: String, $fechaFin: String) {
+    reporteCargaPorSala(anio: $anio, mes: $mes, fechaInicio: $fechaInicio, fechaFin: $fechaFin) {
       sala
       tribunal
       audiencias
@@ -52,10 +47,9 @@ export const GET_REPORTE_CARGA_SALA = gql`
   }
 `;
 
-// ── Actividad por usuario ────────────────────────────────
 export const GET_REPORTE_ACTIVIDAD_USUARIOS = gql`
-  query ReporteActividadUsuarios($anio: Int) {
-    reporteActividadUsuarios(anio: $anio) {
+  query ReporteActividadUsuarios($anio: Int, $mes: Int, $fechaInicio: String, $fechaFin: String) {
+    reporteActividadUsuarios(anio: $anio, mes: $mes, fechaInicio: $fechaInicio, fechaFin: $fechaFin) {
       usuario
       rol
       audiencias
@@ -65,15 +59,44 @@ export const GET_REPORTE_ACTIVIDAD_USUARIOS = gql`
   }
 `;
 
-// ── Enviar reporte por email ─────────────────────────────
 export const ENVIAR_REPORTES_EMAIL = gql`
-  mutation EnviarReportesEmail($anio: Int!, $roles: [String]) {
-    enviarReportesPorEmail(anio: $anio, roles: $roles) {
+  mutation EnviarReportesEmail(
+    $anio: Int!
+    $roles: [String]
+    $usuarioIds: [Int]
+    $mes: Int
+    $fechaInicio: String
+    $fechaFin: String
+  ) {
+    enviarReportesPorEmail(
+      anio: $anio
+      roles: $roles
+      usuarioIds: $usuarioIds
+      mes: $mes
+      fechaInicio: $fechaInicio
+      fechaFin: $fechaFin
+    ) {
       ok
       mensaje
       enviados
       fallidos
       destinatarios
+    }
+  }
+`;
+
+export const GET_USUARIOS_PARA_REPORTE = gql`
+  query UsuariosParaReporte {
+    allUsuarios {
+      idUsuario
+      nombres
+      paterno
+      email
+      cargoOficial
+      activo
+      rol {
+        nombre
+      }
     }
   }
 `;

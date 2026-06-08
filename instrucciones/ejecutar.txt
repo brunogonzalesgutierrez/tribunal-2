@@ -14,3 +14,8 @@ cd tribunal_frontend
 npm run dev
 
 npm install jspdf
+
+
+admin
+
+Admin123!

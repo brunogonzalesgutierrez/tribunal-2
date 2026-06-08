@@ -8,13 +8,33 @@ import {
   GET_REPORTE_CARGA_SALA,
   GET_REPORTE_ACTIVIDAD_USUARIOS,
   ENVIAR_REPORTES_EMAIL,
+  GET_USUARIOS_PARA_REPORTE,
 } from "../../graphql/reportes";
 import {
-  BarChart2, FileText, Mic, Users, Building2, Mail, X, CheckCircle, AlertCircle,
+  BarChart2, FileText, Mic, Users, Building2, Mail, X,
+  CheckCircle, AlertCircle, Search, UserCheck,
 } from "lucide-react";
 
 // ─── TIPOS ────────────────────────────────────────────────
 type TabReporte = "audiencias" | "expedientes" | "salas" | "usuarios";
+
+type ModoFecha = "anual" | "mensual" | "rango";
+
+const MESES_OPTS = [
+  { value: 1,  label: "Enero"      },
+  { value: 2,  label: "Febrero"    },
+  { value: 3,  label: "Marzo"      },
+  { value: 4,  label: "Abril"      },
+  { value: 5,  label: "Mayo"       },
+  { value: 6,  label: "Junio"      },
+  { value: 7,  label: "Julio"      },
+  { value: 8,  label: "Agosto"     },
+  { value: 9,  label: "Septiembre" },
+  { value: 10, label: "Octubre"    },
+  { value: 11, label: "Noviembre"  },
+  { value: 12, label: "Diciembre"  },
+];
+
 const ROLES_DISPONIBLES = ["Administrador", "Vocal", "Secretario"];
 
 // ─── HELPERS ─────────────────────────────────────────────
@@ -233,23 +253,84 @@ type ResultadoEnvio = {
   enviados: number; fallidos: number; destinatarios: string[];
 };
 
-const ModalEnvioEmail = ({ anio, onClose }: { anio: number; onClose: () => void }) => {
-  const [roles, setRoles] = useState<string[]>(["Administrador", "Vocal", "Secretario"]);
-  const [resultado, setResultado] = useState<ResultadoEnvio | null>(null);
 
+
+type ModoEnvio = "roles" | "individual";
+
+const MESES_LABELS = [
+  "Enero","Febrero","Marzo","Abril","Mayo","Junio",
+  "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
+];
+
+const ModalEnvioEmail = ({ anio, mes, fechaInicio, fechaFin, modoFecha, onClose }: { anio: number; mes?: number; fechaInicio?: string; fechaFin?: string; modoFecha: ModoFecha; onClose: () => void }) => {
+  const [modo, setModo]               = useState<ModoEnvio>("roles");
+  const [roles, setRoles]             = useState<string[]>(["Administrador", "Vocal", "Secretario"]);
+  const [usuariosSelec, setUsuariosSelec] = useState<number[]>([]);
+  const [busqueda, setBusqueda]       = useState("");
+  const [resultado, setResultado]     = useState<ResultadoEnvio | null>(null);
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+
+  const { data: dataUsuarios, loading: loadingUsuarios } = useQuery(GET_USUARIOS_PARA_REPORTE);
   const [enviarReporte, { loading }] = useMutation(ENVIAR_REPORTES_EMAIL, {
     onCompleted: d => setResultado(d.enviarReportesPorEmail),
     onError: err => setResultado({ ok: false, mensaje: `Error: ${err.message}`, enviados: 0, fallidos: 0, destinatarios: [] }),
   });
 
-  const toggle = (rol: string) =>
+  const todosUsuarios: any[] = (dataUsuarios?.allUsuarios ?? []).filter((u: any) => u.activo);
+
+  const usuariosFiltrados = todosUsuarios.filter((u: any) => {
+    const texto = `${u.paterno} ${u.nombres} ${u.email} ${u.rol?.nombre ?? ""}`.toLowerCase();
+    return texto.includes(busqueda.toLowerCase());
+  });
+
+  const toggleRol = (rol: string) =>
     setRoles(prev => prev.includes(rol) ? prev.filter(r => r !== rol) : [...prev, rol]);
 
-  const handleEnviar = () => {
-    if (!roles.length) return;
-    setResultado(null);
-    enviarReporte({ variables: { anio, roles } });
+  const toggleUsuario = (id: number) => {
+    const numId = Number(id);
+    setUsuariosSelec(prev => 
+      prev.some(i => Number(i) === numId) 
+        ? prev.filter(i => Number(i) !== numId) 
+        : [...prev, numId]
+    );
   };
+  const seleccionarTodos = () =>
+    setUsuariosSelec(usuariosFiltrados.map((u: any) => Number(u.idUsuario)));
+
+  const deseleccionarTodos = () => setUsuariosSelec([]);
+
+  const seleccionarPorRol = (rol: string) => {
+    const ids = usuariosFiltrados
+      .filter((u: any) => u.rol?.nombre === rol)
+      .map((u: any) => Number(u.idUsuario));
+    setUsuariosSelec(prev => {
+      const sinRol = prev.filter(id =>
+        !usuariosFiltrados.find((u: any) => u.idUsuario === id && u.rol?.nombre === rol)
+      );
+      return [...new Set([...sinRol, ...ids])];
+    });
+  };
+
+  const handleEnviar = () => {
+    setResultado(null);
+    const filtro = modoFecha === "mensual"
+      ? { anio, mes }
+      : modoFecha === "rango" && fechaInicio && fechaFin
+        ? { anio, fechaInicio, fechaFin }
+        : { anio };
+
+    if (modo === "roles") {
+      if (!roles.length) return;
+      enviarReporte({ variables: { ...filtro, roles } });
+    } else {
+      if (!usuariosSelec.length) return;
+      const vars = { ...filtro, usuarioIds: usuariosSelec.map(id => parseInt(String(id), 10)) };
+      console.log("ENVIANDO:", JSON.stringify(vars));
+      enviarReporte({ variables: vars });
+    }
+  };
+
+  const canEnviar = modo === "roles" ? roles.length > 0 : usuariosSelec.length > 0;
 
   const INFO_ROL: Record<string, string> = {
     Administrador: "Reporte completo: audiencias, expedientes, carga por sala y actividad de usuarios",
@@ -257,18 +338,37 @@ const ModalEnvioEmail = ({ anio, onClose }: { anio: number; onClose: () => void 
     Secretario:    "Reporte de audiencias y expedientes",
   };
 
+  const ROL_COLOR: Record<string, string> = {
+    Administrador: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400",
+    Vocal:         "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400",
+    Secretario:    "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400",
+  };
+
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div
+        className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-xl max-h-[92vh] flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-start">
+        <div className="shrink-0 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-start">
           <div>
             <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
               <Mail className="w-5 h-5 text-blue-500" />
               Enviar Reporte por Email
             </h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Se generará un PDF del año {anio} y se enviará a los usuarios seleccionados
+              {modoFecha === "mensual" && mes
+                ? `PDF de ${["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"][mes-1]} ${anio}`
+                : modoFecha === "rango" && fechaInicio && fechaFin
+                  ? `PDF del ${fechaInicio} al ${fechaFin}`
+                  : `PDF del año ${anio}`
+              } · {canEnviar
+                ? modo === "roles"
+                  ? `${roles.length} rol(es) seleccionado(s)`
+                  : `${usuariosSelec.length} usuario(s) seleccionado(s)`
+                : "Sin selección"
+              }
             </p>
           </div>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
@@ -276,44 +376,181 @@ const ModalEnvioEmail = ({ anio, onClose }: { anio: number; onClose: () => void 
           </button>
         </div>
 
-        <div className="p-6">
+        {/* Contenido scrolleable */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
           {!resultado ? (
             <>
-              <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-3">
-                Seleccioná los roles que recibirán el reporte:
-              </p>
-              <div className="flex flex-col gap-3 mb-5">
-                {ROLES_DISPONIBLES.map(rol => {
-                  const sel = roles.includes(rol);
-                  return (
-                    <div
-                      key={rol}
-                      onClick={() => toggle(rol)}
-                      className={`flex items-start gap-3 p-3.5 rounded-xl cursor-pointer border transition-all ${
-                        sel
-                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-                          : "border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600"
-                      }`}
-                    >
-                      <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5 border-2 transition-colors ${
-                        sel ? "bg-blue-500 border-blue-500" : "border-gray-400 dark:border-gray-500"
-                      }`}>
-                        {sel && <span className="text-white text-[10px] font-bold">✓</span>}
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800 dark:text-white">{rol}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{INFO_ROL[rol]}</p>
-                      </div>
-                    </div>
-                  );
-                })}
+              {/* Selector de modo */}
+              <div className="flex gap-2 p-1 bg-gray-100 dark:bg-slate-700 rounded-xl">
+                {([
+                  { key: "roles", label: "Por rol", icon: Users },
+                  { key: "individual", label: "Seleccionar usuarios", icon: UserCheck },
+                ] as { key: ModoEnvio; label: string; icon: any }[]).map(({ key, label, icon: Icon }) => (
+                  <button
+                    key={key}
+                    onClick={() => setModo(key)}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all ${
+                      modo === key
+                        ? "bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm"
+                        : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {label}
+                  </button>
+                ))}
               </div>
 
+              {/* ── MODO: ROLES ── */}
+              {modo === "roles" && (
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                    Seleccioná los roles destinatarios:
+                  </p>
+                  {ROLES_DISPONIBLES.map(rol => {
+                    const sel = roles.includes(rol);
+                    return (
+                      <div
+                        key={rol}
+                        onClick={() => toggleRol(rol)}
+                        className={`flex items-start gap-3 p-3.5 rounded-xl cursor-pointer border transition-all ${
+                          sel
+                            ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                            : "border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600"
+                        }`}
+                      >
+                        <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5 border-2 transition-colors ${
+                          sel ? "bg-blue-500 border-blue-500" : "border-gray-400 dark:border-gray-500"
+                        }`}>
+                          {sel && <span className="text-white text-[10px] font-bold">✓</span>}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-gray-800 dark:text-white">{rol}</p>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${ROL_COLOR[rol]}`}>{rol}</span>
+                          </div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{INFO_ROL[rol]}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* ── MODO: INDIVIDUAL ── */}
+              {modo === "individual" && (
+                <div className="space-y-3">
+                  {/* Buscador */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Buscar por nombre, email o rol..."
+                      value={busqueda}
+                      onChange={e => setBusqueda(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                      autoFocus
+                    />
+                  </div>
+
+                  {/* Acciones rápidas */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={seleccionarTodos}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 font-medium transition-colors"
+                    >
+                      Seleccionar todos ({usuariosFiltrados.length})
+                    </button>
+                    <button
+                      onClick={deseleccionarTodos}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600 font-medium transition-colors"
+                    >
+                      Limpiar
+                    </button>
+                    <div className="h-4 w-px bg-gray-200 dark:bg-slate-600" />
+                    {ROLES_DISPONIBLES.map(rol => (
+                      <button
+                        key={rol}
+                        onClick={() => seleccionarPorRol(rol)}
+                        className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${ROL_COLOR[rol]}`}
+                      >
+                        + {rol}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Lista de usuarios */}
+                  {loadingUsuarios ? (
+                    <div className="flex justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+                    </div>
+                  ) : usuariosFiltrados.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400 dark:text-gray-500">
+                      <Search className="w-10 h-10 mx-auto mb-2 text-gray-300 dark:text-gray-600" />
+                      <p className="text-sm">Sin resultados</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                      {usuariosFiltrados.map((u: any) => {
+                        const sel = usuariosSelec.some(i => Number(i) === Number(u.idUsuario));
+                        const rolNombre = u.rol?.nombre ?? "—";
+                        return (
+                          <div
+                            key={u.idUsuario}
+                            onClick={() => toggleUsuario(u.idUsuario)}
+                            className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border transition-all ${
+                              sel
+                                ? "border-blue-400 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/20"
+                                : "border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700/50"
+                            }`}
+                          >
+                            {/* Checkbox */}
+                            <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 border-2 transition-colors ${
+                              sel ? "bg-blue-500 border-blue-500" : "border-gray-400 dark:border-gray-500"
+                            }`}>
+                              {sel && <span className="text-white text-[10px] font-bold">✓</span>}
+                            </div>
+                            {/* Avatar inicial */}
+                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center shrink-0">
+                              <span className="text-white text-xs font-bold">
+                                {(u.paterno?.[0] ?? "").toUpperCase()}
+                              </span>
+                            </div>
+                            {/* Datos */}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-gray-800 dark:text-white truncate">
+                                {u.paterno} {u.nombres}
+                              </p>
+                              <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{u.email}</p>
+                            </div>
+                            {/* Rol badge */}
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${ROL_COLOR[rolNombre] ?? "bg-gray-100 text-gray-600"}`}>
+                              {rolNombre}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Contador seleccionados */}
+                  {usuariosSelec.length > 0 && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50">
+                      <CheckCircle className="w-4 h-4 text-blue-500 shrink-0" />
+                      <p className="text-xs text-blue-700 dark:text-blue-400 font-medium">
+                        {usuariosSelec.length} usuario{usuariosSelec.length !== 1 ? "s" : ""} seleccionado{usuariosSelec.length !== 1 ? "s" : ""}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Botón enviar */}
               <button
                 onClick={handleEnviar}
-                disabled={loading || !roles.length}
+                disabled={loading || !canEnviar}
                 className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
-                  !roles.length
+                  !canEnviar
                     ? "bg-gray-100 dark:bg-slate-700 text-gray-400 cursor-not-allowed"
                     : "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-md"
                 } ${loading ? "opacity-70" : ""}`}
@@ -321,12 +558,16 @@ const ModalEnvioEmail = ({ anio, onClose }: { anio: number; onClose: () => void 
                 <Mail className="w-4 h-4" />
                 {loading
                   ? "Generando PDF y enviando..."
-                  : `Enviar reporte ${anio} a ${roles.length} rol(es)`}
+                  : modo === "roles"
+                    ? `Enviar a ${roles.length} rol(es)`
+                    : `Enviar a ${usuariosSelec.length} usuario(s)`
+                }
               </button>
             </>
           ) : (
-            <div>
-              <div className={`flex items-start gap-3 p-4 rounded-xl mb-4 border ${
+            /* ── RESULTADO ── */
+            <div className="space-y-4">
+              <div className={`flex items-start gap-3 p-4 rounded-xl border ${
                 resultado.ok
                   ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800"
                   : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
@@ -342,10 +583,10 @@ const ModalEnvioEmail = ({ anio, onClose }: { anio: number; onClose: () => void 
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label: "Enviados",  val: resultado.enviados,  color: "text-emerald-600 dark:text-emerald-400" },
-                  { label: "Fallidos",  val: resultado.fallidos,  color: "text-red-600 dark:text-red-400" },
+                  { label: "Enviados", val: resultado.enviados, color: "text-emerald-600 dark:text-emerald-400" },
+                  { label: "Fallidos", val: resultado.fallidos, color: "text-red-600 dark:text-red-400" },
                 ].map(({ label, val, color }) => (
                   <div key={label} className="bg-gray-50 dark:bg-slate-700/50 rounded-xl p-4 text-center">
                     <p className={`text-2xl font-bold ${color}`}>{val}</p>
@@ -355,7 +596,7 @@ const ModalEnvioEmail = ({ anio, onClose }: { anio: number; onClose: () => void 
               </div>
 
               {resultado.destinatarios.length > 0 && (
-                <div className="mb-4">
+                <div>
                   <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Destinatarios:</p>
                   <div className="bg-gray-50 dark:bg-slate-700/50 rounded-xl p-3 max-h-40 overflow-y-auto space-y-1">
                     {resultado.destinatarios.map((d, i) => (
@@ -381,18 +622,37 @@ const ModalEnvioEmail = ({ anio, onClose }: { anio: number; onClose: () => void 
 
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────
 export default function ReportesPage() {
-  const [tab, setTab]         = useState<TabReporte>("audiencias");
-  const [anio, setAnio]       = useState(2025);
-  const [modalEmail, setModal] = useState(false);
+  const [tab, setTab]           = useState<TabReporte>("audiencias");
+  const [modoFecha, setModoFecha] = useState<ModoFecha>("anual");
+  const [anio, setAnio]         = useState(new Date().getFullYear());
+  const [mes, setMes]           = useState<number>(new Date().getMonth() + 1);
+  const [fechaInicio, setFechaInicio] = useState("");
+  const [fechaFin, setFechaFin]       = useState("");
+  const [modalEmail, setModal]  = useState(false);
 
-  const vars = { variables: { anio } };
-  const { data: dAudEst,   loading: lAudEst  } = useQuery(GET_REPORTE_AUDIENCIAS_ESTADO,  vars);
-  const { data: dAudMes,   loading: lAudMes  } = useQuery(GET_REPORTE_AUDIENCIAS_MES,     vars);
-  const { data: dExpTipo,  loading: lExpTipo } = useQuery(GET_REPORTE_EXPEDIENTES_TIPO,   vars);
-  const { data: dExpEst,   loading: lExpEst  } = useQuery(GET_REPORTE_EXPEDIENTES_ESTADO, vars);
-  const { data: dSalas,    loading: lSalas   } = useQuery(GET_REPORTE_CARGA_SALA,         vars);
-  const { data: dUsuarios, loading: lUsuarios} = useQuery(GET_REPORTE_ACTIVIDAD_USUARIOS, vars);
+  // Armar variables según el modo seleccionado
+  const filtroVars = (() => {
+    if (modoFecha === "anual")   return { anio };
+    if (modoFecha === "mensual") return { anio, mes };
+    if (modoFecha === "rango" && fechaInicio && fechaFin)
+      return { fechaInicio, fechaFin };
+    return { anio };
+  })();
 
+  const vars = { variables: filtroVars };
+
+
+  const { data: dAudEst,   loading: lAudEst,   error: eAudEst  } = useQuery(GET_REPORTE_AUDIENCIAS_ESTADO,  vars);
+  const { data: dAudMes,   loading: lAudMes,   error: eAudMes  } = useQuery(GET_REPORTE_AUDIENCIAS_MES,     vars);
+  const { data: dExpTipo,  loading: lExpTipo,  error: eExpTipo } = useQuery(GET_REPORTE_EXPEDIENTES_TIPO,   vars);
+  const { data: dExpEst,   loading: lExpEst,   error: eExpEst  } = useQuery(GET_REPORTE_EXPEDIENTES_ESTADO, vars);
+  const { data: dSalas,    loading: lSalas,    error: eSalas   } = useQuery(GET_REPORTE_CARGA_SALA,         vars);
+  const { data: dUsuarios, loading: lUsuarios, error: eUsuarios} = useQuery(GET_REPORTE_ACTIVIDAD_USUARIOS, vars);
+
+// DEBUG TEMPORAL
+  console.log("vars:", filtroVars);
+  console.log("errores:", { eAudEst, eAudMes, eExpTipo, eExpEst, eSalas, eUsuarios });
+  console.log("datos:", { dAudEst, dAudMes, dExpTipo, dExpEst, dSalas, dUsuarios });
   const audPorEstado = (dAudEst?.reporteAudienciasPorEstado ?? []).map((r: any) => ({
     ...r, color: BG_ESTADO_AUD[r.estado] ?? "#8b949e",
   }));
@@ -412,10 +672,16 @@ export default function ReportesPage() {
     { key: "usuarios",    label: "Actividad",     icon: <Users className="w-4 h-4" /> },
   ];
 
+  {(eAudEst || eSalas || eUsuarios) && (
+    <div className="p-4 bg-red-100 text-red-800 rounded-xl text-sm">
+      Error: {eAudEst?.message || eSalas?.message || eUsuarios?.message}
+    </div>
+  )}
+
   return (
     <div className="space-y-6 animate-fade-in">
 
-      {modalEmail && <ModalEnvioEmail anio={anio} onClose={() => setModal(false)} />}
+      {modalEmail && <ModalEnvioEmail anio={anio} mes={mes} fechaInicio={fechaInicio} fechaFin={fechaFin} modoFecha={modoFecha} onClose={() => setModal(false)} />}
 
       {/* Encabezado */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -428,17 +694,73 @@ export default function ReportesPage() {
             Estadísticas y métricas del sistema judicial
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-500 dark:text-gray-400">Año:</label>
+        <div className="flex items-center gap-3 flex-wrap">
+
+          {/* Selector de modo */}
+          <div className="flex gap-1 p-1 bg-gray-100 dark:bg-slate-700 rounded-xl">
+            {(["anual", "mensual", "rango"] as ModoFecha[]).map(m => (
+              <button
+                key={m}
+                onClick={() => setModoFecha(m)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all capitalize ${
+                  modoFecha === m
+                    ? "bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm"
+                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                }`}
+              >
+                {m === "anual" ? "Anual" : m === "mensual" ? "Mensual" : "Rango"}
+              </button>
+            ))}
+          </div>
+
+          {/* Controles según modo */}
+          {modoFecha === "anual" && (
             <select
               value={anio}
               onChange={e => setAnio(Number(e.target.value))}
               className="px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
             >
-              {[2023, 2024, 2025, 2026].map(a => <option key={a} value={a}>{a}</option>)}
+              {[2022, 2023, 2024, 2025, 2026].map(a => <option key={a} value={a}>{a}</option>)}
             </select>
-          </div>
+          )}
+
+          {modoFecha === "mensual" && (
+            <div className="flex items-center gap-2">
+              <select
+                value={anio}
+                onChange={e => setAnio(Number(e.target.value))}
+                className="px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              >
+                {[2022, 2023, 2024, 2025, 2026].map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+              <select
+                value={mes}
+                onChange={e => setMes(Number(e.target.value))}
+                className="px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              >
+                {MESES_OPTS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            </div>
+          )}
+
+          {modoFecha === "rango" && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={fechaInicio}
+                onChange={e => setFechaInicio(e.target.value)}
+                className="px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              />
+              <span className="text-xs text-gray-400">→</span>
+              <input
+                type="date"
+                value={fechaFin}
+                onChange={e => setFechaFin(e.target.value)}
+                className="px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              />
+            </div>
+          )}
+
           <button
             onClick={() => setModal(true)}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold text-sm shadow-lg shadow-blue-500/25 transition-all hover:scale-[1.02]"

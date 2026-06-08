@@ -249,6 +249,30 @@ export const ELIMINAR_PARTE_PROCESAL = gql`
 
 // ─── CATÁLOGOS DE APOYO ───────────────────────────────────
 
+export const VERIFICAR_CERTIFICADO = gql`
+  query VerificarCertificado($idPersona: Int!) {
+    verificarCertificadoPersona(idPersona: $idPersona) {
+      puedeEmitir
+      tieneProcesosActivos
+      procesosActivos
+      emailPersona
+      mensaje
+    }
+  }
+`;
+
+export const ENVIAR_CERTIFICADO_NO_HALLADO = gql`
+  mutation EnviarCertificadoNoHallado($idPersona: Int!) {
+    enviarCertificadoNoHallado(idPersona: $idPersona) {
+      ok
+      mensaje
+      emailEnviado
+    }
+  }
+`;
+
+
+
 export const GET_EXPEDIENTES_SIMPLE = gql`
   query {
     allExpedientes {

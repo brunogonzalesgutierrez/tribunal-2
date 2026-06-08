@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@apollo/client";
 import {
   GET_PERSONAS,
@@ -6,21 +6,214 @@ import {
   ACTUALIZAR_PERSONA,
   ELIMINAR_PERSONA,
 } from "../../graphql/personas";
-import { User, Plus, Edit, Trash2, Scale, GraduationCap, ChevronLeft, ChevronRight } from "lucide-react";
+
+import { User, Plus, Edit, Trash2, Scale, GraduationCap, ChevronLeft, ChevronRight, Award, Send, AlertTriangle, CheckCircle2, Loader2, X } from "lucide-react";
 import {
   Persona, nombreCompleto,
   AbogadoBadge,
   Modal, Field, CheckboxField, ErrorBox, ModalFooter,
   StatCard, TablaDesktop, ActionBtns, SearchBar,
 } from "./shared";
+import { VERIFICAR_CERTIFICADO, ENVIAR_CERTIFICADO_NO_HALLADO } from "../../graphql/personas";
+import { generarCertificadoNoHallado } from "../../utils/generarCertificadoNoHallado";
 import { useCrudNotifications } from '../../hooks/useCrudNotifications';
 import { useToast } from '../../context/ToastContext';
+
 
 const initForm = {
   nombre: "", primerApellido: "", segundoApellido: "",
   numeroDocumento: "", estamento: "", registroUniversitario: "",
   titularA: "", esAbogado: false,
 };
+
+
+function ModalCertificado({ persona, onClose }: { persona: Persona; onClose: () => void }) {
+  const { data, loading } = useQuery(VERIFICAR_CERTIFICADO, {
+    variables: { idPersona: Number(persona.idPersona) },
+    fetchPolicy: "network-only",
+  });
+  const [enviarMutation] = useMutation(ENVIAR_CERTIFICADO_NO_HALLADO);
+  const toast = useToast();
+
+  const [paso, setPaso] = useState<"verificando" | "resultado" | "enviando" | "enviado">("verificando");
+  const [enviando, setEnviando] = useState(false);
+  const [resultadoEnvio, setResultadoEnvio] = useState<{ ok: boolean; mensaje: string; email?: string } | null>(null);
+
+  const verificacion = data?.verificarCertificadoPersona;
+  const puedeEmitir  = verificacion?.puedeEmitir ?? false;
+  const nombre = `${persona.nombre} ${persona.primerApellido} ${persona.segundoApellido ?? ""}`.trim();
+
+  useEffect(() => {
+    if (!loading && verificacion) setPaso("resultado");
+  }, [loading, verificacion]);
+
+  const descargarPdf = async () => {
+    try {
+      await generarCertificadoNoHallado({
+        persona: {
+          nombre:                persona.nombre,
+          primerApellido:        persona.primerApellido,
+          segundoApellido:       persona.segundoApellido,
+          numeroDocumento:       persona.numeroDocumento,
+          registroUniversitario: persona.registroUniversitario ?? "",
+          estamento:             persona.estamento,
+          titularA:              persona.titularA,
+        },
+        tribunal: {
+          nombreTribunal: "Tribunal Departamental de Justicia de Santa Cruz",
+          instancia:      "DEPARTAMENTAL",
+        },
+      });
+      toast.success("PDF generado correctamente.");
+    } catch {
+      toast.error("Error al generar el PDF.");
+    }
+  };
+
+  const enviarEmail = async () => {
+    setEnviando(true);
+    try {
+      const { data: res } = await enviarMutation({
+        variables: { idPersona: Number(persona.idPersona) },
+      });
+      const r = res?.enviarCertificadoNoHallado;
+      setResultadoEnvio({ ok: r?.ok, mensaje: r?.mensaje, email: r?.emailEnviado });
+      setPaso("enviado");
+    } catch (e: any) {
+      setResultadoEnvio({ ok: false, mensaje: e.message ?? "Error al enviar." });
+      setPaso("enviado");
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-md flex flex-col" onClick={e => e.stopPropagation()}>
+
+        {/* Cabecera */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center">
+              <Award className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-gray-800 dark:text-white">Certificado de Proceso No Hallado</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[220px]">{nombre}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        {/* Cuerpo */}
+        <div className="px-6 py-5 space-y-4">
+
+          {/* Verificando */}
+          {(loading || paso === "verificando") && (
+            <div className="flex flex-col items-center gap-3 py-8">
+              <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+              <p className="text-sm text-gray-500 dark:text-gray-400">Verificando procesos judiciales...</p>
+            </div>
+          )}
+
+          {/* Resultado de verificación */}
+          {paso === "resultado" && verificacion && (
+            <>
+              {puedeEmitir ? (
+                <div className="flex items-start gap-3 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Sin procesos activos</p>
+                    <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">{verificacion.mensaje}</p>
+                    {verificacion.emailPersona && (
+                      <p className="text-xs text-emerald-600 dark:text-emerald-500 mt-1">Email: {verificacion.emailPersona}</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50">
+                    <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-semibold text-red-800 dark:text-red-300">Tiene procesos activos</p>
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">No se puede emitir el certificado.</p>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Procesos encontrados:</p>
+                    {verificacion.procesosActivos.map((proc: string, i: number) => (
+                      <div key={i} className="text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-slate-900/50 rounded-lg px-3 py-2 border border-gray-200 dark:border-slate-700">
+                        {proc}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Resultado del envío */}
+          {paso === "enviado" && resultadoEnvio && (
+            <div className={`flex items-start gap-3 p-4 rounded-xl border ${
+              resultadoEnvio.ok
+                ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/50"
+                : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/50"
+            }`}>
+              {resultadoEnvio.ok
+                ? <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                : <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+              }
+              <div>
+                <p className={`text-sm font-semibold ${resultadoEnvio.ok ? "text-emerald-800 dark:text-emerald-300" : "text-red-800 dark:text-red-300"}`}>
+                  {resultadoEnvio.ok ? "Certificado enviado" : "Error al enviar"}
+                </p>
+                <p className={`text-xs mt-0.5 ${resultadoEnvio.ok ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                  {resultadoEnvio.mensaje}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Pie */}
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-slate-700 flex gap-2">
+          {paso === "resultado" && puedeEmitir && (
+            <>
+              <button
+                onClick={descargarPdf}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 text-sm font-semibold transition-colors"
+              >
+                <Award className="w-4 h-4" /> Descargar PDF
+              </button>
+              {verificacion?.emailPersona && (
+                <button
+                  onClick={enviarEmail}
+                  disabled={enviando}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-semibold transition-colors"
+                >
+                  {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  {enviando ? "Enviando..." : "Enviar al email"}
+                </button>
+              )}
+            </>
+          )}
+          {(paso === "enviado" || (paso === "resultado" && !puedeEmitir)) && (
+            <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 text-sm font-semibold transition-colors hover:bg-gray-200 dark:hover:bg-slate-600">
+              Cerrar
+            </button>
+          )}
+          {paso === "verificando" && (
+            <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 text-sm font-medium transition-colors">
+              Cancelar
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function PersonasListPage() {
   const { data, loading, refetch } = useQuery(GET_PERSONAS);
@@ -38,6 +231,8 @@ export default function PersonasListPage() {
   // ✅ Estado para bloqueo de botones
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [modalCert, setModalCert] = useState<Persona | null>(null);
+  
 
   const [modal, setModal]   = useState(false);
   const [editando, setEdit] = useState<Persona | null>(null);
@@ -48,10 +243,35 @@ export default function PersonasListPage() {
   const personas: Persona[] = data?.allPersonas ?? [];
   
   // ✅ Filtrar personas por búsqueda
-  const personasFiltradas = personas.filter(p =>
-    `${p.nombre} ${p.primerApellido} ${p.segundoApellido ?? ""} ${p.numeroDocumento} ${p.estamento ?? ""}`
-      .toLowerCase().includes(busqueda.toLowerCase())
-  );
+  const personasFiltradas = personas.filter(p => {
+    if (!busqueda.trim()) return true;
+    const haystack = [
+      p.nombre,
+      p.primerApellido,
+      p.segundoApellido,
+      p.numeroDocumento,
+      p.registroUniversitario,
+      p.estamento,
+      p.titularA,
+      // nombre completo junto para buscar "Ana Rodriguez"
+      `${p.nombre} ${p.primerApellido}`,
+      `${p.nombre} ${p.primerApellido} ${p.segundoApellido ?? ""}`,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, ""); // quita tildes
+
+    // cada palabra del buscador debe aparecer en algún lugar
+    return busqueda
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .split(/\s+/)
+      .every(palabra => haystack.includes(palabra));
+  });
 
   // ✅ Paginación
   const totalPages = Math.ceil(personasFiltradas.length / itemsPerPage);
@@ -61,6 +281,8 @@ export default function PersonasListPage() {
   const abogados = personas.filter(p => p.esAbogado).length;
 
   const f = (k: string) => (v: string) => setForm(p => ({ ...p, [k]: v }));
+
+  
 
   const abrirCrear = () => { 
     setEdit(null); 
@@ -93,8 +315,8 @@ export default function PersonasListPage() {
 
   // ✅ GUARDAR CON BLOQUEO
   const guardar = async () => {
-    if (!form.nombre || !form.primerApellido || !form.numeroDocumento) {
-      toast.error("Nombre, primer apellido y documento son obligatorios.");
+    if (!form.nombre || !form.primerApellido || !form.registroUniversitario) {
+      toast.error("Nombre, primer apellido y N° Registro son obligatorios.");
       return;
     }
     
@@ -285,7 +507,16 @@ export default function PersonasListPage() {
               {p.titularA ?? "—"}
             </td>
             <td className="px-6 py-4">
-              <ActionBtns onEdit={() => abrirEditar(p)} onDelete={() => eliminar(p)} disabled={saving} />
+              <div className="flex items-center justify-end gap-1">
+                <button
+                  onClick={() => setModalCert(p)}
+                  className="p-2 rounded-lg text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
+                  title="Certificado de proceso no hallado"
+                >
+                  <Award className="w-4 h-4" />
+                </button>
+                <ActionBtns onEdit={() => abrirEditar(p)} onDelete={() => eliminar(p)} disabled={saving} />
+              </div>
             </td>
           </tr>
         ))}
@@ -329,6 +560,16 @@ export default function PersonasListPage() {
                 <span className="font-mono text-blue-500 text-xs">{p.numeroDocumento}</span>
               </div>
               <div className="flex gap-1">
+
+                <button
+                  onClick={() => setModalCert(p)}
+                  className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+                  title="Certificado PNH"
+                >
+                  <Award className="w-4 h-4" />
+                </button>
+
+
                 <button 
                   onClick={() => abrirEditar(p)} 
                   disabled={saving}
@@ -352,6 +593,14 @@ export default function PersonasListPage() {
           </div>
         ))}
       </div>
+
+      {/* Modal Certificado */}
+      {modalCert && (
+        <ModalCertificado
+          persona={modalCert}
+          onClose={() => setModalCert(null)}
+        />
+      )}
 
       {/* Modal */}
       {modal && (
@@ -382,9 +631,9 @@ export default function PersonasListPage() {
               disabled={saving}
             />
             <Field 
-              label="N° Documento" 
-              value={form.numeroDocumento} 
-              onChange={f("numeroDocumento")} 
+              label="N° Registro" 
+              value={form.registroUniversitario} 
+              onChange={f("registroUniversitario")} 
               required 
               disabled={saving}
             />
@@ -396,9 +645,9 @@ export default function PersonasListPage() {
               disabled={saving}
             />
             <Field 
-              label="Registro universitario" 
-              value={form.registroUniversitario} 
-              onChange={f("registroUniversitario")} 
+              label="C.I." 
+              value={form.numeroDocumento} 
+              onChange={f("numeroDocumento")} 
               disabled={saving}
             />
           </div>

@@ -381,6 +381,13 @@ class ActualizarSolicitudInput(graphene.InputObjectType):
     fecha_confirmacion = graphene.DateTime()
     observacion = graphene.String()
 
+class VerificacionCertificadoType(graphene.ObjectType):
+    puede_emitir            = graphene.Boolean()
+    tiene_procesos_activos  = graphene.Boolean()
+    procesos_activos        = graphene.List(graphene.String)
+    email_persona           = graphene.String()
+    mensaje                 = graphene.String()
+
 class ReporteEstadoType(graphene.ObjectType):
     estado    = graphene.String()
     cantidad  = graphene.Int()
@@ -408,6 +415,27 @@ class ReporteUsuarioType(graphene.ObjectType):
 
 
 
+
+
+def _aplicar_filtro_fecha(qs, campo_fecha, anio=None, mes=None, fecha_inicio=None, fecha_fin=None):
+    """Aplica filtros de fecha a un queryset."""
+    from datetime import datetime
+    if fecha_inicio and fecha_fin:
+        try:
+            fi = datetime.strptime(fecha_inicio, '%Y-%m-%d')
+            ff = datetime.strptime(fecha_fin,    '%Y-%m-%d')
+            qs = qs.filter(**{f"{campo_fecha}__gte": fi.date(), f"{campo_fecha}__lte": ff.date()})
+        except ValueError:
+            pass
+    elif anio and mes:
+        qs = qs.filter(**{f"{campo_fecha}__year": anio, f"{campo_fecha}__month": mes})
+    elif anio:
+        qs = qs.filter(**{f"{campo_fecha}__year": anio})
+    elif mes:
+        from django.utils import timezone
+        anio_actual = timezone.now().year
+        qs = qs.filter(**{f"{campo_fecha}__year": anio_actual, f"{campo_fecha}__month": mes})
+    return qs
 
 
 
@@ -457,17 +485,22 @@ class Query(graphene.ObjectType):
     all_tipos_resolucion   = graphene.List(TipoResolucionType)
     all_notificaciones     = graphene.List(NotificacionType)
     all_tipos_doc          = graphene.List(TipoDocType)
-    reporte_audiencias_por_estado = graphene.List(ReporteEstadoType, anio=graphene.Int())
-    reporte_audiencias_por_mes    = graphene.List(ReporteMesType,    anio=graphene.Int())
-    reporte_expedientes_por_tipo  = graphene.List(ReporteTipoType,   anio=graphene.Int())
-    reporte_expedientes_por_estado= graphene.List(ReporteEstadoType, anio=graphene.Int())
-    reporte_carga_por_sala        = graphene.List(ReporteCargaSalaType, anio=graphene.Int())
-    reporte_actividad_usuarios    = graphene.List(ReporteUsuarioType,   anio=graphene.Int())
+    reporte_audiencias_por_estado = graphene.List(ReporteEstadoType,   anio=graphene.Int(), mes=graphene.Int(), fecha_inicio=graphene.String(), fecha_fin=graphene.String())
+    reporte_audiencias_por_mes    = graphene.List(ReporteMesType,      anio=graphene.Int(), mes=graphene.Int(), fecha_inicio=graphene.String(), fecha_fin=graphene.String())
+    reporte_expedientes_por_tipo  = graphene.List(ReporteTipoType,     anio=graphene.Int(), mes=graphene.Int(), fecha_inicio=graphene.String(), fecha_fin=graphene.String())
+    reporte_expedientes_por_estado= graphene.List(ReporteEstadoType,   anio=graphene.Int(), mes=graphene.Int(), fecha_inicio=graphene.String(), fecha_fin=graphene.String())
+    reporte_carga_por_sala        = graphene.List(ReporteCargaSalaType, anio=graphene.Int(), mes=graphene.Int(), fecha_inicio=graphene.String(), fecha_fin=graphene.String())
+    reporte_actividad_usuarios    = graphene.List(ReporteUsuarioType,   anio=graphene.Int(), mes=graphene.Int(), fecha_inicio=graphene.String(), fecha_fin=graphene.String())
 
     usuario_by_id    = graphene.Field(UsuarioType,    id=graphene.Int(required=True))
     tribunal_by_id   = graphene.Field(TribunalType,   id=graphene.Int(required=True))
     expediente_by_id = graphene.Field(ExpedienteType, id=graphene.Int(required=True))
     persona_by_id    = graphene.Field(PersonaType,    id=graphene.Int(required=True))
+
+    verificar_certificado_persona = graphene.Field(
+        'tribunal.schema.VerificacionCertificadoType',
+        id_persona=graphene.Int(required=True)
+    )
 
 
     partes_por_expediente         = graphene.List(ParteProcesalType,                id_expediente=graphene.Int(required=True))
@@ -577,6 +610,49 @@ class Query(graphene.ObjectType):
         try: return Persona.objects.get(id_persona=id)
         except Persona.DoesNotExist: return None
 
+    def resolve_verificar_certificado_persona(root, info, id_persona):
+        try:
+            persona = Persona.objects.get(id_persona=id_persona)
+        except Persona.DoesNotExist:
+            return VerificacionCertificadoType(
+                puede_emitir=False,
+                tiene_procesos_activos=False,
+                procesos_activos=[],
+                email_persona=None,
+                mensaje="Persona no encontrada."
+            )
+
+        # Buscar partes procesales activas con expediente NO terminal
+        partes_activas = ParteProcesal.objects.filter(
+            id_persona=persona,
+            activo=True,
+        ).exclude(
+            id_expediente__id_estado_expediente__es_terminal=True
+        ).select_related(
+            'id_expediente',
+            'id_expediente__id_estado_expediente',
+            'id_rol'
+        )
+
+        procesos_activos = [
+            f"{p.id_expediente.numero_expediente} — {p.id_rol.nombre_rol} — {p.id_expediente.id_estado_expediente.nombre_estado if p.id_expediente.id_estado_expediente else 'Sin estado'}"
+            for p in partes_activas
+        ]
+
+        # Buscar email
+        contacto_email = ContactoPersona.objects.filter(
+            id_persona=persona,
+            tipo_contacto__iexact="EMAIL"
+        ).order_by('-es_principal').first()
+
+        return VerificacionCertificadoType(
+            puede_emitir=len(procesos_activos) == 0,
+            tiene_procesos_activos=len(procesos_activos) > 0,
+            procesos_activos=procesos_activos,
+            email_persona=contacto_email.valor if contacto_email else None,
+            mensaje="La persona tiene procesos activos, no se puede emitir el certificado." if procesos_activos else "La persona no tiene procesos activos. Puede emitirse el certificado."
+        )
+
     def resolve_resolucion_by_id(root, info, id):
         try: return Resolucion.objects.get(id_resolucion=id)
         except Resolucion.DoesNotExist: return None
@@ -589,66 +665,62 @@ class Query(graphene.ObjectType):
         try: return Documento.objects.get(id_documento=id)
         except Documento.DoesNotExist: return None
 
+    
 
 
 
-    def resolve_reporte_audiencias_por_estado(root, info, anio=None):
+
+    def resolve_reporte_audiencias_por_estado(root, info, anio=None, mes=None, fecha_inicio=None, fecha_fin=None):
         from django.db.models import Count
-        qs = Audiencia.objects.all()
-        if anio:
-            qs = qs.filter(fecha_hora_programada__year=anio)
+        qs = _aplicar_filtro_fecha(Audiencia.objects.all(), 'fecha_hora_programada', anio, mes, fecha_inicio, fecha_fin)
         return [
             ReporteEstadoType(estado=r['estado_audiencia'], cantidad=r['total'])
             for r in qs.values('estado_audiencia').annotate(total=Count('id_audiencia'))
         ]
 
-    def resolve_reporte_audiencias_por_mes(root, info, anio=None):
+    def resolve_reporte_audiencias_por_mes(root, info, anio=None, mes=None, fecha_inicio=None, fecha_fin=None):
         from django.db.models import Count
         from django.db.models.functions import ExtractMonth
         MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-        qs = Audiencia.objects.all()
-        if anio:
-            qs = qs.filter(fecha_hora_programada__year=anio)
+        qs = _aplicar_filtro_fecha(Audiencia.objects.all(), 'fecha_hora_programada', anio, mes, fecha_inicio, fecha_fin)
         data = {
             r['mes']: r['total']
             for r in qs.annotate(mes=ExtractMonth('fecha_hora_programada'))
-                       .values('mes').annotate(total=Count('id_audiencia'))
+                    .values('mes').annotate(total=Count('id_audiencia'))
         }
         return [
             ReporteMesType(mes=MESES[m-1], cantidad=data.get(m, 0))
             for m in range(1, 13)
         ]
 
-    def resolve_reporte_expedientes_por_tipo(root, info, anio=None):
+    def resolve_reporte_expedientes_por_tipo(root, info, anio=None, mes=None, fecha_inicio=None, fecha_fin=None):
         from django.db.models import Count
-        qs = Expediente.objects.all()
-        if anio:
-            qs = qs.filter(fecha_ingreso__year=anio)
+        qs = _aplicar_filtro_fecha(Expediente.objects.all(), 'fecha_ingreso', anio, mes, fecha_inicio, fecha_fin)
         return [
             ReporteTipoType(tipo=r['id_tipo_proceso__nombre'], cantidad=r['total'])
             for r in qs.values('id_tipo_proceso__nombre').annotate(total=Count('id_expediente'))
         ]
 
-    def resolve_reporte_expedientes_por_estado(root, info, anio=None):
+    def resolve_reporte_expedientes_por_estado(root, info, anio=None, mes=None, fecha_inicio=None, fecha_fin=None):
         from django.db.models import Count
-        qs = Expediente.objects.exclude(id_estado_expediente=None)
-        if anio:
-            qs = qs.filter(fecha_ingreso__year=anio)
+        qs = _aplicar_filtro_fecha(Expediente.objects.exclude(id_estado_expediente=None), 'fecha_ingreso', anio, mes, fecha_inicio, fecha_fin)
         return [
             ReporteEstadoType(estado=r['id_estado_expediente__nombre_estado'], cantidad=r['total'])
             for r in qs.values('id_estado_expediente__nombre_estado').annotate(total=Count('id_expediente'))
         ]
 
-    def resolve_reporte_carga_por_sala(root, info, anio=None):
-        from django.db.models import Count
+    def resolve_reporte_carga_por_sala(root, info, anio=None, mes=None, fecha_inicio=None, fecha_fin=None):
         salas = SalaTribunal.objects.select_related('id_tribunal').filter(activa=True)
         resultado = []
         for sala in salas:
-            aud_qs = Audiencia.objects.filter(id_sala_aud__id_tribunal=sala.id_tribunal)
-            exp_qs = Expediente.objects.filter(id_sala=sala)
-            if anio:
-                aud_qs = aud_qs.filter(fecha_hora_programada__year=anio)
-                exp_qs = exp_qs.filter(fecha_ingreso__year=anio)
+            aud_qs = _aplicar_filtro_fecha(
+                Audiencia.objects.filter(id_sala_aud__id_tribunal=sala.id_tribunal),
+                'fecha_hora_programada', anio, mes, fecha_inicio, fecha_fin
+            )
+            exp_qs = _aplicar_filtro_fecha(
+                Expediente.objects.filter(id_sala=sala),
+                'fecha_ingreso', anio, mes, fecha_inicio, fecha_fin
+            )
             resultado.append(ReporteCargaSalaType(
                 sala=sala.nombre_sala,
                 tribunal=sala.id_tribunal.nombre_tribunal,
@@ -657,21 +729,20 @@ class Query(graphene.ObjectType):
             ))
         return resultado
 
-    def resolve_reporte_actividad_usuarios(root, info, anio=None):
-        from django.db.models import Count
+    def resolve_reporte_actividad_usuarios(root, info, anio=None, mes=None, fecha_inicio=None, fecha_fin=None):
         usuarios = Usuario.objects.filter(activo=True).select_related('rol')
         resultado = []
         for u in usuarios:
-            act_qs = ActuacionProcesal.objects.filter(usuario=u)
-            doc_qs = Documento.objects.none()  # ajusta si hay relación usuario-documento
-            if anio:
-                act_qs = act_qs.filter(fecha_actuacion__year=anio)
+            act_qs = _aplicar_filtro_fecha(
+                ActuacionProcesal.objects.filter(usuario=u),
+                'fecha_actuacion', anio, mes, fecha_inicio, fecha_fin
+            )
             resultado.append(ReporteUsuarioType(
                 usuario=f"{u.paterno} {u.nombres}",
                 rol=u.rol.nombre,
-                audiencias=0,  # audiencias no tienen usuario directo en tu modelo
+                audiencias=0,
                 actuaciones=act_qs.count(),
-                documentos=doc_qs.count(),
+                documentos=0,
             ))
         return resultado
 
@@ -2665,7 +2736,7 @@ from reportlab.platypus import (
 # GENERADOR DE PDF
 # ────────────────────────────────────────────────────────────
 
-def generar_pdf_reporte(anio: int, destinatario_rol: str) -> bytes:
+def generar_pdf_reporte(anio: int, destinatario_rol: str, mes: int = None, fecha_inicio: str = None, fecha_fin: str = None) -> bytes:
     """
     Genera el PDF del reporte anual y lo devuelve como bytes.
     destinatario_rol: 'Administrador' | 'Vocal' | 'Secretario'
@@ -2722,13 +2793,21 @@ def generar_pdf_reporte(anio: int, destinatario_rol: str) -> bytes:
     story = []
 
     # ── Encabezado ──────────────────────────────────────────
+    MESES_NOMBRES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+    if fecha_inicio and fecha_fin:
+        periodo_label = f"Período: {fecha_inicio} al {fecha_fin}"
+    elif mes:
+        periodo_label = f"{MESES_NOMBRES[mes-1]} {anio}"
+    else:
+        periodo_label = f"Año {anio}"
+
     story.append(Paragraph("Sistema de Gestión Judicial", titulo_style))
-    story.append(Paragraph(f"Reporte Anual {anio} · {destinatario_rol}", subtitulo_style))
+    story.append(Paragraph(f"Reporte {periodo_label} · {destinatario_rol}", subtitulo_style))
     story.append(HRFlowable(width="100%", thickness=1.5, color=AZUL, spaceAfter=14))
 
     from datetime import date
     story.append(Paragraph(
-        f"Generado el {date.today().strftime('%d/%m/%Y')}  |  Año fiscal: {anio}",
+        f"Generado el {date.today().strftime('%d/%m/%Y')}  |  {periodo_label}",
         ParagraphStyle("meta", parent=normal, fontSize=8,
                        textColor=colors.HexColor("#9ca3af"), spaceAfter=20),
     ))
@@ -2738,7 +2817,7 @@ def generar_pdf_reporte(anio: int, destinatario_rol: str) -> bytes:
     # ══════════════════════════════════════════════════════
     story.append(Paragraph("1. Audiencias por Estado", seccion_style))
 
-    aud_qs = Audiencia.objects.filter(fecha_hora_programada__year=anio)
+    aud_qs = _aplicar_filtro_fecha(Audiencia.objects.all(), 'fecha_hora_programada', anio, mes, fecha_inicio, fecha_fin)
     aud_estado = list(
         aud_qs.values("estado_audiencia").annotate(total=Count("id_audiencia"))
     )
@@ -2786,7 +2865,7 @@ def generar_pdf_reporte(anio: int, destinatario_rol: str) -> bytes:
         story.append(Paragraph("2. Expedientes por Tipo de Proceso", seccion_style))
 
         exp_tipo = list(
-            Expediente.objects.filter(fecha_ingreso__year=anio)
+            _aplicar_filtro_fecha(Expediente.objects.all(), 'fecha_ingreso', anio, mes, fecha_inicio, fecha_fin)
             .values("id_tipo_proceso__nombre").annotate(total=Count("id_expediente"))
         )
         total_exp = sum(r["total"] for r in exp_tipo)
@@ -2812,8 +2891,7 @@ def generar_pdf_reporte(anio: int, destinatario_rol: str) -> bytes:
                                 ParagraphStyle("subsec2", parent=normal, fontSize=10,
                                                fontName="Helvetica-Bold", spaceAfter=6, spaceBefore=10)))
         exp_estado = list(
-            Expediente.objects.filter(fecha_ingreso__year=anio)
-            .exclude(id_estado_expediente=None)
+            _aplicar_filtro_fecha(Expediente.objects.exclude(id_estado_expediente=None), 'fecha_ingreso', anio, mes, fecha_inicio, fecha_fin)
             .values("id_estado_expediente__nombre_estado").annotate(total=Count("id_expediente"))
         )
         if exp_estado:
@@ -2833,12 +2911,13 @@ def generar_pdf_reporte(anio: int, destinatario_rol: str) -> bytes:
         salas = SalaTribunal.objects.select_related("id_tribunal").filter(activa=True)
         data = [["Sala", "Tribunal", "Audiencias", "Expedientes"]]
         for sala in salas:
-            aud_c = Audiencia.objects.filter(
-                id_sala_aud__id_tribunal=sala.id_tribunal,
-                fecha_hora_programada__year=anio,
+            aud_c = _aplicar_filtro_fecha(
+                Audiencia.objects.filter(id_sala_aud__id_tribunal=sala.id_tribunal),
+                'fecha_hora_programada', anio, mes, fecha_inicio, fecha_fin
             ).count()
-            exp_c = Expediente.objects.filter(
-                id_sala=sala, fecha_ingreso__year=anio
+            exp_c = _aplicar_filtro_fecha(
+                Expediente.objects.filter(id_sala=sala),
+                'fecha_ingreso', anio, mes, fecha_inicio, fecha_fin
             ).count()
             data.append([sala.nombre_sala, sala.id_tribunal.nombre_tribunal[:30], str(aud_c), str(exp_c)])
 
@@ -2856,8 +2935,9 @@ def generar_pdf_reporte(anio: int, destinatario_rol: str) -> bytes:
         usuarios = Usuario.objects.filter(activo=True).select_related("rol")
         data = [["Usuario", "Cargo", "Rol", "Actuaciones"]]
         for u in usuarios:
-            act_c = ActuacionProcesal.objects.filter(
-                usuario=u, fecha_actuacion__year=anio
+            act_c = _aplicar_filtro_fecha(
+                ActuacionProcesal.objects.filter(usuario=u),
+                'fecha_actuacion', anio, mes, fecha_inicio, fecha_fin
             ).count()
             data.append([
                 f"{u.paterno} {u.nombres}",
@@ -2891,18 +2971,19 @@ def generar_pdf_reporte(anio: int, destinatario_rol: str) -> bytes:
 # LÓGICA DE ENVÍO
 # ────────────────────────────────────────────────────────────
 
-def _enviar_reporte_a_usuario(usuario, anio: int, pdf_bytes: bytes, rol_nombre: str):
+def _enviar_reporte_a_usuario(usuario, anio: int, pdf_bytes: bytes, rol_nombre: str, periodo_label: str = None):
     """Envía el email con el PDF adjunto a un único usuario."""
     nombre_completo = f"{usuario.paterno} {usuario.nombres}"
-    asunto = f"Reporte Anual {anio} — Sistema Judicial"
+    periodo = periodo_label or f"Año {anio}"
+    asunto = f"Reporte {periodo} — Sistema Judicial"
     cuerpo = f"""Estimado/a {nombre_completo},
 
-Se adjunta el reporte estadístico correspondiente al año {anio} del Sistema de Gestión Judicial.
+Se adjunta el reporte estadístico correspondiente al período {periodo} del Sistema de Gestión Judicial.
 
 Resumen del reporte:
   • Rol: {rol_nombre}
   • Cargo: {usuario.cargo_oficial or 'No especificado'}
-  • Período: Enero — Diciembre {anio}
+  • Período: {periodo}
 
 El documento PDF adjunto contiene las estadísticas de audiencias{', expedientes' if rol_nombre in ('Administrador','Secretario') else ''}{' y actividad de usuarios' if rol_nombre == 'Administrador' else ''} del período indicado.
 
@@ -2941,85 +3022,302 @@ class EnvioReporteResultType(graphene.ObjectType):
 # MUTATION
 # ────────────────────────────────────────────────────────────
 
-class EnviarReportesPorEmail(graphene.Mutation):
-    """
-    Genera un PDF de reporte y lo envía por email a todos los usuarios
-    de los roles indicados (Administrador, Vocal, Secretario).
-
-    Uso desde GraphQL:
-        mutation {
-          enviarReportesPorEmail(anio: 2024, roles: ["Administrador", "Secretario"]) {
-            ok
-            mensaje
-            enviados
-            fallidos
-            destinatarios
-          }
-        }
-    """
+class EnviarCertificadoNoHallado(graphene.Mutation):
     class Arguments:
-        anio  = graphene.Int(required=True,
-                             description="Año del reporte (ej: 2024)")
-        roles = graphene.List(
-            graphene.String,
-            description='Lista de roles a notificar: "Administrador", "Vocal", "Secretario"'
+        id_persona = graphene.Int(required=True)
+
+    ok            = graphene.Boolean()
+    mensaje       = graphene.String()
+    email_enviado = graphene.String()
+
+    def mutate(self, info, id_persona):
+        import io
+        import base64
+        from django.core.mail import EmailMessage
+
+        try:
+            persona = Persona.objects.get(id_persona=id_persona)
+        except Persona.DoesNotExist:
+            return EnviarCertificadoNoHallado(ok=False, mensaje="Persona no encontrada.", email_enviado=None)
+
+        # Verificar que no tenga procesos activos
+        partes_activas = ParteProcesal.objects.filter(
+            id_persona=persona,
+            activo=True,
+        ).exclude(
+            id_expediente__id_estado_expediente__es_terminal=True
         )
 
+        if partes_activas.exists():
+            return EnviarCertificadoNoHallado(
+                ok=False,
+                mensaje="La persona tiene procesos activos. No se puede emitir el certificado.",
+                email_enviado=None
+            )
+
+        # Buscar email
+        contacto = ContactoPersona.objects.filter(
+            id_persona=persona,
+            tipo_contacto__iexact="EMAIL"
+        ).order_by('-es_principal').first()
+
+        if not contacto:
+            return EnviarCertificadoNoHallado(
+                ok=False,
+                mensaje="La persona no tiene email registrado en el sistema.",
+                email_enviado=None
+            )
+
+        email_destino   = contacto.valor.strip()
+        nombre_completo = f"{persona.nombre} {persona.primer_apellido}"
+        if persona.segundo_apellido:
+            nombre_completo += f" {persona.segundo_apellido}"
+
+        from datetime import date
+        fecha_hoy   = date.today()
+        fecha_larga = fecha_hoy.strftime("%d de %B de %Y")
+        fecha_corta = fecha_hoy.strftime("%d/%m/%Y")
+        hora_str    = timezone.now().strftime("%H:%M")
+
+        tribunal_nombre = "Tribunal Departamental de Justicia de Santa Cruz"
+        instancia       = "DEPARTAMENTAL"
+
+        reg = persona.registro_universitario or "—"
+        ci  = persona.numero_documento or "No registrado"
+
+        codigo = f"CERT-PNH-{reg.replace(' ','').upper()}-{fecha_hoy.year}-{id_persona:06d}"
+
+        items_busqueda = [
+            "Expedientes civiles activos y archivados",
+            "Procesos penales en todas sus etapas",
+            "Causas de familia y menores",
+            "Procesos laborales y administrativos",
+            "Recursos e impugnaciones pendientes",
+            "Expedientes concluidos y archivados",
+        ]
+        items_html = "".join(f"<li style='margin:4px 0;'>• {i}</li>" for i in items_busqueda)
+
+        asunto = f"Certificado de Proceso No Hallado — {nombre_completo}"
+
+        html_body = f"""<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 0;">
+  <tr><td align="center">
+  <table width="620" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.10);">
+
+    <tr><td style="background:#0f3778;padding:28px 40px;">
+      <p style="margin:0;color:#fff;font-size:10px;letter-spacing:2px;text-transform:uppercase;">Estado Plurinacional de Bolivia</p>
+      <h1 style="margin:6px 0 0;color:#fff;font-size:19px;font-weight:700;">{tribunal_nombre}</h1>
+      <p style="margin:4px 0 0;color:#b3c6e8;font-size:12px;">Sistema de Gestión Judicial</p>
+    </td></tr>
+
+    <tr><td style="background:#1a4fa0;padding:10px 40px;">
+      <p style="margin:0;color:#fff;font-size:13px;font-weight:700;letter-spacing:1px;">📋 CERTIFICADO DE PROCESO NO HALLADO</p>
+    </td></tr>
+
+    <tr><td style="padding:30px 40px 16px;">
+      <p style="margin:0;color:#374151;font-size:15px;">Estimado/a <strong>{nombre_completo}</strong>,</p>
+      <p style="margin:12px 0 0;color:#6b7280;font-size:14px;line-height:1.7;">
+        El <strong>{tribunal_nombre}</strong> certifica que, tras realizar una búsqueda exhaustiva en sus registros, <strong>no se encontró ningún proceso judicial activo</strong> a su nombre.
+      </p>
+    </td></tr>
+
+    <tr><td style="padding:0 40px 20px;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+        <tr style="background:#f9fafb;">
+          <td style="padding:10px 16px;font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;width:40%;border-bottom:1px solid #e5e7eb;">Nombre completo</td>
+          <td style="padding:10px 16px;font-size:14px;color:#111827;font-weight:700;border-bottom:1px solid #e5e7eb;">{nombre_completo}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 16px;font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;border-bottom:1px solid #e5e7eb;background:#f9fafb;">N° Registro</td>
+          <td style="padding:10px 16px;font-size:14px;color:#111827;border-bottom:1px solid #e5e7eb;">{reg}</td>
+        </tr>
+        <tr style="background:#f9fafb;">
+          <td style="padding:10px 16px;font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;border-bottom:1px solid #e5e7eb;">C.I.</td>
+          <td style="padding:10px 16px;font-size:14px;color:#111827;border-bottom:1px solid #e5e7eb;">{ci}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 16px;font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;">Fecha de emisión</td>
+          <td style="padding:10px 16px;font-size:14px;color:#111827;">{fecha_larga} — {hora_str} hrs.</td>
+        </tr>
+      </table>
+    </td></tr>
+
+    <tr><td style="padding:0 40px 20px;">
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px 20px;">
+        <p style="margin:0;font-size:13px;color:#166534;font-weight:700;">✅ PROCESO NO HALLADO</p>
+        <p style="margin:8px 0 0;font-size:13px;color:#166534;line-height:1.6;">
+          La búsqueda incluyó: <ul style="margin:6px 0 0;padding-left:16px;color:#15803d;">{items_html}</ul>
+        </p>
+      </div>
+    </td></tr>
+
+    <tr><td style="padding:0 40px 20px;">
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:14px 20px;">
+        <p style="margin:0;font-size:12px;color:#92400e;line-height:1.6;">
+          ⚠ <strong>Vigencia:</strong> Este certificado tiene validez de <strong>30 días</strong> a partir de su emisión. No ampara procesos en otras jurisdicciones. Código: <code style="font-size:11px;">{codigo}</code>
+        </p>
+      </div>
+    </td></tr>
+
+    <tr><td style="background:#0f3778;padding:18px 40px;text-align:center;">
+      <p style="margin:0;color:#b3c6e8;font-size:12px;">{tribunal_nombre} · Sistema de Gestión Judicial · {fecha_corta}</p>
+    </td></tr>
+
+  </table>
+  </td></tr>
+</table>
+</body></html>"""
+
+        texto_plano = f"""CERTIFICADO DE PROCESO NO HALLADO
+{tribunal_nombre}
+
+Persona: {nombre_completo}
+N° Registro: {reg}
+C.I.: {ci}
+Fecha: {fecha_larga}
+Código: {codigo}
+
+Resultado: NO SE ENCONTRÓ ningún proceso judicial activo a nombre de la persona indicada.
+Vigencia: 30 días desde la fecha de emisión.
+
+Sistema de Gestión Judicial — generado automáticamente."""
+
+        try:
+            from django.core.mail import EmailMultiAlternatives
+            msg = EmailMultiAlternatives(
+                subject=asunto,
+                body=texto_plano,
+                from_email=django_settings.DEFAULT_FROM_EMAIL,
+                to=[email_destino],
+            )
+            msg.attach_alternative(html_body, "text/html")
+            msg.send(fail_silently=False)
+
+            return EnviarCertificadoNoHallado(
+                ok=True,
+                mensaje=f"Certificado enviado correctamente a {email_destino}.",
+                email_enviado=email_destino
+            )
+        except Exception as e:
+            return EnviarCertificadoNoHallado(
+                ok=False,
+                mensaje=f"Error al enviar el email: {str(e)}",
+                email_enviado=None
+            )
+
+
+
+
+class EnviarReportesPorEmail(graphene.Mutation):
+    class Arguments:
+        anio         = graphene.Int(required=True)
+        roles        = graphene.List(graphene.String)
+        usuario_ids  = graphene.List(graphene.Int,
+                       description="IDs específicos de usuarios. Si se provee, ignora 'roles'.")
+        mes          = graphene.Int(description="Filtrar reporte por mes (1-12). Opcional.")
+        fecha_inicio = graphene.String()
+        fecha_fin    = graphene.String()
     Output = EnvioReporteResultType
 
-    def mutate(self, info, anio, roles=None):
+    def mutate(self, info, anio, roles=None, usuario_ids=None, mes=None, fecha_inicio=None, fecha_fin=None):
         ROLES_VALIDOS = {"Administrador", "Vocal", "Secretario"}
-
-        # Si no se especifican roles, enviar a todos los válidos
-        roles_objetivo = [r for r in (roles or list(ROLES_VALIDOS)) if r in ROLES_VALIDOS]
-
-        if not roles_objetivo:
-            return EnvioReporteResultType(
-                ok=False,
-                mensaje="No se especificaron roles válidos. Use: Administrador, Vocal, Secretario.",
-                enviados=0, fallidos=0, destinatarios=[],
-            )
+        MESES_NOMBRES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+        if fecha_inicio and fecha_fin:
+            periodo_label = f"{fecha_inicio} al {fecha_fin}"
+        elif mes:
+            periodo_label = f"{MESES_NOMBRES[mes-1]} {anio}"
+        else:
+            periodo_label = f"Año {anio}"
 
         enviados      = 0
         fallidos      = 0
         destinatarios = []
         errores       = []
 
-        for rol_nombre in roles_objetivo:
-            try:
-                # Generar PDF específico para este rol
-                pdf_bytes = generar_pdf_reporte(anio, rol_nombre)
-            except Exception as e:
-                errores.append(f"Error generando PDF para {rol_nombre}: {str(e)}")
-                continue
-
-            # Obtener usuarios activos de este rol
-            usuarios = Usuario.objects.filter(
-                rol__nombre=rol_nombre,
-                activo=True,
+        # ── Modo usuarios individuales ──────────────────────
+        if usuario_ids:
+            usuarios_qs = Usuario.objects.filter(
+                id_usuario__in=usuario_ids, activo=True
             ).select_related("rol")
 
-            for usuario in usuarios:
-                if not usuario.email:
-                    continue
+            # Agrupar por rol para generar un PDF por rol
+            from collections import defaultdict
+            por_rol = defaultdict(list)
+            for u in usuarios_qs:
+                rol_nombre = u.rol.nombre if u.rol else "Administrador"
+                if rol_nombre not in ROLES_VALIDOS:
+                    rol_nombre = "Administrador"
+                por_rol[rol_nombre].append(u)
+
+            for rol_nombre, usuarios in por_rol.items():
                 try:
-                    _enviar_reporte_a_usuario(usuario, anio, pdf_bytes, rol_nombre)
-                    enviados += 1
-                    destinatarios.append(f"{usuario.paterno} {usuario.nombres} <{usuario.email}>")
+                    pdf_bytes = generar_pdf_reporte(anio, rol_nombre, mes=mes, fecha_inicio=fecha_inicio, fecha_fin=fecha_fin)
                 except Exception as e:
-                    fallidos += 1
-                    errores.append(f"Error enviando a {usuario.email}: {str(e)}")
+                    errores.append(f"Error PDF {rol_nombre}: {str(e)}")
+                    continue
+                for usuario in usuarios:
+                    if not usuario.email:
+                        continue
+                    try:
+                        _enviar_reporte_a_usuario(usuario, anio, pdf_bytes, rol_nombre, periodo_label=periodo_label)
+                        
+                        enviados += 1
+                        destinatarios.append(
+                            f"{usuario.paterno} {usuario.nombres} <{usuario.email}>"
+                        )
+                    except Exception as e:
+                        fallidos += 1
+                        errores.append(f"Error enviando a {usuario.email}: {str(e)}")
+
+        # ── Modo roles ───────────────────────────────────────
+        else:
+            roles_objetivo = [
+                r for r in (roles or list(ROLES_VALIDOS)) if r in ROLES_VALIDOS
+            ]
+            if not roles_objetivo:
+                return EnvioReporteResultType(
+                    ok=False,
+                    mensaje="No se especificaron roles válidos.",
+                    enviados=0, fallidos=0, destinatarios=[],
+                )
+
+            for rol_nombre in roles_objetivo:
+                try:
+                    pdf_bytes = generar_pdf_reporte(anio, rol_nombre, mes=mes, fecha_inicio=fecha_inicio, fecha_fin=fecha_fin)
+                except Exception as e:
+                    errores.append(f"Error PDF {rol_nombre}: {str(e)}")
+                    continue
+
+                usuarios = Usuario.objects.filter(
+                    rol__nombre=rol_nombre, activo=True
+                ).select_related("rol")
+
+                for usuario in usuarios:
+                    if not usuario.email:
+                        continue
+                    try:
+                        _enviar_reporte_a_usuario(usuario, anio, pdf_bytes, rol_nombre, periodo_label=periodo_label)
+                        enviados += 1
+                        destinatarios.append(
+                            f"{usuario.paterno} {usuario.nombres} <{usuario.email}>"
+                        )
+                    except Exception as e:
+                        fallidos += 1
+                        errores.append(f"Error enviando a {usuario.email}: {str(e)}")
 
         if enviados == 0 and fallidos == 0:
             return EnvioReporteResultType(
                 ok=False,
-                mensaje="No se encontraron usuarios activos con los roles indicados.",
+                mensaje="No se encontraron usuarios activos.",
                 enviados=0, fallidos=0, destinatarios=[],
             )
 
         mensaje = f"Reporte {anio} enviado. Exitosos: {enviados}, Fallidos: {fallidos}."
         if errores:
-            mensaje += f" Errores: {'; '.join(errores[:3])}"  # máximo 3 errores en el mensaje
+            mensaje += f" Errores: {'; '.join(errores[:3])}"
 
         return EnvioReporteResultType(
             ok=fallidos == 0,
@@ -3028,7 +3326,6 @@ class EnviarReportesPorEmail(graphene.Mutation):
             fallidos=fallidos,
             destinatarios=destinatarios,
         )
-
 
 
 
@@ -3584,6 +3881,7 @@ class Mutation(graphene.ObjectType):
     regenerar_qr  = RegenerarQr.Field()
     enviar_reportes_por_email = EnviarReportesPorEmail.Field()
     enviar_citaciones_audiencia = EnviarCitacionesAudiencia.Field()
+    enviar_certificado_no_hallado = EnviarCertificadoNoHallado.Field()
     registrar_asistencia  = RegistrarAsistencia.Field()
     registrar_asistencia_batch = RegistrarAsistenciaBatch.Field()
 
