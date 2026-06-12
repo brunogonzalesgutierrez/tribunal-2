@@ -261,6 +261,7 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
         { name: 'Contactos',       path: '/contactos',       icon: Phone,  requiredPermissions: [PERMISOS.CONTACTOS_VER]        },
         { name: 'Roles Procesales',path: '/roles-procesales',icon: Shield, requiredPermissions: [PERMISOS.ROLES_PROCESALES_VER] },
         { name: 'Partes',          path: '/partes',          icon: Scale,  requiredPermissions: [PERMISOS.PARTES_PROCESALES_VER]},
+        { name: 'Denuncias',        path: '/denuncias',        icon: Users,  requiredPermissions: [PERMISOS.PERSONAS_VER]         },
       ],
     },
     {
@@ -283,6 +284,7 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
         { name: 'Tipos de Resolución',path: '/tipos-resolucion',icon: Tag,  requiredPermissions: [PERMISOS.TIPOS_RESOLUCION_VER]},
         { name: 'Tipos de Recurso',  path: '/tipos-recurso',   icon: Tag,  requiredPermissions: [PERMISOS.TIPOS_RECURSO_VER]   },
         { name: 'Recursos',          path: '/recursos',        icon: Gavel,requiredPermissions: [PERMISOS.RECURSOS_VER]        },
+         { name: 'Resoluciones Antiguas', path: '/resoluciones-antiguas', icon: Scale, requiredPermissions: [PERMISOS.RESOLUCIONES_VER]    },
       ],
     },
     {

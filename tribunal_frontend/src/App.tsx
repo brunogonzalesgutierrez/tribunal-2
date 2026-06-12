@@ -41,6 +41,11 @@ import ExpedienteDetallePage from "./pages/expedientes/ExpedienteDetallePage";
 import TiposProcesoPage     from "./pages/catalogos/TiposProcesoPage";
 import TiposActuacionPage   from "./pages/expedientes/TiposActuacionPage";
 import EstadosExpedientePage from "./pages/expedientes/EstadosExpedientePage";
+import DenunciasPage from "./pages/denuncias/DenunciasPage";
+import ResolucionesAntiguasPage from "./pages/resoluciones/ResolucionesAntiguasPage";
+import DenunciaDetailPage from "./pages/denuncias/DenunciaDetailPage";
+
+
 
 function App() {
   return (
@@ -136,6 +141,8 @@ function App() {
           <Route element={<ProtectedRoute requiredPermissions={[PERMISOS.RECURSOS_VER]} />}>
             <Route path="/recursos" element={<RecursosPage />} />
           </Route>
+          <Route path="/resoluciones-antiguas" element={<ResolucionesAntiguasPage />} />
+          {/* <Route path="/resoluciones-antiguas/:id" element={<ResolucionAntiguaDetallePage />} /> Opcional */}
 
           {/* ============================================================ */}
           {/* DOCUMENTOS */}
@@ -168,7 +175,9 @@ function App() {
           <Route element={<ProtectedRoute requiredPermissions={[PERMISOS.PARTES_PROCESALES_VER]} />}>
             <Route path="/partes" element={<PartesPage />} />
           </Route>
-
+          <Route path="/denuncias" element={<DenunciasPage />} />
+          <Route path="/denuncias/:id" element={<DenunciaDetailPage />} /> 
+          
           {/* ============================================================ */}
           {/* CATÁLOGOS */}
           {/* ============================================================ */}

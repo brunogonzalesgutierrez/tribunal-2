@@ -173,7 +173,15 @@ class SolicitudActualizacionType(DjangoObjectType):
         model = SolicitudActualizacion
         fields = '__all__'
 
+class DenunciaType(DjangoObjectType):
+    class Meta:
+        model = Denuncia
+        fields = '__all__'
 
+class ResolucionAntiguaType(DjangoObjectType):
+    class Meta:
+        model = ResolucionAntigua
+        fields = '__all__'
 
 
 
@@ -413,7 +421,40 @@ class ReporteUsuarioType(graphene.ObjectType):
     actuaciones = graphene.Int()
     documentos  = graphene.Int()
 
+# ============================================================
+# INPUT TYPES - DENUNCIA
+# ============================================================
 
+class CrearDenunciaInput(graphene.InputObjectType):
+    numero_denuncia = graphene.String(required=True)
+    id_denunciante = graphene.Int(required=True)
+    id_denunciado = graphene.Int(required=True)
+    tipo_denunciado = graphene.String(required=True)  
+    descripcion = graphene.String(required=True)
+    id_expediente = graphene.Int()  
+
+
+class ActualizarDenunciaInput(graphene.InputObjectType):
+    estado = graphene.String()
+    resolucion = graphene.String()
+    fecha_resolucion = graphene.String() 
+
+class CrearResolucionAntiguaInput(graphene.InputObjectType):
+    numero_resolucion = graphene.String(required=True)
+    fecha_resolucion = graphene.String(required=True)
+    id_persona_afectada = graphene.Int(required=True)
+    tipo_sancion = graphene.String(required=True)  # SANCION, ABSOLUCION, ARCHIVO
+    descripcion = graphene.String()
+    sancion = graphene.String()
+    documento_url = graphene.String()
+
+class ActualizarResolucionAntiguaInput(graphene.InputObjectType):
+    numero_resolucion = graphene.String()
+    fecha_resolucion = graphene.String()
+    tipo_sancion = graphene.String()
+    descripcion = graphene.String()
+    sancion = graphene.String()
+    documento_url = graphene.String()
 
 
 
@@ -521,7 +562,11 @@ class Query(graphene.ObjectType):
     audiencia_by_id  = graphene.Field(AudienciaType,  id=graphene.Int(required=True))
     documento_by_id  = graphene.Field(DocumentoType,  id=graphene.Int(required=True))
 
-
+    all_denuncias = graphene.List(DenunciaType)
+    denuncia_by_id = graphene.Field(DenunciaType, id=graphene.Int(required=True))
+    all_resoluciones_antiguas = graphene.List(ResolucionAntiguaType)
+    resolucion_antigua_by_id = graphene.Field(ResolucionAntiguaType, id=graphene.Int(required=True))
+    
 
 
     def resolve_all_usuarios(root, info):           return Usuario.objects.all()
@@ -746,6 +791,23 @@ class Query(graphene.ObjectType):
             ))
         return resultado
 
+    def resolve_all_denuncias(root, info):
+        return Denuncia.objects.all()
+    
+    def resolve_denuncia_by_id(root, info, id):
+        try:
+            return Denuncia.objects.get(id=id)
+        except Denuncia.DoesNotExist:
+            return None
+    
+    def resolve_all_resoluciones_antiguas(root, info):
+        return ResolucionAntigua.objects.all()
+    
+    def resolve_resolucion_antigua_by_id(root, info, id):
+        try:
+            return ResolucionAntigua.objects.get(id_resolucion_antigua=id)
+        except ResolucionAntigua.DoesNotExist:
+            return None
 
 
 # ============================================================
@@ -3745,7 +3807,129 @@ class RegistrarAsistenciaBatch(graphene.Mutation):
             registros=creados,
         )
 
+class CrearDenuncia(graphene.Mutation):
+    class Arguments:
+        input = CrearDenunciaInput(required=True)
+    
+    denuncia = graphene.Field(DenunciaType)
+    
+    def mutate(root, info, input):
+        denuncia = Denuncia(
+            numero_denuncia=input.numero_denuncia,
+            denunciante_id=input.id_denunciante,
+            denunciado_id=input.id_denunciado,
+            tipo_denunciado=input.tipo_denunciado,
+            descripcion=input.descripcion,
+            expediente_id=input.get('id_expediente', None)
+        )
+        denuncia.save()
+        return CrearDenuncia(denuncia=denuncia)
 
+
+class ActualizarDenuncia(graphene.Mutation):
+    class Arguments:
+        id = graphene.Int(required=True)
+        input = ActualizarDenunciaInput(required=True)
+    
+    denuncia = graphene.Field(DenunciaType)
+    
+    def mutate(root, info, id, input):
+        try:
+            denuncia = Denuncia.objects.get(id=id)
+        except Denuncia.DoesNotExist:
+            raise Exception("Denuncia no encontrada")
+        
+        if input.get('estado'):
+            denuncia.estado = input.estado
+        if input.get('resolucion'):
+            denuncia.resolucion = input.resolucion
+        if input.get('fecha_resolucion'):
+            denuncia.fecha_resolucion = input.fecha_resolucion
+        
+        denuncia.save()
+        return ActualizarDenuncia(denuncia=denuncia)
+
+
+class EliminarDenuncia(graphene.Mutation):
+    class Arguments:
+        id = graphene.Int(required=True)
+    
+    ok = graphene.Boolean()
+    mensaje = graphene.String()
+    
+    def mutate(root, info, id):
+        try:
+            denuncia = Denuncia.objects.get(id=id)
+            denuncia.delete()
+            return EliminarDenuncia(ok=True, mensaje="Denuncia eliminada")
+        except Denuncia.DoesNotExist:
+            return EliminarDenuncia(ok=False, mensaje="Denuncia no encontrada")
+
+
+class CrearResolucionAntigua(graphene.Mutation):
+    class Arguments:
+        input = CrearResolucionAntiguaInput(required=True)
+    
+    resolucion_antigua = graphene.Field(ResolucionAntiguaType)
+    
+    def mutate(root, info, input):
+        resolucion = ResolucionAntigua(
+            numero_resolucion=input.numero_resolucion,
+            fecha_resolucion=input.fecha_resolucion,
+            persona_afectada_id=input.id_persona_afectada,
+            tipo_sancion=input.tipo_sancion,
+            descripcion=input.get('descripcion', None),
+            sancion=input.get('sancion', None),
+            documento_url=input.get('documento_url', None)
+        )
+        resolucion.save()
+        return CrearResolucionAntigua(resolucion_antigua=resolucion)
+
+
+class ActualizarResolucionAntigua(graphene.Mutation):
+    class Arguments:
+        id = graphene.Int(required=True)
+        input = ActualizarResolucionAntiguaInput(required=True)
+    
+    resolucion_antigua = graphene.Field(ResolucionAntiguaType)
+    
+    def mutate(root, info, id, input):
+        try:
+            resolucion = ResolucionAntigua.objects.get(id_resolucion_antigua=id)
+        except ResolucionAntigua.DoesNotExist:
+            raise Exception("Resolución no encontrada")
+        
+        if input.get('numero_resolucion'):
+            resolucion.numero_resolucion = input.numero_resolucion
+        if input.get('fecha_resolucion'):
+            resolucion.fecha_resolucion = input.fecha_resolucion
+        if input.get('tipo_sancion'):
+            resolucion.tipo_sancion = input.tipo_sancion
+        if input.get('descripcion'):
+            resolucion.descripcion = input.descripcion
+        if input.get('sancion'):
+            resolucion.sancion = input.sancion
+        if input.get('documento_url'):
+            resolucion.documento_url = input.documento_url
+        
+        resolucion.save()
+        return ActualizarResolucionAntigua(resolucion_antigua=resolucion)
+
+
+class EliminarResolucionAntigua(graphene.Mutation):
+    class Arguments:
+        id = graphene.Int(required=True)
+    
+    ok = graphene.Boolean()
+    mensaje = graphene.String()
+    
+    def mutate(root, info, id):
+        try:
+            resolucion = ResolucionAntigua.objects.get(id_resolucion_antigua=id)
+            resolucion.delete()
+            return EliminarResolucionAntigua(ok=True, mensaje="Resolución eliminada")
+        except ResolucionAntigua.DoesNotExist:
+            return EliminarResolucionAntigua(ok=False, mensaje="Resolución no encontrada")
 
 
 
@@ -3885,13 +4069,15 @@ class Mutation(graphene.ObjectType):
     registrar_asistencia  = RegistrarAsistencia.Field()
     registrar_asistencia_batch = RegistrarAsistenciaBatch.Field()
 
+    # DENUNCIAS
+    crear_denuncia = CrearDenuncia.Field()
+    actualizar_denuncia = ActualizarDenuncia.Field()
+    eliminar_denuncia = EliminarDenuncia.Field()
+    
+    # RESOLUCIONES ANTIGUAS
+    crear_resolucion_antigua = CrearResolucionAntigua.Field()
+    actualizar_resolucion_antigua = ActualizarResolucionAntigua.Field()
+    eliminar_resolucion_antigua = EliminarResolucionAntigua.Field()
 
-
-
-
-
-# ============================================================
-# SCHEMA FINAL
-# =======================================================
 
 schema = graphene.Schema(query=Query, mutation=Mutation)

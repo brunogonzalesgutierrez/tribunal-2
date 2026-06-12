@@ -519,10 +519,60 @@ class SolicitudActualizacion(models.Model):
     def __str__(self):
         return f"Solicitud {self.id_solicitud}"
     
+class Denuncia(models.Model):
+    ESTADOS = [
+        ('REGISTRADA', 'Registrada'),
+        ('EN_TRAMITE', 'En Trámite'),
+        ('RESUELTA', 'Resuelta'),
+        ('APELADA', 'Apelada'),
+        ('ARCHIVADA', 'Archivada'),
+    ]
+    
+    TIPOS_DENUNCIADO = [
+        ('ESTUDIANTE', 'Estudiante'),
+        ('DOCENTE', 'Docente'),
+        ('ADMINISTRATIVO', 'Administrativo'),
+    ]
+
+    numero_denuncia = models.CharField(max_length=50, unique=True)
+    fecha_denuncia = models.DateField(auto_now_add=True)
+    denunciante = models.ForeignKey('Persona', on_delete=models.PROTECT, related_name='denuncias_hechas')
+    denunciado = models.ForeignKey('Persona', on_delete=models.PROTECT, related_name='denuncias_recibidas')
+    tipo_denunciado = models.CharField(max_length=20, choices=TIPOS_DENUNCIADO)
+    descripcion = models.TextField()
+    estado = models.CharField(max_length=20, choices=ESTADOS, default='REGISTRADA')
+    resolucion = models.TextField(blank=True, null=True, help_text="Resolución del caso")
+    fecha_resolucion = models.DateField(blank=True, null=True)
+    expediente = models.ForeignKey('Expediente', on_delete=models.SET_NULL, null=True, blank=True, related_name='denuncias')
+    
+    class Meta:
+        db_table = 'denuncia'
+    
+    def __str__(self):
+        return f"Denuncia {self.numero_denuncia} - {self.denunciado}"
 
 
-
-
+class ResolucionAntigua(models.Model):
+    """Resoluciones de casos antiguos (solo para registro histórico)"""
+    
+    TIPOS_SANCION = [
+        ('SANCION', 'Sanción'),
+        ('ABSOLUCION', 'Absolución'),
+        ('ARCHIVO', 'Archivo'),
+    ]
+    numero_resolucion = models.CharField(max_length=50, unique=True)
+    fecha_resolucion = models.DateField()
+    persona_afectada = models.ForeignKey('Persona', on_delete=models.PROTECT, related_name='resoluciones_antiguas')
+    tipo_sancion = models.CharField(max_length=20, choices=TIPOS_SANCION)
+    descripcion = models.TextField(blank=True, null=True)
+    sancion = models.CharField(max_length=200, blank=True, null=True, help_text="Ej: Suspensión 3 meses, Multa, etc.")
+    documento_url = models.URLField(blank=True, null=True)
+    
+    class Meta:
+        db_table = 'resolucion_antigua'
+    
+    def __str__(self):
+        return f"Res. {self.numero_resolucion} - {self.persona_afectada}"
 
 
 
