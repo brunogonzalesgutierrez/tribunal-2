@@ -12,7 +12,7 @@ import {
   SalaAudiencia,
   Modal, Field, SelectField,
   ErrorBox, ModalFooter, StatCard, TablaDesktop, ActionBtns,
-} from "./shared";
+} from "../../shared/ui";
 import { useCrudNotifications } from '../../hooks/useCrudNotifications';
 import { useToast } from '../../context/ToastContext';
 

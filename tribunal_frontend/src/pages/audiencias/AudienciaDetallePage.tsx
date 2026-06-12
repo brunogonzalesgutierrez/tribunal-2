@@ -8,8 +8,8 @@ import {
   Scale, ArrowLeft, Calendar, DoorOpen, Video,
   User, CheckCircle, XCircle, AlertCircle, Clock,
 } from "lucide-react";
-import { EstadoBadge, fmt } from "./shared";
-import { Audiencia } from "./shared";
+
+import { Audiencia,EstadoBadge, fmt } from "../../shared/ui";
 
 // ─── Tipos locales ────────────────────────────────────────
 interface Persona {

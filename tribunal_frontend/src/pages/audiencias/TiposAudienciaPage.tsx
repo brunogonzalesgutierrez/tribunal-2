@@ -11,7 +11,7 @@ import {
   TipoAudiencia,
   Modal, Field, SelectField, TextareaField,
   ErrorBox, ModalFooter, StatCard, TablaDesktop,
-} from "./shared";
+} from "../../shared/ui";
 import { useCrudNotifications } from '../../hooks/useCrudNotifications';
 import { useToast } from '../../context/ToastContext';
 

@@ -566,6 +566,7 @@ class ResolucionAntigua(models.Model):
         ('ARCHIVO', 'Archivo'),
     ]
     
+    id_resolucion_antigua = models.AutoField(primary_key=True)
     numero_resolucion = models.CharField(max_length=50, unique=True)
     fecha_resolucion = models.DateField()
     persona_denunciante = models.ForeignKey(

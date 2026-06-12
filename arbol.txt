@@ -1,0 +1,139 @@
+PS C:\Users\HP\Desktop\tribunal> cd tribunal_frontend
+PS C:\Users\HP\Desktop\tribunal\tribunal_frontend> cd src
+PS C:\Users\HP\Desktop\tribunal\tribunal_frontend\src> tree /f
+Listado de rutas de carpetas
+El número de serie del volumen es A2F0-7254
+C:.
+│   apolloClient.ts
+│   App.css
+│   App.tsx
+│   index.css
+│   main.tsx
+│   
+├───assets
+│       hero.png
+│       react.svg
+│       vite.svg
+│       
+├───components
+│       Header.tsx
+│       Layout.tsx
+│       NotificacionesPanel.tsx
+│       ProtectedRoute.tsx
+│       Sidebar.tsx
+│       
+├───config
+│       permisos.ts
+│       
+├───context
+│       AuthContext.tsx
+│       ToastContext.tsx
+│       
+├───graphql
+│   │   ARCHIVO_3_ExpedienteDetallePage_cambios.tsx
+│   │   audiencias.ts
+│   │   CAMBIO_4_frontend.tsx
+│   │   denuncias.ts
+│   │   documento.ts
+│   │   expediente.ts
+│   │   expedienteDetalle.ts
+│   │   GUIA_COMPLETA_LEE_PRIMERO.txt
+│   │   mutations.ts
+│   │   personas.ts
+│   │   reportes.ts
+│   │   resoluciones.ts
+│   │   resolucionesAntiguas.ts
+│   │   solicitudes.ts
+│   │   tribunal.ts
+│   │   
+│   ├───graphql
+│   │       tribunal.ts
+│   │       
+│   └───usuarios
+│           queries.ts
+│           
+├───hooks
+│       useCrudNotifications.ts
+│       useNotificaciones.ts
+│       
+├───pages
+│   │   DashboardPage.tsx
+│   │   PerfilPage.tsx
+│   │   shared.tsx
+│   │   
+│   ├───audiencias
+│   │       ActasPage.tsx
+│   │       AsistenciasPage.tsx
+│   │       AudienciaDetallePage.tsx
+│   │       AudienciasListPage.tsx
+│   │       SalasAudienciaPage.tsx
+│   │       shared.tsx
+│   │       TiposAudienciaPage.tsx
+│   │       
+│   ├───catalogos
+│   │       TiposProcesoPage.tsx
+│   │       
+│   ├───denuncias
+│   │       dark_ui_shared_preview.html
+│   │       DenunciaDetailPage.tsx
+│   │       DenunciaEtapas.tsx
+│   │       DenunciasPage.tsx
+│   │       shared.tsx
+│   │       
+│   ├───documentos
+│   │       DocumentosListPage.tsx
+│   │       INSTRUCCIONES.md
+│   │       NotificacionesPage.tsx
+│   │       shared.tsx
+│   │       SolicitudesPage.tsx
+│   │       TiposDocPage.tsx
+│   │       
+│   ├───expedientes
+│   │       ActuacionesPage.tsx
+│   │       EstadosExpedientePage.tsx
+│   │       ExpedienteDetallePage.tsx
+│   │       ExpedientesPage.tsx
+│   │       HistorialEstadosPage.tsx
+│   │       TiposActuacionPage.tsx
+│   │       
+│   ├───login
+│   │       LoginPage.tsx
+│   │       OtpPage.tsx
+│   │       
+│   ├───personas
+│   │       ContactosPage.tsx
+│   │       PartesPage.tsx
+│   │       PersonasListPage.tsx
+│   │       RolesProcesalesPage.tsx
+│   │       shared.tsx
+│   │       
+│   ├───reportes
+│   │       ReportesPage.tsx
+│   │       
+│   ├───resoluciones
+│   │       INSTRUCCIONES_PDF.ts
+│   │       RecursosPage.tsx
+│   │       ResolucionesAntiguasPage.tsx
+│   │       ResolucionesListPage.tsx
+│   │       shared.tsx
+│   │       TiposRecursoPage.tsx
+│   │       TiposResolucionPage.tsx
+│   │       
+│   ├───seguridad
+│   │       PermisosPage.tsx
+│   │       RolesPage.tsx
+│   │       UsuariosPage.tsx
+│   │       
+│   └───tribunal
+│           ConformacionesPage.tsx
+│           INSTRUCCIONES.md
+│           SalasTribunalPage.tsx
+│           shared.tsx
+│           TribunalesPage.tsx
+│           VocalesPage.tsx
+│           
+└───utils
+        generarCertificadoNoHallado.ts
+        generarPdfResolucion.ts
+        
+PS C:\Users\HP\Desktop\tribunal\tribunal_frontend\src> 

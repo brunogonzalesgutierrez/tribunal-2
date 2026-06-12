@@ -131,10 +131,9 @@ type MenuItem = MenuItemLink | MenuItemDropdown;
 
 interface SidebarProps {
   collapsed?: boolean;
-  darkMode?: boolean;
 }
 
-export default function Sidebar({ collapsed = false, darkMode = true }: SidebarProps) {
+export default function Sidebar({ collapsed = false }: SidebarProps) {
   const { logout, hasPermission, usuario } = useAuth();
   const location  = useLocation();
   const navigate  = useNavigate();
@@ -330,24 +329,15 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
 
   const handleNavClick = (name: string, path: string) => addToRecent(name, path);
 
-  // Estilos dinámicos
-  const bgGradient  = darkMode ? 'from-gray-900 to-gray-800' : 'from-white to-gray-50';
-  const borderColor = darkMode ? 'border-gray-700' : 'border-gray-200';
-  const textColor   = darkMode ? 'text-gray-300' : 'text-gray-600';
-  const hoverBg     = darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100';
-  const activeBg    = darkMode ? 'from-blue-600 to-blue-700' : 'from-blue-500 to-blue-600';
-
   const isDropdown = (item: MenuItem): item is MenuItemDropdown => item.type === 'dropdown';
   const isLink     = (item: MenuItem): item is MenuItemLink     => item.type === 'link';
 
   return (
-    <aside className={`${collapsed ? 'w-20' : 'w-64'} bg-gradient-to-b ${bgGradient} flex flex-col shadow-2xl border-r ${borderColor} transition-all duration-300 ease-in-out z-20 h-full`}>
+    <aside className={`${collapsed ? 'w-16' : 'w-56'} bg-white flex flex-col border-r border-gray-200 transition-all duration-300 ease-in-out z-20 h-full`}>
 
       {/* ── LOGO ── */}
-      <div className={`h-16 flex items-center ${collapsed ? 'justify-center' : 'gap-3 px-5'} border-b ${borderColor} relative overflow-hidden`}>
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-purple-600/20" />
+      <div className={`h-16 flex items-center ${collapsed ? 'justify-center' : 'gap-3 px-5'} border-b border-gray-100 relative`}>
         <div className="relative">
-          <div className="absolute inset-0 bg-blue-500 rounded-xl blur-xl opacity-70 animate-pulse" />
           <img
             src="https://i.postimg.cc/BbmCyymq/justicia.png"
             alt="Logo"
@@ -356,8 +346,8 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
         </div>
         {!collapsed && (
           <div className="flex-1">
-            <h1 className={`font-bold text-lg tracking-wide ${darkMode ? 'text-white' : 'text-gray-800'}`}>Tribunal</h1>
-            <p className={`text-xs ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>Sistema Judicial</p>
+            <h1 className="font-bold text-lg tracking-wide text-gray-900">Tribunal</h1>
+            <p className="text-xs text-gray-400">Sistema Judicial</p>
           </div>
         )}
         {/* Badge global en modo colapsado */}
@@ -370,13 +360,13 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
 
       {/* ── FAVORITOS ── */}
       {!collapsed && favorites.length > 0 && (
-        <div className={`px-3 py-3 border-b ${borderColor}`}>
+        <div className="px-3 py-3 border-b border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <Star className="w-3.5 h-3.5 text-yellow-500" />
-              <span className={`text-xs font-semibold ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider`}>Favoritos</span>
+              <Star className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Favoritos</span>
             </div>
-            <button onClick={() => setFavorites([])} className="text-xs text-gray-500 hover:text-red-400">Limpiar</button>
+            <button onClick={() => setFavorites([])} className="text-xs text-gray-400 hover:text-red-500">Limpiar</button>
           </div>
           <div className="space-y-1">
             {favorites.map(fav => (
@@ -386,12 +376,12 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
                 className={({ isActive }) =>
                   `flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm ${
                     isActive
-                      ? darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'
-                      : `${textColor} ${hoverBg}`
+                      ? 'bg-gray-900 text-white'
+                      : 'text-gray-500 hover:bg-gray-50'
                   }`
                 }
               >
-                <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
                 <span className="flex-1 truncate">{fav.name}</span>
                 <button onClick={e => { e.preventDefault(); e.stopPropagation(); removeFromFavorites(fav.path); }}>
                   <X className="w-3 h-3 text-red-400" />
@@ -418,18 +408,15 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
                     onClick={() => toggleMenu(item.name)}
                     className={`group flex items-center justify-between w-full px-3 py-2 rounded-xl transition-all duration-200 ${
                       item.active || isExpanded
-                        ? `bg-gradient-to-r ${activeBg} text-white shadow-lg`
-                        : `${textColor} ${hoverBg}`
+                        ? 'bg-blue-50 text-blue-700'
+                        : 'text-gray-500 hover:bg-gray-50'
                     }`}
                     title={collapsed ? item.name : ''}
                   >
                     <div className={`flex items-center ${collapsed ? 'justify-center w-full' : 'gap-3'}`}>
                       <item.icon className="w-5 h-5 shrink-0" />
                       {!collapsed && (
-                        <div className="flex-1 text-left min-w-0">
-                          <span className="text-sm font-medium">{item.name}</span>
-                          {item.description && <p className="text-xs opacity-75">{item.description}</p>}
-                        </div>
+                        <span className="flex-1 text-left text-sm font-medium">{item.name}</span>
                       )}
                     </div>
                     {!collapsed && (
@@ -451,7 +438,7 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
 
                   {/* Submenú */}
                   {!collapsed && isExpanded && (
-                    <div className="ml-4 mt-1 space-y-1 border-l-2 border-blue-500/50 pl-3">
+                    <div className="ml-4 mt-1 space-y-1 border-l-2 border-gray-200 pl-3">
                       {item.submenu.map(sub => {
                         const SubIcon    = sub.icon;
                         const subBadge   = sub.badgeKey ? (badgeMap[sub.badgeKey] ?? 0) : 0;
@@ -464,8 +451,8 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
                             className={({ isActive }) =>
                               `group flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                                 isActive
-                                  ? darkMode ? 'text-blue-400 bg-gray-700' : 'text-blue-600 bg-gray-100'
-                                  : `${textColor} ${hoverBg}`
+                                  ? 'text-gray-900 bg-gray-100 font-medium'
+                                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                               }`
                             }
                           >
@@ -481,7 +468,7 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
                               onClick={e => { e.preventDefault(); e.stopPropagation(); addToFavorites(sub.name, sub.path); }}
                               className="opacity-0 group-hover:opacity-100 ml-1"
                             >
-                              <Star className="w-3 h-3 text-yellow-500" />
+                              <Star className="w-3 h-3 text-amber-400" />
                             </button>
                           </NavLink>
                         );
@@ -503,31 +490,29 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
                   className={({ isActive }) =>
                     `group flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-2 rounded-xl transition-all duration-200 ${
                       isActive
-                        ? `bg-gradient-to-r ${activeBg} text-white shadow-lg`
-                        : `${textColor} ${hoverBg}`
+                        ? 'bg-blue-50 text-blue-700'
+                        : 'text-gray-500 hover:bg-gray-50'
                     }`
                   }
                   title={collapsed ? item.name : ''}
                 >
-                  <item.icon className="w-5 h-5 shrink-0" />
-                  {!collapsed && (
+                  {({ isActive }) => (
                     <>
-                      <div className="flex-1 text-left min-w-0">
-                        <span className="text-sm font-medium">{item.name}</span>
-                        {item.description && <p className="text-xs opacity-75">{item.description}</p>}
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {linkBadge > 0 && <Badge count={linkBadge} />}
-                        {location.pathname === item.path && (
-                          <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
-                        )}
-                        <button
-                          onClick={e => { e.preventDefault(); e.stopPropagation(); addToFavorites(item.name, item.path); }}
-                          className="opacity-0 group-hover:opacity-100"
-                        >
-                          <Star className="w-3.5 h-3.5 text-yellow-500" />
-                        </button>
-                      </div>
+                      <item.icon className="w-5 h-5 shrink-0" />
+                      {!collapsed && (
+                        <>
+                          <span className="flex-1 text-left text-sm font-medium">{item.name}</span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {linkBadge > 0 && <Badge count={linkBadge} />}
+                            <button
+                              onClick={e => { e.preventDefault(); e.stopPropagation(); addToFavorites(item.name, item.path); }}
+                              className="opacity-0 group-hover:opacity-100"
+                            >
+                              <Star className="w-3.5 h-3.5 text-amber-400" />
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </>
                   )}
                 </NavLink>
@@ -541,36 +526,36 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
 
       {/* ── RESUMEN RÁPIDO (solo expandido) ── */}
       {!collapsed && (badges.audienciasHoy + badges.notifPendientes + badges.solicitudesPendientes) > 0 && (
-        <div className={`px-3 py-3 border-t ${borderColor}`}>
-          <p className={`text-[10px] font-bold uppercase tracking-wider mb-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+        <div className="px-3 py-3 border-t border-gray-100">
+          <p className="text-[10px] font-bold uppercase tracking-wider mb-2 text-gray-400">
             Pendientes
           </p>
           <div className="space-y-1.5">
             {badges.audienciasHoy > 0 && (
               <div className="flex items-center justify-between">
-                <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} flex items-center gap-1.5`}>
-                  <Calendar className="w-3 h-3 text-blue-400" />
+                <span className="text-xs text-gray-500 flex items-center gap-1.5">
+                  <Calendar className="w-3 h-3 text-blue-500" />
                   Audiencias hoy
                 </span>
-                <span className="text-xs font-bold text-blue-400">{badges.audienciasHoy}</span>
+                <span className="text-xs font-bold text-blue-600">{badges.audienciasHoy}</span>
               </div>
             )}
             {badges.notifPendientes > 0 && (
               <div className="flex items-center justify-between">
-                <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} flex items-center gap-1.5`}>
-                  <Bell className="w-3 h-3 text-amber-400" />
+                <span className="text-xs text-gray-500 flex items-center gap-1.5">
+                  <Bell className="w-3 h-3 text-amber-500" />
                   Notificaciones
                 </span>
-                <span className="text-xs font-bold text-amber-400">{badges.notifPendientes}</span>
+                <span className="text-xs font-bold text-amber-600">{badges.notifPendientes}</span>
               </div>
             )}
             {badges.solicitudesPendientes > 0 && (
               <div className="flex items-center justify-between">
-                <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} flex items-center gap-1.5`}>
-                  <ClipboardList className="w-3 h-3 text-purple-400" />
+                <span className="text-xs text-gray-500 flex items-center gap-1.5">
+                  <ClipboardList className="w-3 h-3 text-purple-500" />
                   Solicitudes
                 </span>
-                <span className="text-xs font-bold text-purple-400">{badges.solicitudesPendientes}</span>
+                <span className="text-xs font-bold text-purple-600">{badges.solicitudesPendientes}</span>
               </div>
             )}
           </div>
@@ -578,12 +563,10 @@ export default function Sidebar({ collapsed = false, darkMode = true }: SidebarP
       )}
 
       {/* ── CERRAR SESIÓN ── */}
-      <div className={`p-3 border-t ${borderColor}`}>
+      <div className="p-3 border-t border-gray-100">
         <button
           onClick={handleLogout}
-          className={`group flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-2 w-full rounded-xl transition-all duration-200 ${
-            darkMode ? 'text-gray-400 hover:bg-red-500/10 hover:text-red-500' : 'text-gray-600 hover:bg-red-50 hover:text-red-600'
-          }`}
+          className={`group flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-2 w-full rounded-xl transition-all duration-200 text-gray-500 hover:bg-red-50 hover:text-red-600`}
           title={collapsed ? 'Cerrar Sesión' : ''}
         >
           <LogOut className="w-5 h-5" />

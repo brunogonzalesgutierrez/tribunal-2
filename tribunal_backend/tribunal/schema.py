@@ -441,11 +441,13 @@ class ActualizarDenunciaInput(graphene.InputObjectType):
     tipo_denunciado = graphene.String()   
     descripcion = graphene.String()       
 
+# DESPUÉS
 class CrearResolucionAntiguaInput(graphene.InputObjectType):
     numero_resolucion = graphene.String(required=True)
     fecha_resolucion = graphene.String(required=True)
-    id_persona_afectada = graphene.Int(required=True)
-    tipo_sancion = graphene.String(required=True)  # SANCION, ABSOLUCION, ARCHIVO
+    id_persona_denunciante = graphene.Int()          # ← opcional
+    id_persona_denunciada = graphene.Int(required=True)  # ← requerido
+    tipo_sancion = graphene.String(required=True)
     descripcion = graphene.String()
     sancion = graphene.String()
     documento_url = graphene.String()
@@ -453,6 +455,8 @@ class CrearResolucionAntiguaInput(graphene.InputObjectType):
 class ActualizarResolucionAntiguaInput(graphene.InputObjectType):
     numero_resolucion = graphene.String()
     fecha_resolucion = graphene.String()
+    id_persona_denunciante = graphene.Int()
+    id_persona_denunciada = graphene.Int()
     tipo_sancion = graphene.String()
     descripcion = graphene.String()
     sancion = graphene.String()
@@ -3874,12 +3878,13 @@ class CrearResolucionAntigua(graphene.Mutation):
     
     resolucion_antigua = graphene.Field(ResolucionAntiguaType)
     
+    # CrearResolucionAntigua.mutate — DESPUÉS
     def mutate(root, info, input):
         resolucion = ResolucionAntigua(
             numero_resolucion=input.numero_resolucion,
             fecha_resolucion=input.fecha_resolucion,
             persona_denunciante_id=input.get('id_persona_denunciante', None),
-            persona_denunciada_id=input.id_persona_denunciada,
+            persona_denunciada_id=input.id_persona_denunciada,  # ← corregido
             tipo_sancion=input.tipo_sancion,
             descripcion=input.get('descripcion', None),
             sancion=input.get('sancion', None),
@@ -3896,6 +3901,7 @@ class ActualizarResolucionAntigua(graphene.Mutation):
     
     resolucion_antigua = graphene.Field(ResolucionAntiguaType)
     
+    # ActualizarResolucionAntigua.mutate — DESPUÉS
     def mutate(root, info, id, input):
         try:
             resolucion = ResolucionAntigua.objects.get(id_resolucion_antigua=id)
@@ -3909,7 +3915,7 @@ class ActualizarResolucionAntigua(graphene.Mutation):
         if input.get('id_persona_denunciante') is not None:
             resolucion.persona_denunciante_id = input.id_persona_denunciante
         if input.get('id_persona_denunciada'):
-            resolucion.persona_denunciada_id = input.id_persona_denunciada
+            resolucion.persona_denunciada_id = input.id_persona_denunciada  # ← corregido
         if input.get('tipo_sancion'):
             resolucion.tipo_sancion = input.tipo_sancion
         if input.get('descripcion'):

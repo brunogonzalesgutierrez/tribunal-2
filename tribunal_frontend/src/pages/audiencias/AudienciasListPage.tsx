@@ -21,7 +21,7 @@ import {
   Audiencia, Expediente, TipoAudiencia, SalaAudiencia,
   fmt, EstadoBadge, Modal, Field, SelectField, TextareaField,
   ErrorBox, ModalFooter, StatCard, TablaDesktop, ActionBtns, Paginacion,
-} from "./shared";
+} from "../../shared/ui";
 import { useCrudNotifications } from '../../hooks/useCrudNotifications';
 import { useToast } from '../../context/ToastContext';
 
