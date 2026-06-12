@@ -8,13 +8,12 @@ import {
   ACTUALIZAR_DENUNCIA,
   ELIMINAR_DENUNCIA,
 } from "../../graphql/denuncias";
-import { GET_EXPEDIENTES_SIMPLE } from "../../graphql/audiencias";
 import { CREAR_PERSONA } from "../../graphql/personas";
 import { useCrudNotifications } from "../../hooks/useCrudNotifications";
 import {
-  AlertCircle, Calendar, CheckCircle, ChevronLeft, ChevronRight,
-  Edit, Eye, FileText, MoreVertical, Plus, Search, Trash2, User, X,
-  Scale, Sparkles, FolderOpen, Users,
+  AlertCircle, CheckCircle, ChevronLeft, ChevronRight,
+  Edit, Eye, FileText, Plus, Search, Trash2, User, X,
+  Scale,
 } from "lucide-react";
 
 // ─── TIPOS ───────────────────────────────────────────────
@@ -24,12 +23,6 @@ interface Persona {
   primerApellido: string;
   segundoApellido?: string;
   numeroDocumento: string;
-}
-
-interface ExpedienteSimple {
-  idExpediente: number;
-  numeroExpediente: string;
-  ano: number;
 }
 
 interface Denuncia {
@@ -43,7 +36,6 @@ interface Denuncia {
   estado: string;
   resolucion?: string;
   fechaResolucion?: string;
-  expediente?: ExpedienteSimple;
 }
 
 const initialForm = {
@@ -52,7 +44,6 @@ const initialForm = {
   idDenunciado: 0,
   tipoDenunciado: "ESTUDIANTE",
   descripcion: "",
-  idExpediente: 0,
 };
 
 const ESTADOS = [
@@ -111,15 +102,17 @@ const Field = ({ label, value, onChange, type = "text", placeholder = "", requir
   </div>
 );
 
-// ─── BUSCADOR DE PERSONAS ──────────────────────────────
+// ─── BUSCADOR DE PERSONAS CON BOTÓN "+" ──────────────────────────────
 function BuscadorPersona({
   onSelect,
   onClose,
   title = "Seleccionar Persona",
+  onCrearPersona,
 }: {
   onSelect: (id: number, nombre: string) => void;
   onClose: () => void;
   title?: string;
+  onCrearPersona: () => void;
 }) {
   const [busqueda, setBusqueda] = useState("");
   const { data, loading } = useQuery(GET_PERSONAS);
@@ -197,99 +190,20 @@ function BuscadorPersona({
         </div>
 
         <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
-          <button onClick={onClose} className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium">
-            Cancelar
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── BUSCADOR DE EXPEDIENTES ────────────────────────────
-function BuscadorExpediente({
-  onSelect,
-  onClose,
-}: {
-  onSelect: (id: number, nombre: string) => void;
-  onClose: () => void;
-}) {
-  const [busqueda, setBusqueda] = useState("");
-  const { data, loading } = useQuery(GET_EXPEDIENTES_SIMPLE);
-
-  const expedientes: ExpedienteSimple[] = data?.allExpedientes ?? [];
-
-  const filtrados = expedientes.filter(e =>
-    `${e.numeroExpediente} ${e.ano}`.toLowerCase().includes(busqueda.toLowerCase())
-  );
-
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
-          <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
-            <Search className="w-5 h-5 text-blue-500" />
-            Seleccionar Expediente
-          </h2>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
-        </div>
-
-        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Buscar expediente por número..."
-              value={busqueda}
-              onChange={e => setBusqueda(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
-              autoFocus
-            />
+          <div className="flex gap-2">
+            <button
+              onClick={onCrearPersona}
+              className="flex-1 px-4 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-semibold flex items-center justify-center gap-2"
+            >
+              <Plus className="w-4 h-4" /> Crear nueva persona
+            </button>
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+            >
+              Cancelar
+            </button>
           </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-            </div>
-          ) : filtrados.length === 0 ? (
-            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
-              <p>No se encontraron expedientes</p>
-            </div>
-          ) : (
-            <div className="space-y-2 pb-4">
-              {filtrados.map((e) => (
-                <button
-                  key={e.idExpediente}
-                  onClick={() => {
-                    onSelect(e.idExpediente, `${e.numeroExpediente} (${e.ano})`);
-                    onClose();
-                  }}
-                  className="w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700"
-                >
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="font-semibold text-gray-800 dark:text-white font-mono">{e.numeroExpediente}</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Año: {e.ano}</p>
-                    </div>
-                    <div className="text-blue-500">
-                      <Plus className="w-5 h-5" />
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
-          <button onClick={onClose} className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium">
-            Cancelar
-          </button>
         </div>
       </div>
     </div>
@@ -327,11 +241,9 @@ export default function DenunciasPage() {
   // Estados para buscadores modales
   const [buscadorDenuncianteAbierto, setBuscadorDenuncianteAbierto] = useState(false);
   const [buscadorDenunciadoAbierto, setBuscadorDenunciadoAbierto] = useState(false);
-  const [buscadorExpedienteAbierto, setBuscadorExpedienteAbierto] = useState(false);
 
   const [denuncianteSeleccionado, setDenuncianteSeleccionado] = useState("");
   const [denunciadoSeleccionado, setDenunciadoSeleccionado] = useState("");
-  const [expedienteSeleccionado, setExpedienteSeleccionado] = useState("");
 
   const [estadoModal, setEstadoModal] = useState<{ open: boolean; denuncia: Denuncia | null; nuevoEstado: string }>({
     open: false, denuncia: null, nuevoEstado: "",
@@ -365,16 +277,13 @@ export default function DenunciasPage() {
   const seleccionarDenunciante = (id: number, nombre: string) => {
     setForm(prev => ({ ...prev, idDenunciante: id }));
     setDenuncianteSeleccionado(nombre);
+    setBuscadorDenuncianteAbierto(false);
   };
 
   const seleccionarDenunciado = (id: number, nombre: string) => {
     setForm(prev => ({ ...prev, idDenunciado: id }));
     setDenunciadoSeleccionado(nombre);
-  };
-
-  const seleccionarExpediente = (id: number, nombre: string) => {
-    setForm(prev => ({ ...prev, idExpediente: id }));
-    setExpedienteSeleccionado(nombre);
+    setBuscadorDenunciadoAbierto(false);
   };
 
   const handleCrearPersona = async () => {
@@ -422,8 +331,6 @@ export default function DenunciasPage() {
           titularA: "",
           esAbogado: false,
         });
-
-        await refetch();
       }
     } catch (error: any) {
       console.error("Error al crear persona:", error);
@@ -436,7 +343,6 @@ export default function DenunciasPage() {
     setForm(initialForm);
     setDenuncianteSeleccionado("");
     setDenunciadoSeleccionado("");
-    setExpedienteSeleccionado("");
     setModalAbierto(true);
   };
 
@@ -448,15 +354,16 @@ export default function DenunciasPage() {
       idDenunciado: d.denunciado?.idPersona || 0,
       tipoDenunciado: d.tipoDenunciado,
       descripcion: d.descripcion,
-      idExpediente: d.expediente?.idExpediente || 0,
     });
-    setDenuncianteSeleccionado(d.denunciante ? `${d.denunciante.nombre} ${d.denunciante.primerApellido}` : "");
-    setDenunciadoSeleccionado(d.denunciado ? `${d.denunciado.nombre} ${d.denunciado.primerApellido}` : "");
-    setExpedienteSeleccionado(d.expediente ? `${d.expediente.numeroExpediente}` : "");
+    setDenuncianteSeleccionado(d.denunciante ? `${d.denunciante.nombre} ${d.denunciante.primerApellido} - ${d.denunciante.numeroDocumento}` : "");
+    setDenunciadoSeleccionado(d.denunciado ? `${d.denunciado.nombre} ${d.denunciado.primerApellido} - ${d.denunciado.numeroDocumento}` : "");
     setModalAbierto(true);
   };
 
-  const cerrarModal = () => { setModalAbierto(false); setEditando(null); };
+  const cerrarModal = () => { 
+    setModalAbierto(false); 
+    setEditando(null); 
+  };
 
   const guardar = async () => {
     if (!form.numeroDenuncia || !form.idDenunciante || !form.idDenunciado || !form.descripcion) {
@@ -467,27 +374,17 @@ export default function DenunciasPage() {
     if (saving) return;
     setSaving(true);
 
-    const input = {
-      numeroDenuncia: form.numeroDenuncia,
-      idDenunciante: Number(form.idDenunciante),
-      idDenunciado: Number(form.idDenunciado),
-      tipoDenunciado: form.tipoDenunciado,
-      descripcion: form.descripcion,
-      idExpediente: form.idExpediente ? Number(form.idExpediente) : undefined,
-    };
-
-    console.log("Enviando input:", input);
-
     try {
       if (editando) {
+        // ✅ ACTUALIZACIÓN - Solo enviar los campos que el backend acepta
         await executeUpdate(async () => {
           await actualizarDenuncia({
             variables: { 
               id: Number(editando.id), 
               input: { 
-                estado: editando.estado, 
+                estado: editando.estado,
                 resolucion: editando.resolucion,
-                fechaResolucion: editando.fechaResolucion
+                fechaResolucion: editando.fechaResolucion,
               } 
             },
           });
@@ -496,9 +393,17 @@ export default function DenunciasPage() {
           return true;
         });
       } else {
+        // ✅ CREACIÓN - Enviar todos los campos
+        const input = {
+          numeroDenuncia: form.numeroDenuncia,
+          idDenunciante: Number(form.idDenunciante),
+          idDenunciado: Number(form.idDenunciado),
+          tipoDenunciado: form.tipoDenunciado,
+          descripcion: form.descripcion,
+        };
+
         await executeCreate(async () => {
-          const result = await crearDenuncia({ variables: { input } });
-          console.log("Respuesta:", result);
+          await crearDenuncia({ variables: { input } });
           await refetch();
           cerrarModal();
           return true;
@@ -567,6 +472,19 @@ export default function DenunciasPage() {
       ADMINISTRATIVO: "bg-emerald-100 text-emerald-700",
     };
     return colors[tipo] || "bg-gray-100 text-gray-700";
+  };
+
+  // Función para abrir el modal de creación de persona desde el buscador
+  const abrirModalCrearPersona = (tipo: "denunciante" | "denunciado") => {
+    // Cerrar el buscador primero
+    if (tipo === "denunciante") {
+      setBuscadorDenuncianteAbierto(false);
+    } else {
+      setBuscadorDenunciadoAbierto(false);
+    }
+    // Luego abrir el modal de persona
+    setTipoPersona(tipo);
+    setModalPersonaAbierto(true);
   };
 
   return (
@@ -789,108 +707,92 @@ export default function DenunciasPage() {
       {modalAbierto && (
         <Modal onClose={cerrarModal} title={editando ? "Editar denuncia" : "Nueva denuncia"}>
           <div className="space-y-4">
-            <Field
-              label="Número de denuncia"
-              value={form.numeroDenuncia}
-              onChange={f("numeroDenuncia")}
-              required
-              placeholder="Ej: DEN-001/2025"
-              disabled={saving}
-            />
+            {/* Número de denuncia - en edición es solo lectura */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                Número de denuncia <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={form.numeroDenuncia}
+                onChange={e => f("numeroDenuncia")(e.target.value)}
+                disabled={saving || !!editando}
+                placeholder="Ej: DEN-001/2025"
+                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none disabled:opacity-60 disabled:cursor-not-allowed"
+              />
+            </div>
 
-            {/* Denunciante */}
+            {/* Denunciante - en edición es solo lectura */}
             <div>
               <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
                 Denunciante <span className="text-red-500">*</span>
               </label>
               {denuncianteSeleccionado ? (
-                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-gray-100 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-700">
+                  <User className="w-4 h-4 text-gray-400" />
                   <span className="flex-1 text-sm text-gray-800 dark:text-white">{denuncianteSeleccionado}</span>
-                  <button
-                    onClick={() => {
-                      setForm(prev => ({ ...prev, idDenunciante: 0 }));
-                      setDenuncianteSeleccionado("");
-                    }}
-                    disabled={saving}
-                    className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  {!editando && (
+                    <button
+                      onClick={() => {
+                        setForm(prev => ({ ...prev, idDenunciante: 0 }));
+                        setDenuncianteSeleccionado("");
+                      }}
+                      disabled={saving}
+                      className="p-1 rounded-lg text-gray-500 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               ) : (
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setBuscadorDenuncianteAbierto(true)}
-                    disabled={saving}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
-                  >
-                    <Search className="w-4 h-4" />
-                    Buscar denunciante
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTipoPersona("denunciante");
-                      setModalPersonaAbierto(true);
-                    }}
-                    disabled={saving}
-                    className="px-4 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white transition-colors flex items-center gap-1"
-                    title="Crear nueva persona"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setBuscadorDenuncianteAbierto(true)}
+                  disabled={saving || !!editando}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Search className="w-4 h-4" />
+                  Buscar denunciante
+                </button>
               )}
             </div>
 
-            {/* Denunciado */}
+            {/* Denunciado - en edición es solo lectura */}
             <div>
               <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
                 Denunciado <span className="text-red-500">*</span>
               </label>
               {denunciadoSeleccionado ? (
-                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-gray-100 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-700">
+                  <User className="w-4 h-4 text-gray-400" />
                   <span className="flex-1 text-sm text-gray-800 dark:text-white">{denunciadoSeleccionado}</span>
-                  <button
-                    onClick={() => {
-                      setForm(prev => ({ ...prev, idDenunciado: 0 }));
-                      setDenunciadoSeleccionado("");
-                    }}
-                    disabled={saving}
-                    className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  {!editando && (
+                    <button
+                      onClick={() => {
+                        setForm(prev => ({ ...prev, idDenunciado: 0 }));
+                        setDenunciadoSeleccionado("");
+                      }}
+                      disabled={saving}
+                      className="p-1 rounded-lg text-gray-500 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               ) : (
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setBuscadorDenunciadoAbierto(true)}
-                    disabled={saving}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
-                  >
-                    <Search className="w-4 h-4" />
-                    Buscar denunciado
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTipoPersona("denunciado");
-                      setModalPersonaAbierto(true);
-                    }}
-                    disabled={saving}
-                    className="px-4 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white transition-colors flex items-center gap-1"
-                    title="Crear nueva persona"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setBuscadorDenunciadoAbierto(true)}
+                  disabled={saving || !!editando}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Search className="w-4 h-4" />
+                  Buscar denunciado
+                </button>
               )}
             </div>
 
-            {/* Tipo de denunciado */}
+            {/* Tipo de denunciado - DESHABILITADO en edición (porque backend no lo acepta) */}
             <div>
               <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
                 Tipo de denunciado <span className="text-red-500">*</span>
@@ -898,8 +800,8 @@ export default function DenunciasPage() {
               <select
                 value={form.tipoDenunciado}
                 onChange={e => f("tipoDenunciado")(e.target.value)}
-                disabled={saving}
-                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+                disabled={saving || !!editando}
+                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {TIPOS_DENUNCIADO.map(t => (
                   <option key={t.value} value={t.value}>{t.label}</option>
@@ -907,39 +809,7 @@ export default function DenunciasPage() {
               </select>
             </div>
 
-            {/* Expediente relacionado */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
-                Expediente relacionado (opcional)
-              </label>
-              {expedienteSeleccionado ? (
-                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700">
-                  <span className="flex-1 text-sm text-gray-800 dark:text-white font-mono">{expedienteSeleccionado}</span>
-                  <button
-                    onClick={() => {
-                      setForm(prev => ({ ...prev, idExpediente: 0 }));
-                      setExpedienteSeleccionado("");
-                    }}
-                    disabled={saving}
-                    className="p-1 rounded-lg text-gray-500 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setBuscadorExpedienteAbierto(true)}
-                  disabled={saving}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
-                >
-                  <Plus className="w-4 h-4" />
-                  Buscar expediente
-                </button>
-              )}
-            </div>
-
-            {/* Descripción */}
+            {/* Descripción - DESHABILITADA en edición (porque backend no lo acepta) */}
             <div>
               <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
                 Descripción de los hechos <span className="text-red-500">*</span>
@@ -947,9 +817,9 @@ export default function DenunciasPage() {
               <textarea
                 value={form.descripcion}
                 onChange={e => f("descripcion")(e.target.value)}
-                disabled={saving}
+                disabled={saving || !!editando}
                 rows={4}
-                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-none"
+                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-none disabled:opacity-50 disabled:cursor-not-allowed"
                 placeholder="Describa los hechos denunciados..."
               />
             </div>
@@ -1121,6 +991,7 @@ export default function DenunciasPage() {
           onSelect={seleccionarDenunciante}
           onClose={() => setBuscadorDenuncianteAbierto(false)}
           title="Seleccionar Denunciante"
+          onCrearPersona={() => abrirModalCrearPersona("denunciante")}
         />
       )}
       {buscadorDenunciadoAbierto && (
@@ -1128,12 +999,7 @@ export default function DenunciasPage() {
           onSelect={seleccionarDenunciado}
           onClose={() => setBuscadorDenunciadoAbierto(false)}
           title="Seleccionar Denunciado"
-        />
-      )}
-      {buscadorExpedienteAbierto && (
-        <BuscadorExpediente
-          onSelect={seleccionarExpediente}
-          onClose={() => setBuscadorExpedienteAbierto(false)}
+          onCrearPersona={() => abrirModalCrearPersona("denunciado")}
         />
       )}
     </div>

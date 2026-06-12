@@ -560,9 +560,21 @@ class ResolucionAntigua(models.Model):
         ('ABSOLUCION', 'Absolución'),
         ('ARCHIVO', 'Archivo'),
     ]
+    
     numero_resolucion = models.CharField(max_length=50, unique=True)
     fecha_resolucion = models.DateField()
-    persona_afectada = models.ForeignKey('Persona', on_delete=models.PROTECT, related_name='resoluciones_antiguas')
+    persona_denunciante = models.ForeignKey(
+        'Persona', 
+        on_delete=models.PROTECT, 
+        related_name='resoluciones_antiguas_denunciante',
+        null=True, 
+        blank=True
+    )
+    persona_denunciada = models.ForeignKey(
+        'Persona', 
+        on_delete=models.PROTECT, 
+        related_name='resoluciones_antiguas_denunciada'
+    )
     tipo_sancion = models.CharField(max_length=20, choices=TIPOS_SANCION)
     descripcion = models.TextField(blank=True, null=True)
     sancion = models.CharField(max_length=200, blank=True, null=True, help_text="Ej: Suspensión 3 meses, Multa, etc.")
@@ -572,7 +584,7 @@ class ResolucionAntigua(models.Model):
         db_table = 'resolucion_antigua'
     
     def __str__(self):
-        return f"Res. {self.numero_resolucion} - {self.persona_afectada}"
+        return f"Res. {self.numero_resolucion} - {self.persona_denunciada}"
 
 
 

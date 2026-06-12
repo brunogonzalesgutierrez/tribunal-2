@@ -438,6 +438,8 @@ class ActualizarDenunciaInput(graphene.InputObjectType):
     estado = graphene.String()
     resolucion = graphene.String()
     fecha_resolucion = graphene.String() 
+    tipo_denunciado = graphene.String()   
+    descripcion = graphene.String()       
 
 class CrearResolucionAntiguaInput(graphene.InputObjectType):
     numero_resolucion = graphene.String(required=True)
@@ -3845,10 +3847,13 @@ class ActualizarDenuncia(graphene.Mutation):
             denuncia.resolucion = input.resolucion
         if input.get('fecha_resolucion'):
             denuncia.fecha_resolucion = input.fecha_resolucion
+        if input.get('tipo_denunciado'):      # ← agregar
+            denuncia.tipo_denunciado = input.tipo_denunciado
+        if input.get('descripcion'):          # ← agregar
+            denuncia.descripcion = input.descripcion
         
         denuncia.save()
         return ActualizarDenuncia(denuncia=denuncia)
-
 
 class EliminarDenuncia(graphene.Mutation):
     class Arguments:
@@ -3876,7 +3881,8 @@ class CrearResolucionAntigua(graphene.Mutation):
         resolucion = ResolucionAntigua(
             numero_resolucion=input.numero_resolucion,
             fecha_resolucion=input.fecha_resolucion,
-            persona_afectada_id=input.id_persona_afectada,
+            persona_denunciante_id=input.get('id_persona_denunciante', None),
+            persona_denunciada_id=input.id_persona_denunciada,
             tipo_sancion=input.tipo_sancion,
             descripcion=input.get('descripcion', None),
             sancion=input.get('sancion', None),
@@ -3903,6 +3909,10 @@ class ActualizarResolucionAntigua(graphene.Mutation):
             resolucion.numero_resolucion = input.numero_resolucion
         if input.get('fecha_resolucion'):
             resolucion.fecha_resolucion = input.fecha_resolucion
+        if input.get('id_persona_denunciante') is not None:
+            resolucion.persona_denunciante_id = input.id_persona_denunciante
+        if input.get('id_persona_denunciada'):
+            resolucion.persona_denunciada_id = input.id_persona_denunciada
         if input.get('tipo_sancion'):
             resolucion.tipo_sancion = input.tipo_sancion
         if input.get('descripcion'):
@@ -3930,7 +3940,6 @@ class EliminarResolucionAntigua(graphene.Mutation):
             return EliminarResolucionAntigua(ok=True, mensaje="Resolución eliminada")
         except ResolucionAntigua.DoesNotExist:
             return EliminarResolucionAntigua(ok=False, mensaje="Resolución no encontrada")
-
 
 
 # ============================================================
