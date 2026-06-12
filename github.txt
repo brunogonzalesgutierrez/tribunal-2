@@ -41,7 +41,7 @@ git remote -v
 
 git add .
 git commit -m "arreglado"
-git push origin main
+git push
 
 o para forzar a subir:
 
