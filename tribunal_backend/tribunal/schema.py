@@ -3844,7 +3844,8 @@ class ActualizarDenuncia(graphene.Mutation):
         if input.get('resolucion'):
             denuncia.resolucion = input.resolucion
         if input.get('fecha_resolucion'):
-            denuncia.fecha_resolucion = input.fecha_resolucion
+            from datetime import datetime
+            denuncia.fecha_resolucion = datetime.strptime(input.fecha_resolucion, '%Y-%m-%d').date()
         
         denuncia.save()
         return ActualizarDenuncia(denuncia=denuncia)
