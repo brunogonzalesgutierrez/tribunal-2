@@ -209,7 +209,7 @@ export default function RolesPage() {
   const modulosDisponibles = [...new Set(permisos.map(p => p.modulo))].sort();
 
   const seleccionarSala = (id: number, nombre: string) => {
-    setForm(prev => ({ ...prev, idSala: id }));
+    setForm(prev => ({ ...prev, idSala: Number(id) }));
     setSalaSeleccionada(nombre);
   };
 
@@ -225,7 +225,7 @@ export default function RolesPage() {
     setForm({ 
       nombre: r.nombre, 
       descripcion: r.descripcion ?? "",
-      idSala: r.salaAsignada?.idSala || 0
+      idSala: Number(r.salaAsignada?.idSala) || 0
     });
     setSalaSeleccionada(r.salaAsignada ? `${r.salaAsignada.nombreSala}` : "");
     setModalForm(true);
@@ -259,7 +259,7 @@ export default function RolesPage() {
               input: { 
                 nombre: form.nombre, 
                 descripcion: form.descripcion,
-                idSala: form.idSala || undefined
+                ...(form.idSala ? { idSala: form.idSala } : {})
               } 
             },
           });

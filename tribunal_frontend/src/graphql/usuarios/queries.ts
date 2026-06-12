@@ -148,6 +148,7 @@ export const ACTUALIZAR_ROL = gql`
         salaAsignada {
           idSala
           nombreSala
+          idTribunal { idTribunal nombreTribunal }
         }
       }
     }
