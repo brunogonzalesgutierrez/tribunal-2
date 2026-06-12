@@ -267,3 +267,18 @@ export const GET_PARTES_PROCESALES_SIMPLE = gql`
     }
   }
 `;
+// ============================================================
+// PERSONAS (para buscadores)
+// ============================================================
+
+export const GET_PERSONAS = gql`
+  query GetPersonas {
+    allPersonas {
+      idPersona
+      nombre
+      primerApellido
+      segundoApellido
+      numeroDocumento
+    }
+  }
+`;

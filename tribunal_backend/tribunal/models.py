@@ -522,9 +522,14 @@ class SolicitudActualizacion(models.Model):
 class Denuncia(models.Model):
     ESTADOS = [
         ('REGISTRADA', 'Registrada'),
-        ('EN_TRAMITE', 'En Trámite'),
+        ('SUBSANACION', 'Subsanación'),
+        ('ADMITIDA', 'Admitida'),
+        ('DECLARACION_INFORMATIVA', 'Declaración Informativa'),
+        ('PRUEBAS', 'Período Probatorio'),
+        ('CONCLUSION', 'Conclusión'),
         ('RESUELTA', 'Resuelta'),
         ('APELADA', 'Apelada'),
+        ('EJECUTADA', 'Ejecutada'),
         ('ARCHIVADA', 'Archivada'),
     ]
     
@@ -540,7 +545,7 @@ class Denuncia(models.Model):
     denunciado = models.ForeignKey('Persona', on_delete=models.PROTECT, related_name='denuncias_recibidas')
     tipo_denunciado = models.CharField(max_length=20, choices=TIPOS_DENUNCIADO)
     descripcion = models.TextField()
-    estado = models.CharField(max_length=20, choices=ESTADOS, default='REGISTRADA')
+    estado = models.CharField(max_length=30, choices=ESTADOS, default='REGISTRADA')
     resolucion = models.TextField(blank=True, null=True, help_text="Resolución del caso")
     fecha_resolucion = models.DateField(blank=True, null=True)
     expediente = models.ForeignKey('Expediente', on_delete=models.SET_NULL, null=True, blank=True, related_name='denuncias')

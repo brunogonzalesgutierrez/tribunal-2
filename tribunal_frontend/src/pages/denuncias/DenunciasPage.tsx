@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@apollo/client";
 import {
@@ -15,6 +15,7 @@ import {
   Edit, Eye, FileText, Plus, Search, Trash2, User, X,
   Scale,
 } from "lucide-react";
+
 
 // ─── TIPOS ───────────────────────────────────────────────
 interface Persona {
@@ -221,6 +222,7 @@ export default function DenunciasPage() {
   const itemsPerPage = 10;
 
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [updatingEstado, setUpdatingEstado] = useState<number | null>(null);
 
@@ -371,7 +373,8 @@ export default function DenunciasPage() {
       return;
     }
 
-    if (saving) return;
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
 
     try {
@@ -410,6 +413,7 @@ export default function DenunciasPage() {
         });
       }
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
