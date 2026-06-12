@@ -44,6 +44,9 @@ import EstadosExpedientePage from "./pages/expedientes/EstadosExpedientePage";
 import DenunciasPage from "./pages/denuncias/DenunciasPage";
 import ResolucionesAntiguasPage from "./pages/resoluciones/ResolucionesAntiguasPage";
 import DenunciaDetailPage from "./pages/denuncias/DenunciaDetailPage";
+import ResolucionAntiguaDetailPage from "./pages/resoluciones/ResolucionAntiguaDetailPage";
+
+
 
 
 
@@ -142,7 +145,7 @@ function App() {
             <Route path="/recursos" element={<RecursosPage />} />
           </Route>
           <Route path="/resoluciones-antiguas" element={<ResolucionesAntiguasPage />} />
-          {/* <Route path="/resoluciones-antiguas/:id" element={<ResolucionAntiguaDetallePage />} /> Opcional */}
+          <Route path="/resoluciones-antiguas/:id" element={<ResolucionAntiguaDetailPage />} />
 
           {/* ============================================================ */}
           {/* DOCUMENTOS */}

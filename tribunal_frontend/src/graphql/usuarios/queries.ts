@@ -63,13 +63,21 @@ export const ELIMINAR_USUARIO = gql`
 
 // ─── ROLES ──────────────────────────────────────────────
 export const GET_ROLES = gql`
-  query {
+  query GetRoles {
     allRoles {
       idRol
       nombre
       descripcion
       activo
       fechaCreacion
+      salaAsignada {
+        idSala
+        nombreSala
+        idTribunal {
+          idTribunal
+          nombreTribunal
+        }
+      }
       permisosAsignados {
         idRolPermiso
         permiso {
@@ -83,14 +91,47 @@ export const GET_ROLES = gql`
   }
 `;
 
+// export const GET_ROL_BY_ID = gql`
+//   query GetRolById($id: Int!) {
+//     rolById(id: $id) {
+//       idRol
+//       nombre
+//       descripcion
+//       activo
+//       fechaCreacion
+//       salaAsignada {
+//         idSala
+//         nombreSala
+//         idTribunal {
+//           idTribunal
+//           nombreTribunal
+//         }
+//       }
+//       permisosAsignados {
+//         idRolPermiso
+//         permiso {
+//           idPermiso
+//           nombre
+//           codigo
+//           modulo
+//         }
+//       }
+//     }
+//   }
+// `;
+
 export const CREAR_ROL = gql`
-  mutation CrearRol($nombre: String!, $descripcion: String) {
-    crearRol(nombre: $nombre, descripcion: $descripcion) {
+  mutation CrearRol($nombre: String!, $descripcion: String, $idSala: Int) {
+    crearRol(nombre: $nombre, descripcion: $descripcion, idSala: $idSala) {
       rol {
         idRol
         nombre
         descripcion
         activo
+        salaAsignada {
+          idSala
+          nombreSala
+        }
       }
     }
   }
@@ -104,6 +145,10 @@ export const ACTUALIZAR_ROL = gql`
         nombre
         descripcion
         activo
+        salaAsignada {
+          idSala
+          nombreSala
+        }
       }
     }
   }

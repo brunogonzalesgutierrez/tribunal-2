@@ -31,13 +31,19 @@ class Rol(models.Model):
     descripcion = models.TextField(null=True, blank=True)
     activo = models.BooleanField(default=True)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
-
+    sala_asignada = models.ForeignKey(
+        'SalaTribunal', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        db_column='id_sala',
+        related_name='roles_asignados'
+    )
     class Meta:
         db_table = 'rol'
 
     def __str__(self):
         return self.nombre
-
 
 class RolPermiso(models.Model):
     """Asigna permisos a roles (muchos a muchos)"""

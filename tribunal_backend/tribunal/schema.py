@@ -319,6 +319,7 @@ class ActualizarRolInput(graphene.InputObjectType):
     nombre      = graphene.String()
     descripcion = graphene.String()
     activo      = graphene.Boolean()
+    id_sala     = graphene.Int()
 
 class ActualizarPermisoInput(graphene.InputObjectType):
     nombre      = graphene.String()
@@ -888,27 +889,46 @@ class EliminarUsuario(graphene.Mutation):
 # --- ROL ---
 class CrearRol(graphene.Mutation):
     class Arguments:
-        nombre      = graphene.String(required=True)
+        nombre = graphene.String(required=True)
         descripcion = graphene.String()
+        id_sala = graphene.Int()
+    
+    # ✅ Esta línea debe estar FUERA de class Arguments (con indentación de clase)
     rol = graphene.Field(RolType)
-    def mutate(root, info, nombre, descripcion=None):
-        return CrearRol(rol=Rol.objects.create(nombre=nombre, descripcion=descripcion))
+    
+    def mutate(root, info, nombre, descripcion=None, id_sala=None):
+        rol = Rol.objects.create(
+            nombre=nombre, 
+            descripcion=descripcion,
+            sala_asignada_id=id_sala if id_sala else None
+        )
+        return CrearRol(rol=rol)
+
 
 class ActualizarRol(graphene.Mutation):
     class Arguments:
-        id    = graphene.Int(required=True)
+        id = graphene.Int(required=True)
         input = ActualizarRolInput(required=True)
+    
+    # ✅ Esta línea debe estar FUERA de class Arguments
     rol = graphene.Field(RolType)
+    
     def mutate(root, info, id, input):
         try:
             obj = Rol.objects.get(id_rol=id)
-            if input.nombre is not None:      obj.nombre = input.nombre
-            if input.descripcion is not None: obj.descripcion = input.descripcion
-            if input.activo is not None:      obj.activo = input.activo
+            
+            if input.nombre is not None:
+                obj.nombre = input.nombre
+            if input.descripcion is not None:
+                obj.descripcion = input.descripcion
+            if input.activo is not None:
+                obj.activo = input.activo
+            if input.id_sala is not None:
+                obj.sala_asignada_id = input.id_sala if input.id_sala > 0 else None
             obj.save()
-            return ActualizarRol(rol=obj)
+            return ActualizarRol(rol=obj)   
         except Rol.DoesNotExist:
-            return ActualizarRol(rol=None)
+            raise Exception("Rol no encontrado")
 
 class EliminarRol(graphene.Mutation):
     class Arguments:
