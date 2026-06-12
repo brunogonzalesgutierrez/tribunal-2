@@ -40,7 +40,7 @@ para subir:
 git remote -v
 
 git add .
-git commit -m "arreglado"
+git commit -m "arreglado la cosa esa de resoluciones"
 git push
 
 o para forzar a subir:

@@ -9,6 +9,7 @@ import {
   CREAR_EXPEDIENTE,
   ACTUALIZAR_EXPEDIENTE,
   ELIMINAR_EXPEDIENTE,
+  GET_PARTES_PROCESALES_LISTA,
 } from "../../graphql/expediente";
 import { useCrudNotifications } from "../../hooks/useCrudNotifications";
 import {
@@ -34,6 +35,7 @@ interface EstadoExpediente {
   esTerminal: boolean;
 }
 interface Expediente {
+  
   idExpediente: number;
   numeroExpediente: string;
   ano: number;
@@ -43,6 +45,19 @@ interface Expediente {
   idSala: SalaTribunal;
   idTipoProceso: TipoProceso;
   idEstadoExpediente?: EstadoExpediente;
+}
+
+interface ParteProcesalLista {
+  idParte: number;
+  activo: boolean;
+  idExpediente: { idExpediente: number };
+  idPersona: {
+    idPersona: number;
+    nombre: string;
+    primerApellido: string;
+    segundoApellido?: string;
+  };
+  idRol: { nombreRol: string };
 }
 
 const initialForm = {
@@ -301,7 +316,10 @@ function BuscadorEstado({
 
   const estados: EstadoExpediente[] = data?.allEstadosExpediente ?? [];
 
+  const ESTADOS_PERMITIDOS = ["admitido", "rechazado"];
+
   const filtrados = estados.filter(e =>
+    ESTADOS_PERMITIDOS.some(p => e.nombreEstado.toLowerCase().includes(p)) &&
     e.nombreEstado.toLowerCase().includes(busqueda.toLowerCase())
   );
 
@@ -402,7 +420,7 @@ export default function ExpedientesPage() {
 
   // Estados para buscadores modales
   const [buscadorSalaAbierto, setBuscadorSalaAbierto] = useState(false);
-  const [buscadorTipoProcAbierto, setBuscadorTipoProcAbierto] = useState(false);
+  
   const [buscadorEstadoAbierto, setBuscadorEstadoAbierto] = useState(false);
   
   const [salaSeleccionada, setSalaSeleccionada] = useState("");
@@ -420,6 +438,7 @@ export default function ExpedientesPage() {
   const itemsPerPage = 10;
 
   const { data, loading, refetch } = useQuery(GET_EXPEDIENTES);
+  const { data: dataPartesLista } = useQuery(GET_PARTES_PROCESALES_LISTA);
   const { data: dataSalas } = useQuery(GET_SALAS_TRIBUNAL);
   const { data: dataTipos } = useQuery(GET_TIPOS_PROCESO);
   const { data: dataEstados } = useQuery(GET_ESTADOS_EXPEDIENTE);
@@ -431,15 +450,22 @@ export default function ExpedientesPage() {
   const { executeCreate, executeUpdate, executeDelete, toast } = useCrudNotifications('Expediente');
 
   const expedientes: Expediente[] = data?.allExpedientes ?? [];
+  console.log("tipo idExpediente:", typeof expedientes[0]?.idExpediente, expedientes[0]?.idExpediente);
+  const todasLasPartes: ParteProcesalLista[] = dataPartesLista?.allPartesProcesales ?? [];
+  
   const salas: SalaTribunal[] = dataSalas?.allSalasTribunal ?? [];
   const tiposProceso: TipoProceso[] = dataTipos?.allTiposProceso ?? [];
   const estados: EstadoExpediente[] = dataEstados?.allEstadosExpediente ?? [];
 
-  const expedientesFiltrados = expedientes.filter(e =>
-    `${e.numeroExpediente} ${e.idSala?.nombreSala} ${e.idTipoProceso?.nombre}`
-      .toLowerCase().includes(busqueda.toLowerCase())
-  );
-
+  const expedientesFiltrados = expedientes.filter(e => {
+    const texto = busqueda.toLowerCase();
+    const base = `${e.numeroExpediente} ${e.idSala?.nombreSala} ${e.idTipoProceso?.nombre}`.toLowerCase();
+    const personas = todasLasPartes
+      .filter(p => String(p.idExpediente?.idExpediente) === String(e.idExpediente) && p.activo)
+      .map(p => `${p.idPersona.nombre} ${p.idPersona.primerApellido} ${p.idPersona.segundoApellido ?? ""}`.trim().toLowerCase())
+      .join(" ");
+    return base.includes(texto) || personas.includes(texto);
+  });
   const totalPages = Math.ceil(expedientesFiltrados.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedExpedientes = expedientesFiltrados.slice(startIndex, startIndex + itemsPerPage);
@@ -465,13 +491,34 @@ export default function ExpedientesPage() {
     setEstadoSeleccionado(nombre);
   };
 
+  useEffect(() => {
+    if (tiposProceso.length > 0 && modalAbierto && !editando) {
+      const sumario = tiposProceso.find(t =>
+        t.nombre.toLowerCase().includes("sumario")
+      );
+      if (sumario) {
+        setForm(prev => ({ ...prev, idTipoProceso: String(sumario.idTipoProceso) }));
+        setTipoProcSeleccionado(`${sumario.nombre} (${sumario.codigo})`);
+      }
+    }
+  }, [tiposProceso, modalAbierto]);
+
   const abrirCrear = () => {
     setEditando(null);
-    setForm(initialForm);
+    const sumario = tiposProceso.find(t =>
+      t.nombre.toLowerCase().includes("sumario")
+    );
+    setForm({
+      ...initialForm,
+      idTipoProceso: sumario ? String(sumario.idTipoProceso) : "0",
+    });
+    setTipoProcSeleccionado(sumario ? `${sumario.nombre} (${sumario.codigo})` : "");
     setRecienCreado(null);
     setSalaSeleccionada("");
-    setTipoProcSeleccionado("");
     setEstadoSeleccionado("");
+
+    
+
     setModalAbierto(true);
   };
 
@@ -682,7 +729,7 @@ export default function ExpedientesPage() {
       <div className="relative max-w-md">
         <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
-          placeholder="Buscar por número, sala o tipo de proceso..."
+          placeholder="Buscar por número, sala, tipo de proceso o nombre de parte..."
           value={busqueda}
           onChange={e => setBusqueda(e.target.value)}
           className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white dark:bg-slate-800/90 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
@@ -906,35 +953,19 @@ export default function ExpedientesPage() {
             </div>
 
             {/* Tipo de Proceso - Con buscador */}
+            {/* Tipo de Proceso - Solo lectura */}
             <div className="mb-4">
               <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
                 Tipo de proceso <span className="text-red-500">*</span>
               </label>
-              {tipoProcSeleccionado ? (
-                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
-                  <span className="flex-1 text-sm text-gray-800 dark:text-white">{tipoProcSeleccionado}</span>
-                  <button
-                    onClick={() => {
-                      setForm(prev => ({ ...prev, idTipoProceso: "0" }));
-                      setTipoProcSeleccionado("");
-                    }}
-                    disabled={saving}
-                    className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setBuscadorTipoProcAbierto(true)}
-                  disabled={saving}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Plus className="w-4 h-4" />
-                  Buscar y seleccionar tipo de proceso
-                </button>
-              )}
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+                <span className="text-sm text-gray-800 dark:text-white">
+                  {tipoProcSeleccionado || "Sin tipo asignado"}
+                </span>
+                <span className="text-xs font-semibold text-blue-500 bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded-full">
+                  Único disponible
+                </span>
+              </div>
             </div>
 
             {/* Estado - Con buscador */}
@@ -1007,12 +1038,7 @@ export default function ExpedientesPage() {
           onClose={() => setBuscadorSalaAbierto(false)}
         />
       )}
-      {buscadorTipoProcAbierto && (
-        <BuscadorTipoProceso
-          onSelect={seleccionarTipoProceso}
-          onClose={() => setBuscadorTipoProcAbierto(false)}
-        />
-      )}
+      
       {buscadorEstadoAbierto && (
         <BuscadorEstado
           onSelect={seleccionarEstado}

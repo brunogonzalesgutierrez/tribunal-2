@@ -7,6 +7,7 @@ import {
   GET_SALAS_AUDIENCIA,
   GET_EXPEDIENTES_SIMPLE,
 } from "../../graphql/audiencias";
+import { GET_PARTES_PROCESALES_LISTA } from "../../graphql/expediente";
 import {
   CREAR_AUDIENCIA,
   ACTUALIZAR_AUDIENCIA,
@@ -24,6 +25,19 @@ import {
 } from "../../shared/ui";
 import { useCrudNotifications } from '../../hooks/useCrudNotifications';
 import { useToast } from '../../context/ToastContext';
+
+interface ParteProcesalLista {
+  idParte: number;
+  activo: boolean;
+  idExpediente: { idExpediente: number };
+  idPersona: {
+    idPersona: number;
+    nombre: string;
+    primerApellido: string;
+    segundoApellido?: string;
+  };
+  idRol: { nombreRol: string };
+}
 
 // ============================================================
 // COMPONENTE: Buscador de Expedientes (Modal)
@@ -412,6 +426,8 @@ export default function AudienciasListPage() {
   const { data: dExp }  = useQuery(GET_EXPEDIENTES_SIMPLE);
   const { data: dTipo } = useQuery(GET_TIPOS_AUDIENCIA);
   const { data: dSala } = useQuery(GET_SALAS_AUDIENCIA);
+  const { data: dataPartesLista } = useQuery(GET_PARTES_PROCESALES_LISTA);
+  const todasLasPartes: ParteProcesalLista[] = dataPartesLista?.allPartesProcesales ?? [];
 
   const [crearAudiencia]      = useMutation(CREAR_AUDIENCIA);
   const [actualizarAudiencia] = useMutation(ACTUALIZAR_AUDIENCIA);
@@ -449,10 +465,15 @@ export default function AudienciasListPage() {
   const tipos: TipoAudiencia[] = dTipo?.allTiposAudiencia ?? [];
   const salas: SalaAudiencia[] = dSala?.allSalasAudiencia ?? [];
 
-  const filtradas = audiencias.filter(a =>
-    `${a.idExpediente.numeroExpediente} ${a.estadoAudiencia} ${a.idTipoAudiencia.nombre}`
-      .toLowerCase().includes(busqueda.toLowerCase())
-  );
+  const filtradas = audiencias.filter(a => {
+    const texto = busqueda.toLowerCase();
+    const base = `${a.idExpediente.numeroExpediente} ${a.estadoAudiencia} ${a.idTipoAudiencia.nombre}`.toLowerCase();
+    const personas = todasLasPartes
+      .filter(p => String(p.idExpediente?.idExpediente) === String(a.idExpediente.idExpediente) && p.activo)
+      .map(p => `${p.idPersona.nombre} ${p.idPersona.primerApellido} ${p.idPersona.segundoApellido ?? ""}`.trim().toLowerCase())
+      .join(" ");
+    return base.includes(texto) || personas.includes(texto);
+  });
 
   const totalPages = Math.ceil(filtradas.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -685,7 +706,7 @@ export default function AudienciasListPage() {
       <div className="relative max-w-md">
         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
-          placeholder="Buscar por expediente, tipo o estado..."
+          placeholder="Buscar por expediente, tipo, estado o nombre de parte..."
           value={busqueda}
           onChange={handleBusquedaChange}
           className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white dark:bg-slate-800/90 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"

@@ -14,6 +14,7 @@ import {
   BarChart2, FileText, Mic, Users, Building2, Mail, X,
   CheckCircle, AlertCircle, Search, UserCheck,
 } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
 
 // ─── TIPOS ────────────────────────────────────────────────
 type TabReporte = "audiencias" | "expedientes" | "salas" | "usuarios";
@@ -628,7 +629,9 @@ export default function ReportesPage() {
   const [mes, setMes]           = useState<number>(new Date().getMonth() + 1);
   const [fechaInicio, setFechaInicio] = useState("");
   const [fechaFin, setFechaFin]       = useState("");
-  const [modalEmail, setModal]  = useState(false);
+  const [modalEmail, setModal] = useState(false);
+  const { usuario } = useAuth();
+  const esAdmin = usuario?.rol === "Administrador";
 
   // Armar variables según el modo seleccionado
   const filtroVars = (() => {
@@ -761,13 +764,15 @@ export default function ReportesPage() {
             </div>
           )}
 
-          <button
-            onClick={() => setModal(true)}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold text-sm shadow-lg shadow-blue-500/25 transition-all hover:scale-[1.02]"
-          >
-            <Mail className="w-4 h-4" />
-            Enviar reporte
-          </button>
+          {esAdmin && (
+            <button
+              onClick={() => setModal(true)}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold text-sm shadow-lg shadow-blue-500/25 transition-all hover:scale-[1.02]"
+            >
+              <Mail className="w-4 h-4" />
+              Enviar reporte
+            </button>
+          )}
         </div>
       </div>
 

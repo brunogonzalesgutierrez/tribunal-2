@@ -307,3 +307,20 @@ export const ELIMINAR_TIPO_ACTUACION = gql`
     }
   }
 `;
+
+export const GET_PARTES_PROCESALES_LISTA = gql`
+  query {
+    allPartesProcesales {
+      idParte
+      activo
+      idExpediente { idExpediente }
+      idPersona {
+        idPersona
+        nombre
+        primerApellido
+        segundoApellido
+      }
+      idRol { nombreRol }
+    }
+  }
+`;
