@@ -44,9 +44,24 @@ export const GET_EXPEDIENTES = gql`
       fechaIngreso
       fechaConclusion
       descripcion
-      idSala { idSala nombreSala idTribunal { nombreTribunal } }
-      idTipoProceso { idTipoProceso nombre codigo }
-      idEstadoExpediente { idEstado nombreEstado esTerminal }
+      idSala { 
+        idSala 
+        nombreSala 
+        idTribunal { 
+          idTribunal 
+          nombreTribunal 
+        } 
+      }
+      idTipoProceso { 
+        idTipoProceso 
+        nombre 
+        codigo 
+      }
+      idEstadoExpediente { 
+        idEstado 
+        nombreEstado 
+        esTerminal 
+      }
     }
   }
 `;

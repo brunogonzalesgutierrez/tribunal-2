@@ -2531,6 +2531,9 @@ class ValidateUser(graphene.Mutation):
     nombres = graphene.String()
     paterno = graphene.String()
     rol = graphene.String()
+    rol_id = graphene.Int()              # ← NUEVO
+    sala_id = graphene.Int()             # ← NUEVO
+    sala_nombre = graphene.String()      # ← NUEVO
     username = graphene.String()
     permisos = graphene.List(graphene.String)
     token = graphene.String()
@@ -2542,16 +2545,16 @@ class ValidateUser(graphene.Mutation):
 
         from django.conf import settings
         
-        print("🔵 1. Intentando login para:", email)
+  
         
         try:
             usuario = Usuario.objects.get(
                 Q(email=email) | Q(username=email),
                 activo=True
             )
-            print("🟢 2. Usuario encontrado:", usuario.email)
+  
         except Usuario.DoesNotExist:
-            print("🔴 3. Usuario NO encontrado")
+     
             return ValidateUser(
                 success=False,
                 message="Usuario o email no registrado.",
@@ -2560,14 +2563,17 @@ class ValidateUser(graphene.Mutation):
                 nombres=None,
                 paterno=None,
                 rol=None,
+                rol_id=None,
+                sala_id=None,
+                sala_nombre=None,
                 username=None,
                 permisos=[],
                 token=None
             )
         
-        print("🔵 4. Verificando contraseña...")
+
         if not check_password(password, usuario.password):
-            print("🔴 5. Contraseña INCORRECTA")
+   
             return ValidateUser(
                 success=False,
                 message="Contraseña incorrecta.",
@@ -2576,6 +2582,9 @@ class ValidateUser(graphene.Mutation):
                 nombres=None,
                 paterno=None,
                 rol=None,
+                rol_id=None,
+                sala_id=None,
+                sala_nombre=None,
                 username=None,
                 permisos=[],
                 token=None
@@ -2586,25 +2595,29 @@ class ValidateUser(graphene.Mutation):
             usuario.rol.permisos_asignados.values_list('permiso__codigo', flat=True)
         )
         
-        # ✅ Generar token JWT
+        # 👈 OBTENER LA SALA DEL ROL
+        sala_id = None
+        sala_nombre = None
+        if usuario.rol.sala_asignada:
+            sala_id = usuario.rol.sala_asignada.id_sala
+            sala_nombre = usuario.rol.sala_asignada.nombre_sala
+        
+        # ✅ Generar token JWT con la información de la sala
         token = jwt.encode(
             {
                 'id_usuario': usuario.id_usuario,
                 'email': usuario.email,
                 'username': usuario.username,
                 'rol': usuario.rol.nombre,
+                'rol_id': usuario.rol.id_rol,
+                'sala_id': sala_id,
+                'sala_nombre': sala_nombre,
                 'exp': datetime.utcnow() + timedelta(hours=24)
             },
             settings.SECRET_KEY,
             algorithm='HS256'
         )
-        
-        print("🟢 6. Login EXITOSO!")
-        print(f"   - ID: {usuario.id_usuario}")
-        print(f"   - Nombre: {usuario.nombres} {usuario.paterno}")
-        print(f"   - Rol: {usuario.rol.nombre}")
-        print(f"   - Permisos: {len(permisos_codigos)}")
-        
+
         return ValidateUser(
             success=True,
             message="Usuario validado correctamente.",
@@ -2613,10 +2626,14 @@ class ValidateUser(graphene.Mutation):
             nombres=usuario.nombres,
             paterno=usuario.paterno,
             rol=usuario.rol.nombre,
+            rol_id=usuario.rol.id_rol,
+            sala_id=sala_id,
+            sala_nombre=sala_nombre,
             username=usuario.username,
             permisos=permisos_codigos,
             token=token
         )
+
 class VerifyOtp(graphene.Mutation):
     class Arguments:
         email = graphene.String(required=True)
@@ -2630,6 +2647,9 @@ class VerifyOtp(graphene.Mutation):
     nombres = graphene.String()
     paterno = graphene.String()
     rol = graphene.String()
+    rol_id = graphene.Int()              # ← NUEVO
+    sala_id = graphene.Int()             # ← NUEVO
+    sala_nombre = graphene.String()      # ← NUEVO
     username = graphene.String()
     permisos = graphene.List(graphene.String)
 
@@ -2654,6 +2674,9 @@ class VerifyOtp(graphene.Mutation):
                 nombres=None,
                 paterno=None,
                 rol=None,
+                rol_id=None,
+                sala_id=None,
+                sala_nombre=None,
                 username=None,
                 permisos=[]
             )
@@ -2668,6 +2691,9 @@ class VerifyOtp(graphene.Mutation):
                 nombres=None,
                 paterno=None,
                 rol=None,
+                rol_id=None,
+                sala_id=None,
+                sala_nombre=None,
                 username=None,
                 permisos=[]
             )
@@ -2684,13 +2710,23 @@ class VerifyOtp(graphene.Mutation):
                 usuario.rol.permisos_asignados.values_list('permiso__codigo', flat=True)
             )
             
-            # ✅ Generar token JWT
+            # 👈 OBTENER LA SALA DEL ROL
+            sala_id = None
+            sala_nombre = None
+            if usuario.rol.sala_asignada:
+                sala_id = usuario.rol.sala_asignada.id_sala
+                sala_nombre = usuario.rol.sala_asignada.nombre_sala
+            
+            # ✅ Generar token JWT con la información de la sala
             token = jwt.encode(
                 {
                     'id_usuario': usuario.id_usuario,
                     'email': usuario.email,
                     'username': usuario.username,
                     'rol': usuario.rol.nombre,
+                    'rol_id': usuario.rol.id_rol,
+                    'sala_id': sala_id,
+                    'sala_nombre': sala_nombre,
                     'exp': timezone.now() + timezone.timedelta(hours=24)
                 },
                 settings.SECRET_KEY,
@@ -2706,6 +2742,9 @@ class VerifyOtp(graphene.Mutation):
                 nombres=usuario.nombres,
                 paterno=usuario.paterno,
                 rol=usuario.rol.nombre,
+                rol_id=usuario.rol.id_rol,
+                sala_id=sala_id,
+                sala_nombre=sala_nombre,
                 username=usuario.username,
                 permisos=permisos_codigos
             )
@@ -2719,6 +2758,9 @@ class VerifyOtp(graphene.Mutation):
             nombres=None,
             paterno=None,
             rol=None,
+            rol_id=None,
+            sala_id=None,
+            sala_nombre=None,
             username=None,
             permisos=[]
         )

@@ -10,6 +10,8 @@ export const VALIDATE_USER = gql`
       nombres
       paterno
       rol
+      salaId        # ← Puede llamarse así
+      salaNombre   
       username
       permisos
       token
@@ -28,6 +30,8 @@ export const VERIFY_OTP = gql`
       nombres
       paterno
       rol
+      salaId        # ← Puede llamarse así
+      salaNombre 
       username
       permisos
     }

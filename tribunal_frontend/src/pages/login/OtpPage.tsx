@@ -17,7 +17,7 @@ export default function OtpPage() {
 
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, completeOtp } = useAuth(); // ← Agregar completeOtp
+  const { login, completeOtp } = useAuth();
 
   const email = (location.state as { email?: string })?.email ?? "";
 
@@ -45,18 +45,24 @@ export default function OtpPage() {
       const { data } = await verifyOtp({ variables: { email, code } });
 
       if (data?.verifyOtp?.success) {
+        const verifyData = data.verifyOtp;
+        
         const userData = {
-          idUsuario: data.verifyOtp.idUsuario,
-          email: data.verifyOtp.emailReal,
-          nombre: data.verifyOtp.nombres,
-          paterno: data.verifyOtp.paterno,
-          rol: data.verifyOtp.rol,
-          username: data.verifyOtp.username,
-          permisos: data.verifyOtp.permisos || [],
+          idUsuario: verifyData.idUsuario,
+          email: verifyData.emailReal,
+          nombre: verifyData.nombres,
+          paterno: verifyData.paterno,
+          rol: verifyData.rol,
+          salaAsignadaId: verifyData.salaId,        // ← AHORA SÍ
+          salaAsignadaNombre: verifyData.salaNombre, // ← AHORA SÍ
+          username: verifyData.username,
+          permisos: verifyData.permisos || [],
         };
         
-        login(userData, data.verifyOtp.token);
-        completeOtp(); // ← NUEVO: marca autenticación como completa
+        console.log("👤 Usuario guardado desde OTP:", userData);
+        
+        login(userData, verifyData.token);
+        completeOtp();
         
         toast.success("Bienvenido al sistema");
         navigate("/dashboard");

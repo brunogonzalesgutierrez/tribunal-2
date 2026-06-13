@@ -25,20 +25,24 @@ export default function LoginPage() {
       console.log("Respuesta:", data);
       
       if (data?.validateUser?.success) {
-        // ✅ Usar camelCase (como devuelve el backend)
+        const validateUserData = data.validateUser;
+        
+
         const userData = {
-          idUsuario: data.validateUser.idUsuario,
-          email: data.validateUser.emailReal,
-          nombre: data.validateUser.nombres,
-          paterno: data.validateUser.paterno,
-          rol: data.validateUser.rol,
-          username: data.validateUser.username,
-          permisos: data.validateUser.permisos || [],
+          idUsuario: validateUserData.idUsuario,
+          email: validateUserData.emailReal,
+          nombre: validateUserData.nombres,
+          paterno: validateUserData.paterno,
+          rol: validateUserData.rol,
+          salaAsignadaId: validateUserData.salaId,        // ← AHORA SÍ
+          salaAsignadaNombre: validateUserData.salaNombre, // ← AHORA SÍ
+          username: validateUserData.username,
+          permisos: validateUserData.permisos || [],
         };
         
-        const token = data.validateUser.token;
+        const token = validateUserData.token;
         
-        console.log("👤 Usuario guardado:", userData);
+   
         
         login(userData, token);
         

@@ -12,10 +12,11 @@ import {
   GET_PARTES_PROCESALES_LISTA,
 } from "../../graphql/expediente";
 import { useCrudNotifications } from "../../hooks/useCrudNotifications";
+import { useAuth } from "../../context/AuthContext";
 import {
   FolderOpen, Plus, Search, Edit, Trash2, Eye,
   ChevronLeft, ChevronRight, Building2, FileText,
-  Scale, X, CheckCircle, Sparkles,
+  Scale, X, CheckCircle, Sparkles, Shield,
 } from "lucide-react";
 
 // ─── TIPOS ───────────────────────────────────────────────
@@ -35,7 +36,6 @@ interface EstadoExpediente {
   esTerminal: boolean;
 }
 interface Expediente {
-  
   idExpediente: number;
   numeroExpediente: string;
   ano: number;
@@ -108,19 +108,29 @@ const fmtFecha = (iso?: string) => {
 };
 
 // ============================================================
-// COMPONENTE: Buscador de Salas (Modal)
+// COMPONENTE: Buscador de Salas (Modal) - CON FILTRO POR ROL
 // ============================================================
 function BuscadorSala({
   onSelect,
   onClose,
+  soloMiSala = false,
+  salaPermitidaId,
+  salaPermitidaNombre,
 }: {
   onSelect: (id: number, nombre: string) => void;
   onClose: () => void;
+  soloMiSala?: boolean;
+  salaPermitidaId?: number;
+  salaPermitidaNombre?: string;
 }) {
   const [busqueda, setBusqueda] = useState("");
   const { data, loading } = useQuery(GET_SALAS_TRIBUNAL);
 
-  const salas: SalaTribunal[] = data?.allSalasTribunal ?? [];
+  let salas: SalaTribunal[] = data?.allSalasTribunal ?? [];
+
+  if (soloMiSala && salaPermitidaId) {
+    salas = salas.filter(s => s.idSala === salaPermitidaId);
+  }
 
   const filtrados = salas.filter(s =>
     `${s.nombreSala} ${s.idTribunal?.nombreTribunal || ''}`.toLowerCase().includes(busqueda.toLowerCase())
@@ -133,6 +143,11 @@ function BuscadorSala({
           <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
             <Search className="w-5 h-5 text-blue-500" />
             Seleccionar Sala
+            {soloMiSala && salaPermitidaNombre && (
+              <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">
+                Tu sala: {salaPermitidaNombre}
+              </span>
+            )}
           </h2>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
             <X className="w-5 h-5 text-gray-500" />
@@ -144,7 +159,7 @@ function BuscadorSala({
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Buscar sala por nombre o tribunal..."
+              placeholder={soloMiSala ? "Buscar en tu sala..." : "Buscar sala por nombre o tribunal..."}
               value={busqueda}
               onChange={e => setBusqueda(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
@@ -316,10 +331,7 @@ function BuscadorEstado({
 
   const estados: EstadoExpediente[] = data?.allEstadosExpediente ?? [];
 
-  const ESTADOS_PERMITIDOS = ["admitido", "rechazado"];
-
   const filtrados = estados.filter(e =>
-    ESTADOS_PERMITIDOS.some(p => e.nombreEstado.toLowerCase().includes(p)) &&
     e.nombreEstado.toLowerCase().includes(busqueda.toLowerCase())
   );
 
@@ -404,37 +416,33 @@ function BuscadorEstado({
 }
 
 // ─── PÁGINA PRINCIPAL ────────────────────────────────────
+// ─── PÁGINA PRINCIPAL ────────────────────────────────────
 export default function ExpedientesPage() {
   const navigate = useNavigate();
+  const { usuario } = useAuth();
 
+  const miSalaId = usuario?.salaAsignadaId;
+  const miSalaNombre = usuario?.salaAsignadaNombre;
+  const esAdministrador = usuario?.rol === "Administrador";
+  const soloMiSala = !esAdministrador && miSalaId !== undefined && miSalaId !== null;
+
+  // ========== 1. TODOS LOS useState ==========
   const [modalAbierto, setModalAbierto] = useState(false);
   const [editando, setEditando] = useState<Expediente | null>(null);
   const [form, setForm] = useState(initialForm);
   const [busqueda, setBusqueda] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [recienCreado, setRecienCreado] = useState<{ id: number; numero: string } | null>(null);
-
-  // ✅ Estados para bloqueo de botones
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-
-  // Estados para buscadores modales
   const [buscadorSalaAbierto, setBuscadorSalaAbierto] = useState(false);
-  
+  const [buscadorTipoAbierto, setBuscadorTipoAbierto] = useState(false);
   const [buscadorEstadoAbierto, setBuscadorEstadoAbierto] = useState(false);
-  
   const [salaSeleccionada, setSalaSeleccionada] = useState("");
   const [tipoProcSeleccionado, setTipoProcSeleccionado] = useState("");
   const [estadoSeleccionado, setEstadoSeleccionado] = useState("");
 
-  useEffect(() => {
-    const id = sessionStorage.getItem("openExpedienteDetalle");
-    if (id) {
-      navigate(`/expedientes/${id}`);
-      sessionStorage.removeItem("openExpedienteDetalle");
-    }
-  }, []);
-
+  // ========== 2. TODAS LAS QUERIES Y MUTATIONS ==========
   const itemsPerPage = 10;
 
   const { data, loading, refetch } = useQuery(GET_EXPEDIENTES);
@@ -449,12 +457,63 @@ export default function ExpedientesPage() {
 
   const { executeCreate, executeUpdate, executeDelete, toast } = useCrudNotifications('Expediente');
 
-  const expedientes: Expediente[] = data?.allExpedientes ?? [];
-  console.log("tipo idExpediente:", typeof expedientes[0]?.idExpediente, expedientes[0]?.idExpediente);
-  const todasLasPartes: ParteProcesalLista[] = dataPartesLista?.allPartesProcesales ?? [];
-  
-  const salas: SalaTribunal[] = dataSalas?.allSalasTribunal ?? [];
+  // ========== 3. EXTRAER DATOS DE LAS QUERIES (ANTES de useEffect) ==========
   const tiposProceso: TipoProceso[] = dataTipos?.allTiposProceso ?? [];
+
+  // ========== 4. TODOS LOS useEffect (AHORA tiposProceso YA EXISTE) ==========
+  useEffect(() => {
+    if (soloMiSala && miSalaId && !salaSeleccionada) {
+      setForm(prev => ({ ...prev, idSala: String(miSalaId) }));
+      setSalaSeleccionada(miSalaNombre || "Mi sala");
+    }
+  }, [soloMiSala, miSalaId, miSalaNombre, salaSeleccionada]);
+
+  useEffect(() => {
+    const id = sessionStorage.getItem("openExpedienteDetalle");
+    if (id) {
+      navigate(`/expedientes/${id}`);
+      sessionStorage.removeItem("openExpedienteDetalle");
+    }
+  }, []);
+
+  // ✅ Este useEffect ahora funciona porque tiposProceso ya está declarado
+  useEffect(() => {
+    if (tiposProceso.length > 0 && modalAbierto && !editando && !tipoProcSeleccionado) {
+      const sumario = tiposProceso.find(t =>
+        t.nombre.toLowerCase().includes("sumario")
+      );
+      if (sumario) {
+        setForm(prev => ({ ...prev, idTipoProceso: String(sumario.idTipoProceso) }));
+        setTipoProcSeleccionado(`${sumario.nombre} (${sumario.codigo})`);
+      }
+    }
+  }, [tiposProceso, modalAbierto, editando, tipoProcSeleccionado]);
+
+  // ========== 5. CONDICIONAL DE CARGA ==========
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-gray-500">Cargando expedientes...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ========== 6. RESTO DE LA LÓGICA ==========
+  let expedientes: Expediente[] = data?.allExpedientes ?? [];
+
+  if (soloMiSala && miSalaId !== undefined && miSalaId !== null) {
+    const salaIdUsuario = Number(miSalaId);
+    expedientes = expedientes.filter(exp => {
+      const salaIdExpediente = Number(exp.idSala?.idSala);
+      return salaIdExpediente === salaIdUsuario;
+    });
+  }
+
+  const todasLasPartes: ParteProcesalLista[] = dataPartesLista?.allPartesProcesales ?? [];
+  const salas: SalaTribunal[] = dataSalas?.allSalasTribunal ?? [];
   const estados: EstadoExpediente[] = dataEstados?.allEstadosExpediente ?? [];
 
   const expedientesFiltrados = expedientes.filter(e => {
@@ -466,6 +525,7 @@ export default function ExpedientesPage() {
       .join(" ");
     return base.includes(texto) || personas.includes(texto);
   });
+  
   const totalPages = Math.ceil(expedientesFiltrados.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedExpedientes = expedientesFiltrados.slice(startIndex, startIndex + itemsPerPage);
@@ -491,18 +551,6 @@ export default function ExpedientesPage() {
     setEstadoSeleccionado(nombre);
   };
 
-  useEffect(() => {
-    if (tiposProceso.length > 0 && modalAbierto && !editando) {
-      const sumario = tiposProceso.find(t =>
-        t.nombre.toLowerCase().includes("sumario")
-      );
-      if (sumario) {
-        setForm(prev => ({ ...prev, idTipoProceso: String(sumario.idTipoProceso) }));
-        setTipoProcSeleccionado(`${sumario.nombre} (${sumario.codigo})`);
-      }
-    }
-  }, [tiposProceso, modalAbierto]);
-
   const abrirCrear = () => {
     setEditando(null);
     const sumario = tiposProceso.find(t =>
@@ -511,14 +559,12 @@ export default function ExpedientesPage() {
     setForm({
       ...initialForm,
       idTipoProceso: sumario ? String(sumario.idTipoProceso) : "0",
+      idSala: soloMiSala && miSalaId ? String(miSalaId) : "0",
     });
     setTipoProcSeleccionado(sumario ? `${sumario.nombre} (${sumario.codigo})` : "");
     setRecienCreado(null);
-    setSalaSeleccionada("");
+    setSalaSeleccionada(soloMiSala && miSalaNombre ? miSalaNombre : "");
     setEstadoSeleccionado("");
-
-    
-
     setModalAbierto(true);
   };
 
@@ -541,7 +587,6 @@ export default function ExpedientesPage() {
 
   const cerrarModal = () => { setModalAbierto(false); setEditando(null); };
 
-  // ✅ Guardar con bloqueo
   const guardar = async () => {
     if (!form.numeroExpediente || form.idSala === "0" || form.idTipoProceso === "0") {
       toast.error("Número de expediente, sala y tipo de proceso son obligatorios.");
@@ -572,17 +617,13 @@ export default function ExpedientesPage() {
         await executeCreate(async () => {
           const result = await crearExp({ variables: { input } });
           await refetch();
-
           const nuevoId: number | undefined = result.data?.crearExpediente?.expediente?.idExpediente;
           const nuevoNumero = form.numeroExpediente;
-
           cerrarModal();
-
           if (nuevoId) {
             setRecienCreado({ id: nuevoId, numero: nuevoNumero });
             navigate(`/expedientes/${nuevoId}`);
           }
-
           return true;
         });
       }
@@ -591,7 +632,6 @@ export default function ExpedientesPage() {
     }
   };
 
-  // ✅ Eliminar con bloqueo
   const eliminar = async (id: number, numero: string) => {
     if (deletingId === id) return;
     setDeletingId(id);
@@ -618,7 +658,6 @@ export default function ExpedientesPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-
       {/* ENCABEZADO */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -628,6 +667,12 @@ export default function ExpedientesPage() {
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Gestión de expedientes judiciales • {totalExpedientes} total
+            {soloMiSala && miSalaNombre && (
+              <span className="ml-2 inline-flex items-center gap-1 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">
+                <Shield className="w-3 h-3" />
+                Sala: {miSalaNombre}
+              </span>
+            )}
           </p>
         </div>
         <button
@@ -674,9 +719,8 @@ export default function ExpedientesPage() {
         </div>
       )}
 
-      {/* ESTADÍSTICAS - CORREGIDAS: clases fijas sin interpolación */}
+      {/* ESTADÍSTICAS */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        {/* Total Expedientes */}
         <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
           <div className="flex items-center justify-between">
             <div>
@@ -692,7 +736,6 @@ export default function ExpedientesPage() {
           </div>
         </div>
 
-        {/* Activos */}
         <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
           <div className="flex items-center justify-between">
             <div>
@@ -708,7 +751,6 @@ export default function ExpedientesPage() {
           </div>
         </div>
 
-        {/* Concluidos */}
         <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
           <div className="flex items-center justify-between">
             <div>
@@ -750,22 +792,17 @@ export default function ExpedientesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-              {loading ? (
-                [...Array(5)].map((_, i) => (
-                  <tr key={i}>
-                    {[...Array(6)].map((_, j) => (
-                      <td key={j} className="px-6 py-4">
-                        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded-full animate-pulse w-20" />
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              ) : paginatedExpedientes.length === 0 ? (
+              {paginatedExpedientes.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                     <div className="flex flex-col items-center gap-2">
                       <FolderOpen className="w-12 h-12 text-gray-300 dark:text-gray-600" />
                       <p>No se encontraron expedientes</p>
+                      {soloMiSala && miSalaNombre && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          Solo se muestran expedientes de la sala "{miSalaNombre}"
+                        </p>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -893,16 +930,10 @@ export default function ExpedientesPage() {
         </div>
       )}
 
-      {/* MODAL CREAR/EDITAR CON BUSCADORES */}
+      {/* MODAL CREAR/EDITAR */}
       {modalAbierto && (
         <Modal onClose={cerrarModal} title={editando ? "Editar expediente" : "Nuevo expediente"}>
           <div className="space-y-4">
-            {!editando && (
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/40 text-xs text-blue-700 dark:text-blue-400">
-                <Sparkles className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>Al crear el expediente se abrirá su detalle automáticamente para agregar partes, audiencias y documentos.</span>
-              </div>
-            )}
             <Field 
               label="Número de expediente" 
               value={form.numeroExpediente} 
@@ -920,7 +951,6 @@ export default function ExpedientesPage() {
               disabled={saving}
             />
             
-            {/* Sala - Con buscador */}
             <div className="mb-4">
               <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
                 Sala del tribunal <span className="text-red-500">*</span>
@@ -928,16 +958,23 @@ export default function ExpedientesPage() {
               {salaSeleccionada ? (
                 <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
                   <span className="flex-1 text-sm text-gray-800 dark:text-white">{salaSeleccionada}</span>
-                  <button
-                    onClick={() => {
-                      setForm(prev => ({ ...prev, idSala: "0" }));
-                      setSalaSeleccionada("");
-                    }}
-                    disabled={saving}
-                    className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  {!soloMiSala && (
+                    <button
+                      onClick={() => {
+                        setForm(prev => ({ ...prev, idSala: "0" }));
+                        setSalaSeleccionada("");
+                      }}
+                      disabled={saving}
+                      className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                  {soloMiSala && (
+                    <span className="text-xs text-blue-500 bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded-full">
+                      Asignada a tu rol
+                    </span>
+                  )}
                 </div>
               ) : (
                 <button
@@ -952,27 +989,39 @@ export default function ExpedientesPage() {
               )}
             </div>
 
-            {/* Tipo de Proceso - Con buscador */}
-            {/* Tipo de Proceso - Solo lectura */}
             <div className="mb-4">
               <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
                 Tipo de proceso <span className="text-red-500">*</span>
               </label>
-              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
-                <span className="text-sm text-gray-800 dark:text-white">
-                  {tipoProcSeleccionado || "Sin tipo asignado"}
-                </span>
-                <span className="text-xs font-semibold text-blue-500 bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded-full">
-                  Único disponible
-                </span>
-              </div>
+              {tipoProcSeleccionado ? (
+                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+                  <span className="flex-1 text-sm text-gray-800 dark:text-white">{tipoProcSeleccionado}</span>
+                  <button
+                    onClick={() => {
+                      setForm(prev => ({ ...prev, idTipoProceso: "0" }));
+                      setTipoProcSeleccionado("");
+                    }}
+                    disabled={saving}
+                    className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setBuscadorTipoAbierto(true)}
+                  disabled={saving}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Plus className="w-4 h-4" />
+                  Buscar y seleccionar tipo de proceso
+                </button>
+              )}
             </div>
 
-            {/* Estado - Con buscador */}
             <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
-                Estado inicial
-              </label>
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Estado inicial</label>
               {estadoSeleccionado ? (
                 <div className="flex items-center gap-2 p-2.5 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700">
                   <span className="flex-1 text-sm text-gray-800 dark:text-white">{estadoSeleccionado}</span>
@@ -1036,6 +1085,16 @@ export default function ExpedientesPage() {
         <BuscadorSala
           onSelect={seleccionarSala}
           onClose={() => setBuscadorSalaAbierto(false)}
+          soloMiSala={soloMiSala}
+          salaPermitidaId={miSalaId}
+          salaPermitidaNombre={miSalaNombre}
+        />
+      )}
+      
+      {buscadorTipoAbierto && (
+        <BuscadorTipoProceso
+          onSelect={seleccionarTipoProceso}
+          onClose={() => setBuscadorTipoAbierto(false)}
         />
       )}
       
@@ -1045,7 +1104,6 @@ export default function ExpedientesPage() {
           onClose={() => setBuscadorEstadoAbierto(false)}
         />
       )}
-
     </div>
   );
 }

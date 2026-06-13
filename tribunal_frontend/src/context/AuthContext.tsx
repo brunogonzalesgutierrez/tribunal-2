@@ -6,18 +6,23 @@ interface Usuario {
   nombre: string;
   paterno: string;
   rol: string;
+  rolId?: number;
+  salaAsignadaId?: number;      // ← NUEVO
+  salaAsignadaNombre?: string;   // ← NUEVO
   username: string;
   permisos: string[];
 }
 
 interface AuthContextType {
   usuario: Usuario | null;
-  isAuthenticated: boolean;  // ← NUEVO: solo true después del OTP
+  isAuthenticated: boolean;
   loading: boolean;
   login: (userData: Usuario, token: string) => void;
-  completeOtp: () => void;   // ← NUEVO: marca autenticación como completa
+  completeOtp: () => void;
   logout: () => void;
   hasPermission: (permiso: string | string[]) => boolean;
+  getSalaUsuario: () => { id: number | null; nombre: string | null };
+  esAdministrador: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,7 +32,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Cargar usuario desde localStorage al iniciar la app
   useEffect(() => {
     const storedUser = localStorage.getItem("usuario");
     const token = localStorage.getItem("token");
@@ -35,8 +39,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     if (storedUser && token) {
       try {
-        setUsuario(JSON.parse(storedUser));
-        // Solo mantener autenticado si completó OTP
+        const parsedUser = JSON.parse(storedUser);
+        setUsuario(parsedUser);
         setIsAuthenticated(authStatus === "true");
       } catch (error) {
         console.error("Error al cargar usuario:", error);
@@ -50,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = (userData: Usuario, token: string) => {
     setUsuario(userData);
-    setIsAuthenticated(false); // Login no es suficiente, necesita OTP
+    setIsAuthenticated(false);
     localStorage.setItem("usuario", JSON.stringify(userData));
     localStorage.setItem("token", token);
     localStorage.setItem("isAuthenticated", "false");
@@ -74,22 +78,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sessionStorage.clear();
   };
 
-  // Verificar si el usuario tiene un permiso específico
   const hasPermission = (permiso: string | string[]): boolean => {
     if (!usuario) return false;
-    
-    // Super administrador tiene todos los permisos
     if (usuario.rol === "Administrador" || usuario.username === "admin") {
       return true;
     }
-    
-    // Si es un array, verificar si tiene al menos uno
     if (Array.isArray(permiso)) {
       return permiso.some(p => usuario.permisos?.includes(p));
     }
-    
-    // Verificar permiso individual
     return usuario.permisos?.includes(permiso) ?? false;
+  };
+
+  // 👈 Helper para obtener la sala del usuario
+  const getSalaUsuario = (): { id: number | null; nombre: string | null } => {
+    if (!usuario) return { id: null, nombre: null };
+    if (usuario.rol === "Administrador") {
+      return { id: null, nombre: null };
+    }
+    return {
+      id: usuario.salaAsignadaId ?? null,
+      nombre: usuario.salaAsignadaNombre ?? null,
+    };
+  };
+
+  const esAdministrador = (): boolean => {
+    return usuario?.rol === "Administrador" || usuario?.username === "admin";
   };
 
   return (
@@ -100,7 +113,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login, 
       completeOtp, 
       logout, 
-      hasPermission 
+      hasPermission,
+      getSalaUsuario,
+      esAdministrador,
     }}>
       {children}
     </AuthContext.Provider>
