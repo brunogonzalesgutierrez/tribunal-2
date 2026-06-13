@@ -250,7 +250,7 @@ export default function RolesPage() {
           const input: any = { 
             nombre: form.nombre, 
             descripcion: form.descripcion,
-            idSala: form.idSala
+            idSala: form.idSala !== null ? Number(form.idSala) : 0
           };
           
           await actualizarRol({

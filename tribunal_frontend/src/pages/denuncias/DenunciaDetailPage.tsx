@@ -332,14 +332,26 @@ export default function DenunciaDetailPage() {
 
           {/* TAB DOCUMENTOS (placeholder) */}
           {tabActiva === "documentos" && (
-            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-              <FolderOpen className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
-              <p>No hay documentos asociados a esta denuncia</p>
-              <button className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm">
-                Subir documento
-              </button>
-            </div>
-          )}
+          <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+            <FolderOpen className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+            <p>No hay documentos asociados a esta denuncia</p>
+            <label className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm cursor-pointer transition-colors">
+              <Plus className="w-4 h-4" />
+              Subir documento
+              <input
+                type="file"
+                className="hidden"
+                accept=".pdf,.doc,.docx,.jpg,.png"
+                onChange={e => {
+                  const archivo = e.target.files?.[0];
+                  if (archivo) {
+                    alert(`Archivo seleccionado: ${archivo.name}\n\nFuncionalidad de subida pendiente de implementar.`);
+                  }
+                }}
+              />
+            </label>
+          </div>
+        )}
 
           {/* TAB HISTORIAL (placeholder) */}
           {tabActiva === "historial" && (
