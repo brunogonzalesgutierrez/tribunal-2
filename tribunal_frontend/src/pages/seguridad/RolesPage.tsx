@@ -72,11 +72,9 @@ function Modal({ children, onClose, title, rolNombre }: {
 function BuscadorSala({
   onSelect,
   onClose,
-  salaSeleccionada,
 }: {
   onSelect: (id: number, nombre: string) => void;
   onClose: () => void;
-  salaSeleccionada?: SalaAsignada;
 }) {
   const [busqueda, setBusqueda] = useState("");
   const { data, loading } = useQuery(GET_SALAS_TRIBUNAL);
@@ -166,7 +164,7 @@ export default function RolesPage() {
   const [modalPermisos, setModalPermisos] = useState(false);
   const [editando, setEditando] = useState<Rol | null>(null);
   const [rolSeleccionado, setRolSeleccionado] = useState<Rol | null>(null);
-  const [form, setForm] = useState({ nombre: "", descripcion: "", idSala: 0 });
+  const [form, setForm] = useState({ nombre: "", descripcion: "", idSala: null as number | null });
   const [busqueda, setBusqueda] = useState("");
   const [busquedaPerm, setBusquedaPerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -176,7 +174,7 @@ export default function RolesPage() {
   const [buscadorSalaAbierto, setBuscadorSalaAbierto] = useState(false);
   const [salaSeleccionada, setSalaSeleccionada] = useState("");
 
-  // ✅ Estados para bloquear botones
+  // Estados para bloquear botones
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [togglingPermiso, setTogglingPermiso] = useState<number | null>(null);
@@ -190,7 +188,6 @@ export default function RolesPage() {
   const [asignarPermiso] = useMutation(ASIGNAR_PERMISO_ROL);
   const [removerPermiso] = useMutation(REMOVER_PERMISO_ROL);
 
-  // Inicializar hook de notificaciones
   const { executeCreate, executeUpdate, executeDelete, toast } = useCrudNotifications('Rol');
 
   const roles: Rol[] = data?.allRoles ?? [];
@@ -200,22 +197,20 @@ export default function RolesPage() {
     r.nombre.toLowerCase().includes(busqueda.toLowerCase())
   );
 
-  // Paginación
   const totalPages = Math.ceil(rolesFiltrados.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedRoles = rolesFiltrados.slice(startIndex, startIndex + itemsPerPage);
 
-  // Agrupar permisos por módulo
   const modulosDisponibles = [...new Set(permisos.map(p => p.modulo))].sort();
 
   const seleccionarSala = (id: number, nombre: string) => {
-    setForm(prev => ({ ...prev, idSala: Number(id) }));
+    setForm(prev => ({ ...prev, idSala: id }));
     setSalaSeleccionada(nombre);
   };
 
   const abrirCrear = () => {
     setEditando(null);
-    setForm({ nombre: "", descripcion: "", idSala: 0 });
+    setForm({ nombre: "", descripcion: "", idSala: null });
     setSalaSeleccionada("");
     setModalForm(true);
   };
@@ -225,7 +220,7 @@ export default function RolesPage() {
     setForm({ 
       nombre: r.nombre, 
       descripcion: r.descripcion ?? "",
-      idSala: Number(r.salaAsignada?.idSala) || 0
+      idSala: r.salaAsignada?.idSala ?? null
     });
     setSalaSeleccionada(r.salaAsignada ? `${r.salaAsignada.nombreSala}` : "");
     setModalForm(true);
@@ -240,7 +235,6 @@ export default function RolesPage() {
   const cerrarForm = () => { setModalForm(false); setEditando(null); };
   const cerrarPermisos = () => { setModalPermisos(false); setRolSeleccionado(null); };
 
-  // ✅ Guardar con notificaciones y bloqueo
   const guardar = async () => {
     if (!form.nombre.trim()) {
       toast.error("El nombre es obligatorio.");
@@ -253,14 +247,16 @@ export default function RolesPage() {
     try {
       if (editando) {
         await executeUpdate(async () => {
+          const input: any = { 
+            nombre: form.nombre, 
+            descripcion: form.descripcion,
+            idSala: form.idSala
+          };
+          
           await actualizarRol({
             variables: { 
               id: Number(editando.idRol), 
-              input: { 
-                nombre: form.nombre, 
-                descripcion: form.descripcion,
-                ...(form.idSala ? { idSala: form.idSala } : {})
-              } 
+              input
             },
           });
           await refetch();
@@ -269,13 +265,14 @@ export default function RolesPage() {
         });
       } else {
         await executeCreate(async () => {
-          await crearRol({ 
-            variables: { 
-              nombre: form.nombre, 
-              descripcion: form.descripcion,
-              idSala: form.idSala || undefined
-            } 
-          });
+          const input: any = { 
+            nombre: form.nombre, 
+            descripcion: form.descripcion
+          };
+          if (form.idSala) {
+            input.idSala = form.idSala;
+          }
+          await crearRol({ variables: input });
           await refetch();
           cerrarForm();
           return true;
@@ -286,7 +283,6 @@ export default function RolesPage() {
     }
   };
 
-  // ✅ Eliminar con notificaciones y bloqueo
   const eliminar = async (id: number, nombre: string) => {
     if (deletingId === id) return;
     
@@ -317,7 +313,6 @@ export default function RolesPage() {
     }
   };
 
-  // ✅ Toggle permiso con notificación y bloqueo
   const togglePermiso = async (idPermiso: number, permisoNombre: string) => {
     if (!rolSeleccionado) return;
     if (togglingPermiso === idPermiso) return;
@@ -350,19 +345,15 @@ export default function RolesPage() {
     `${p.nombre} ${p.codigo} ${p.modulo}`.toLowerCase().includes(busquedaPerm.toLowerCase())
   );
 
-  // Estadísticas
   const totalRoles = roles.length;
   const rolesActivos = roles.filter(r => r.activo).length;
-  const rolesInactivos = roles.filter(r => !r.activo).length;
   const totalPermisos = permisos.length;
   const rolesConSala = roles.filter(r => r.salaAsignada).length;
 
   return (
     <div className="space-y-6 animate-fade-in">
       
-      {/* ============================================================ */}
       {/* ENCABEZADO */}
-      {/* ============================================================ */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
@@ -383,9 +374,7 @@ export default function RolesPage() {
         </button>
       </div>
 
-      {/* ============================================================ */}
       {/* TARJETAS DE ESTADÍSTICAS */}
-      {/* ============================================================ */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg">
           <div className="flex items-center justify-between">
@@ -436,9 +425,7 @@ export default function RolesPage() {
         </div>
       </div>
 
-      {/* ============================================================ */}
       {/* BUSCADOR */}
-      {/* ============================================================ */}
       <div className="relative max-w-md">
         <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
@@ -449,9 +436,7 @@ export default function RolesPage() {
         />
       </div>
 
-      {/* ============================================================ */}
-      {/* TABLA (Desktop) */}
-      {/* ============================================================ */}
+      {/* TABLA */}
       <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -560,9 +545,7 @@ export default function RolesPage() {
         </div>
       </div>
 
-      {/* ============================================================ */}
       {/* PAGINACIÓN */}
-      {/* ============================================================ */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between pt-4">
           <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -590,9 +573,7 @@ export default function RolesPage() {
         </div>
       )}
 
-      {/* ============================================================ */}
       {/* MODAL CREAR/EDITAR ROL */}
-      {/* ============================================================ */}
       {modalForm && (
         <Modal onClose={cerrarForm} title={editando ? "editar" : "crear"}>
           <div className="space-y-4">
@@ -619,7 +600,7 @@ export default function RolesPage() {
                   <span className="flex-1 text-sm text-gray-800 dark:text-white">{salaSeleccionada}</span>
                   <button
                     onClick={() => {
-                      setForm(prev => ({ ...prev, idSala: 0 }));
+                      setForm(prev => ({ ...prev, idSala: null }));
                       setSalaSeleccionada("");
                     }}
                     disabled={saving}
@@ -673,9 +654,7 @@ export default function RolesPage() {
         </Modal>
       )}
 
-      {/* ============================================================ */}
       {/* MODAL PERMISOS */}
-      {/* ============================================================ */}
       {modalPermisos && rolSeleccionado && (
         <Modal onClose={cerrarPermisos} title="permisos" rolNombre={rolSeleccionado.nombre}>
           <div className="space-y-4">
@@ -688,7 +667,6 @@ export default function RolesPage() {
               </p>
             </div>
 
-            {/* Buscador de permisos */}
             <div className="relative">
               <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
@@ -699,7 +677,6 @@ export default function RolesPage() {
               />
             </div>
 
-            {/* Permisos agrupados por módulo */}
             {modulosDisponibles.map(modulo => {
               const permsMod = permisosFiltrados.filter(p => p.modulo === modulo);
               if (permsMod.length === 0) return null;
@@ -762,7 +739,6 @@ export default function RolesPage() {
         <BuscadorSala
           onSelect={seleccionarSala}
           onClose={() => setBuscadorSalaAbierto(false)}
-          salaSeleccionada={salaSeleccionada ? { idSala: form.idSala, nombreSala: salaSeleccionada } : undefined}
         />
       )}
     </div>
