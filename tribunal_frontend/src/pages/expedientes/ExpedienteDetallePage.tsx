@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@apollo/client";
 import { gql } from "@apollo/client";
@@ -24,7 +24,6 @@ const CREAR_PARTE        = gql`mutation CrearParteProcesal($idExpediente: Int!, 
 const ELIMINAR_PARTE     = gql`mutation EliminarParteProcesal($id: Int!) { eliminarParteProcesal(id: $id) { ok mensaje } }`;
 const CREAR_RESOLUCION   = gql`mutation CrearResolucion($input: CrearResolucionInput!) { crearResolucion(input: $input) { resolucion { idResolucion numeroResolucion fechaResolucion estado } } }`;
 const ELIMINAR_RESOLUCION= gql`mutation EliminarResolucion($id: Int!) { eliminarResolucion(id: $id) { ok mensaje } }`;
-const CREAR_DOCUMENTO    = gql`mutation CrearDocumento($idExpediente: Int!, $idTipoDoc: Int!, $titulo: String!, $numeroFolio: Int, $tamanoKb: Int) { crearDocumento(idExpediente: $idExpediente, idTipoDoc: $idTipoDoc, titulo: $titulo, numeroFolio: $numeroFolio, tamanoKb: $tamanoKb) { documento { idDocumento titulo fechaPresentacion idTipoDoc { codigo nombre } } } }`;
 const ELIMINAR_DOCUMENTO = gql`mutation EliminarDocumento($id: Int!) { eliminarDocumento(id: $id) { ok mensaje } }`;
 const CREAR_ACTUACION    = gql`mutation CrearActuacionProcesal($idExpediente: Int!, $idTipoActuacion: Int!, $idUsuario: Int!, $folioInicio: Int!, $folioFin: Int!, $descripcion: String) { crearActuacionProcesal(idExpediente: $idExpediente, idTipoActuacion: $idTipoActuacion, idUsuario: $idUsuario, folioInicio: $folioInicio, folioFin: $folioFin, descripcion: $descripcion) { actuacion { idActuacion descripcion folioInicio folioFin idTipoActuacion { nombre } } } }`;
 const ELIMINAR_ACTUACION = gql`mutation EliminarActuacionProcesal($id: Int!) { eliminarActuacionProcesal(id: $id) { ok mensaje } }`;
@@ -108,7 +107,7 @@ const RESUMEN_STYLES: Record<string, { bg: string; border: string; text: string 
 };
 
 // ══════════════════════════════════════════════════════════════════════════
-// BUSCADOR MODAL GENÉRICO (equivalente a BuscadorTribunal pero reutilizable)
+// BUSCADOR MODAL GENÉRICO
 // ══════════════════════════════════════════════════════════════════════════
 interface OpcionModal {
   id: number;
@@ -118,94 +117,47 @@ interface OpcionModal {
 }
 
 function BuscadorModal({
-  titulo,
-  placeholder,
-  opciones,
-  loading,
-  onSelect,
-  onClose,
+  titulo, placeholder, opciones, loading, onSelect, onClose,
 }: {
-  titulo: string;
-  placeholder: string;
-  opciones: OpcionModal[];
-  loading: boolean;
-  onSelect: (id: number, label: string) => void;
-  onClose: () => void;
+  titulo: string; placeholder: string; opciones: OpcionModal[];
+  loading: boolean; onSelect: (id: number, label: string) => void; onClose: () => void;
 }) {
   const [busqueda, setBusqueda] = useState("");
-
-
-
   const filtradas = opciones.filter(o =>
-    `${o.titulo} ${o.subtitulo ?? ""} ${o.extra ?? ""}`
-      .toLowerCase()
-      .includes(busqueda.toLowerCase())
+    `${o.titulo} ${o.subtitulo ?? ""} ${o.extra ?? ""}`.toLowerCase().includes(busqueda.toLowerCase())
   );
 
-
-
-
   return (
-    <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Cabecera */}
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
           <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
-            <Search className="w-5 h-5 text-blue-500" />
-            {titulo}
+            <Search className="w-5 h-5 text-blue-500" />{titulo}
           </h2>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-          >
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
-
-        {/* Buscador */}
         <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-slate-700">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder={placeholder}
-              value={busqueda}
-              onChange={e => setBusqueda(e.target.value)}
+            <input type="text" placeholder={placeholder} value={busqueda} onChange={e => setBusqueda(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
-              autoFocus
-            />
+              autoFocus />
           </div>
         </div>
-
-        {/* Lista */}
         <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
           {loading ? (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-            </div>
+            <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
           ) : filtradas.length === 0 ? (
             <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
-              <p>No se encontraron resultados</p>
+              <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" /><p>No se encontraron resultados</p>
             </div>
           ) : (
             <div className="space-y-2 pb-4">
               {filtradas.map(o => (
-                <button
-                  key={o.id}
-                  onClick={() => {
-                    const label = o.extra ? `${o.titulo} — ${o.extra}` : o.titulo;
-                    onSelect(o.id, label);
-                    onClose();
-                  }}
-                  className="w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700"
-                >
+                <button key={o.id} onClick={() => { const label = o.extra ? `${o.titulo} — ${o.extra}` : o.titulo; onSelect(o.id, label); onClose(); }}
+                  className="w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700">
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="font-semibold text-gray-800 dark:text-white">{o.titulo}</p>
@@ -219,13 +171,8 @@ function BuscadorModal({
             </div>
           )}
         </div>
-
-        {/* Pie */}
         <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 rounded-b-2xl">
-          <button
-            onClick={onClose}
-            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
-          >
+          <button onClick={onClose} className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium">
             Cancelar
           </button>
         </div>
@@ -234,15 +181,8 @@ function BuscadorModal({
   );
 }
 
-// ─── Chip de selección (muestra el valor elegido + botón limpiar) ──────────
-function ChipSeleccionado({
-  label,
-  onClear,
-  color = "blue",
-}: {
-  label: string;
-  onClear: () => void;
-  color?: "blue" | "indigo" | "emerald" | "purple";
+function ChipSeleccionado({ label, onClear, color = "blue" }: {
+  label: string; onClear: () => void; color?: "blue" | "indigo" | "emerald" | "purple";
 }) {
   const colores = {
     blue:    "bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800",
@@ -251,86 +191,42 @@ function ChipSeleccionado({
     purple:  "bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-800",
   };
   const btnColores = {
-    blue:    "hover:bg-blue-200 dark:hover:bg-blue-800",
-    indigo:  "hover:bg-indigo-200 dark:hover:bg-indigo-800",
-    emerald: "hover:bg-emerald-200 dark:hover:bg-emerald-800",
-    purple:  "hover:bg-purple-200 dark:hover:bg-purple-800",
+    blue: "hover:bg-blue-200 dark:hover:bg-blue-800", indigo: "hover:bg-indigo-200 dark:hover:bg-indigo-800",
+    emerald: "hover:bg-emerald-200 dark:hover:bg-emerald-800", purple: "hover:bg-purple-200 dark:hover:bg-purple-800",
   };
-
-
-
-  
   return (
     <div className={`flex items-center gap-2 p-2.5 rounded-xl border ${colores[color]}`}>
       <span className="flex-1 text-sm text-gray-800 dark:text-white truncate">{label}</span>
-      <button
-        type="button"
-        onClick={onClear}
-        className={`p-1 rounded-lg text-gray-500 transition-colors ${btnColores[color]}`}
-      >
+      <button type="button" onClick={onClear} className={`p-1 rounded-lg text-gray-500 transition-colors ${btnColores[color]}`}>
         <X className="w-4 h-4" />
       </button>
     </div>
   );
 }
 
-// ─── Botón para abrir el buscador modal ───────────────────────────────────
-function BtnAbrirBuscador({
-  onClick,
-  label = "Buscar y seleccionar",
-}: {
-  onClick: () => void;
-  label?: string;
-}) {
+function BtnAbrirBuscador({ onClick, label = "Buscar y seleccionar" }: { onClick: () => void; label?: string }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
-    >
-      <Search className="w-4 h-4" />
-      {label}
+    <button type="button" onClick={onClick}
+      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all">
+      <Search className="w-4 h-4" />{label}
     </button>
   );
 }
 
-// ─── Campo selector con modal ─────────────────────────────────────────────
-function CampoSelector({
-  label,
-  required,
-  valorLabel,
-  onAbrir,
-  onLimpiar,
-  color = "blue",
-  disabled = false,
-}: {
-  label: string;
-  required?: boolean;
-  valorLabel: string;
-  onAbrir: () => void;
-  onLimpiar: () => void;
-  color?: "blue" | "indigo" | "emerald" | "purple";
-  disabled?: boolean;
+function CampoSelector({ label, required, valorLabel, onAbrir, onLimpiar, color = "blue" }: {
+  label: string; required?: boolean; valorLabel: string;
+  onAbrir: () => void; onLimpiar: () => void; color?: "blue" | "indigo" | "emerald" | "purple"; disabled?: boolean;
 }) {
   return (
     <div>
-      <label className={labelCls}>
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
-      {valorLabel ? (
-        <ChipSeleccionado label={valorLabel} onClear={onLimpiar} color={color} />
-      ) : (
-        <BtnAbrirBuscador onClick={onAbrir} label={`Buscar ${label.toLowerCase()}`} />
-      )}
+      <label className={labelCls}>{label} {required && <span className="text-red-500">*</span>}</label>
+      {valorLabel ? <ChipSeleccionado label={valorLabel} onClear={onLimpiar} color={color} /> : <BtnAbrirBuscador onClick={onAbrir} label={`Buscar ${label.toLowerCase()}`} />}
     </div>
   );
 }
 
-// ─── Componentes base ──────────────────────────────────────────────────────
 const Pill = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
-  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${className}`}>
-    {children}
-  </span>
+  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${className}`}>{children}</span>
 );
 const InfoCell = ({ label, value }: { label: string; value?: React.ReactNode }) => (
   <div>
@@ -345,10 +241,7 @@ const TablaVacia = ({ icono: Icon, mensaje, onAgregar, labelAgregar }: {
     <Icon className="w-10 h-10" />
     <p className="text-sm">{mensaje}</p>
     {onAgregar && (
-      <button
-        onClick={onAgregar}
-        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold transition-colors shadow-sm shadow-blue-500/25"
-      >
+      <button onClick={onAgregar} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold transition-colors shadow-sm shadow-blue-500/25">
         <Plus className="w-4 h-4" /> {labelAgregar ?? "Agregar"}
       </button>
     )}
@@ -363,17 +256,13 @@ const SeccionHeader = ({ count, singular, plural, onAgregar, mostrarBoton }: {
       {count} {count === 1 ? singular : plural}
     </p>
     {mostrarBoton && (
-      <button
-        onClick={onAgregar}
-        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold transition-all hover:scale-[1.02] shadow-sm shadow-blue-500/30"
-      >
+      <button onClick={onAgregar} className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold transition-all hover:scale-[1.02] shadow-sm shadow-blue-500/30">
         <Plus className="w-3.5 h-3.5" /> Agregar
       </button>
     )}
   </div>
 );
 
-// ─── FormInline ────────────────────────────────────────────────────────────
 const FormInline = ({ titulo, icono: Icon, color = "blue", onCancel, onSave, saving, error, children }: {
   titulo: string; icono: React.ElementType; color?: string;
   onCancel: () => void; onSave: () => void; saving: boolean; error: string; children: React.ReactNode;
@@ -387,21 +276,14 @@ const FormInline = ({ titulo, icono: Icon, color = "blue", onCancel, onSave, sav
   const ic = {
     blue: "bg-blue-500", emerald: "bg-emerald-500", purple: "bg-purple-500", indigo: "bg-indigo-500",
   }[color] ?? "bg-blue-500";
-
   return (
     <div className={`rounded-2xl border-2 ${bg} p-5 space-y-4`}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className={`w-7 h-7 rounded-lg ${ic} flex items-center justify-center`}>
-            <Icon className="w-4 h-4 text-white" />
-          </div>
+          <div className={`w-7 h-7 rounded-lg ${ic} flex items-center justify-center`}><Icon className="w-4 h-4 text-white" /></div>
           <p className="text-sm font-bold text-gray-800 dark:text-white">{titulo}</p>
         </div>
-        <button
-          onClick={onCancel}
-          disabled={saving}
-          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-40"
-        >
+        <button onClick={onCancel} disabled={saving} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-40">
           <X className="w-4 h-4" />
         </button>
       </div>
@@ -412,18 +294,12 @@ const FormInline = ({ titulo, icono: Icon, color = "blue", onCancel, onSave, sav
         </div>
       )}
       <div className="flex items-center justify-end gap-2 pt-1">
-        <button
-          onClick={onCancel}
-          disabled={saving}
-          className="px-4 py-2 rounded-xl border border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 text-sm font-medium transition-colors flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
-        >
+        <button onClick={onCancel} disabled={saving}
+          className="px-4 py-2 rounded-xl border border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 text-sm font-medium transition-colors flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed">
           <XCircle className="w-4 h-4" /> Cancelar
         </button>
-        <button
-          onClick={onSave}
-          disabled={saving}
-          className={`px-4 py-2 rounded-xl ${ic} hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors flex items-center gap-1.5 shadow-sm`}
-        >
+        <button onClick={onSave} disabled={saving}
+          className={`px-4 py-2 rounded-xl ${ic} hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors flex items-center gap-1.5 shadow-sm`}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           {saving ? "Guardando..." : "Guardar"}
         </button>
@@ -432,19 +308,13 @@ const FormInline = ({ titulo, icono: Icon, color = "blue", onCancel, onSave, sav
   );
 };
 
-// ─── Botón eliminar pequeño con bloqueo ────────────────────────────────────
 const BtnEliminar = ({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) => (
-  <button
-    onClick={onClick}
-    disabled={disabled}
-    className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-    title="Eliminar"
-  >
+  <button onClick={onClick} disabled={disabled}
+    className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="Eliminar">
     <Trash2 className="w-3.5 h-3.5" />
   </button>
 );
 
-// ─── TABS ──────────────────────────────────────────────────────────────────
 const TABS = [
   { id: "general",      label: "General",      icon: FolderOpen    },
   { id: "vocales",      label: "Conformación", icon: Building2     },
@@ -459,7 +329,7 @@ const TABS = [
 type TabId = typeof TABS[number]["id"];
 
 // ══════════════════════════════════════════════════════════════════════════
-// FORM AUDIENCIA — con BuscadorModal para Tipo y Sala
+// FORM AUDIENCIA
 // ══════════════════════════════════════════════════════════════════════════
 const INIT_AUD = { idTipoAudiencia: 0, tipoLabel: "", idSalaAud: 0, salaLabel: "", fechaHoraProgramada: "", linkVideoconferencia: "", estadoAudiencia: "PROGRAMADA", motivoSuspension: "", fechaHoraInicio: "", fechaHoraFin: "" };
 
@@ -470,7 +340,6 @@ function FormAudiencia({ idExpediente, editando, onSaved, onCancel }: {
   const { data: dSala, loading: lSala } = useQuery(GET_SALAS_AUDIENCIA);
   const [crear]      = useMutation(CREAR_AUDIENCIA);
   const [actualizar] = useMutation(ACTUALIZAR_AUDIENCIA);
-  
 
   const [form, setForm] = useState(editando ? {
     idTipoAudiencia: editando.idTipoAudiencia?.idTipoAudiencia ?? 0,
@@ -492,24 +361,13 @@ function FormAudiencia({ idExpediente, editando, onSaved, onCancel }: {
   const tipos: any[] = dTipo?.allTiposAudiencia ?? [];
   const salas: any[] = (dSala?.allSalasAudiencia ?? []).filter((s: any) => s.activa);
 
-  const opcionesTipo: OpcionModal[] = tipos.map((t: any) => ({
-    id: t.idTipoAudiencia,
-    titulo: t.nombre,
-    extra: `${t.duracionEstimada} min`,
-  }));
-  const opcionesSala: OpcionModal[] = salas.map((s: any) => ({
-    id: s.idSalaAud,
-    titulo: s.nombreSala,
-    subtitulo: `Cap. ${s.capacidad}`,
-    extra: s.equipadaVideoconf ? "📹 Videoconferencia" : undefined,
-  }));
+  const opcionesTipo: OpcionModal[] = tipos.map((t: any) => ({ id: t.idTipoAudiencia, titulo: t.nombre, extra: `${t.duracionEstimada} min` }));
+  const opcionesSala: OpcionModal[] = salas.map((s: any) => ({ id: s.idSalaAud, titulo: s.nombreSala, subtitulo: `Cap. ${s.capacidad}`, extra: s.equipadaVideoconf ? "📹 Videoconferencia" : undefined }));
 
   const set = (k: string) => (e: React.ChangeEvent<any>) => setForm(p => ({ ...p, [k]: e.target.value }));
 
   const guardar = async () => {
-    if (!form.idTipoAudiencia || !form.fechaHoraProgramada) {
-      setErr("Tipo y fecha son obligatorios."); return;
-    }
+    if (!form.idTipoAudiencia || !form.fechaHoraProgramada) { setErr("Tipo y fecha son obligatorios."); return; }
     setSaving(true); setErr("");
     try {
       if (editando) {
@@ -530,47 +388,20 @@ function FormAudiencia({ idExpediente, editando, onSaved, onCancel }: {
     } catch (e: any) { setErr(e.message ?? "Error al guardar."); } finally { setSaving(false); }
   };
 
-
-
-  
-
   return (
     <>
       <FormInline titulo={editando ? "Editar audiencia" : "Programar audiencia"} icono={Calendar} color="blue" onCancel={onCancel} onSave={guardar} saving={saving} error={err}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-          {/* Tipo de audiencia */}
-          <CampoSelector
-            label="Tipo de audiencia" required
-            valorLabel={form.tipoLabel}
-            onAbrir={() => setModal("tipo")}
-            onLimpiar={() => setForm(p => ({ ...p, idTipoAudiencia: 0, tipoLabel: "" }))}
-            color="blue"
-          />
-
-          {/* Fecha y hora */}
+          <CampoSelector label="Tipo de audiencia" required valorLabel={form.tipoLabel} onAbrir={() => setModal("tipo")} onLimpiar={() => setForm(p => ({ ...p, idTipoAudiencia: 0, tipoLabel: "" }))} color="blue" />
           <div>
             <label className={labelCls}>Fecha y hora <span className="text-red-500">*</span></label>
             <input type="datetime-local" value={form.fechaHoraProgramada} onChange={set("fechaHoraProgramada")} className={inputCls} disabled={saving} />
           </div>
-
-          {/* Sala */}
-          <CampoSelector
-            label="Sala"
-            valorLabel={form.salaLabel}
-            onAbrir={() => setModal("sala")}
-            onLimpiar={() => setForm(p => ({ ...p, idSalaAud: 0, salaLabel: "" }))}
-            color="blue"
-          />
-
-          {/* Link videoconferencia */}
+          <CampoSelector label="Sala" valorLabel={form.salaLabel} onAbrir={() => setModal("sala")} onLimpiar={() => setForm(p => ({ ...p, idSalaAud: 0, salaLabel: "" }))} color="blue" />
           <div>
             <label className={labelCls}>Link videoconf.</label>
             <input type="url" placeholder="https://meet.google.com/..." value={form.linkVideoconferencia} onChange={set("linkVideoconferencia")} className={inputCls} disabled={saving} />
           </div>
-
-          {/* Estado (solo edición) */}
-          {/* Estado (solo edición) */}
           {editando && (
             <div>
               <label className={labelCls}>Estado</label>
@@ -583,24 +414,18 @@ function FormAudiencia({ idExpediente, editando, onSaved, onCancel }: {
               </select>
             </div>
           )}
-
-          {/* Hora de inicio — aparece cuando está EN_CURSO o REALIZADA */}
           {editando && (form.estadoAudiencia === "EN_CURSO" || form.estadoAudiencia === "REALIZADA") && (
             <div>
               <label className={labelCls}>Hora de inicio</label>
               <input type="datetime-local" value={form.fechaHoraInicio} onChange={set("fechaHoraInicio")} className={inputCls} disabled={saving} />
             </div>
           )}
-
-          {/* Hora de fin — aparece solo cuando está REALIZADA */}
           {editando && form.estadoAudiencia === "REALIZADA" && (
             <div>
               <label className={labelCls}>Hora de fin</label>
               <input type="datetime-local" value={form.fechaHoraFin} onChange={set("fechaHoraFin")} className={inputCls} disabled={saving} />
             </div>
           )}
-
-          {/* Motivo suspensión */}
           {editando && form.estadoAudiencia === "SUSPENDIDA" && (
             <div className="sm:col-span-2">
               <label className={labelCls}>Motivo suspensión</label>
@@ -611,35 +436,17 @@ function FormAudiencia({ idExpediente, editando, onSaved, onCancel }: {
       </FormInline>
 
       {modal === "tipo" && (
-        <BuscadorModal
-          titulo="Seleccionar tipo de audiencia"
-          placeholder="Buscar por nombre..."
-          opciones={opcionesTipo}
-          loading={lTipo}
-          onSelect={(id, label) => setForm(p => ({ ...p, idTipoAudiencia: id, tipoLabel: label }))}
-          onClose={() => setModal(null)}
-        />
+        <BuscadorModal titulo="Seleccionar tipo de audiencia" placeholder="Buscar por nombre..." opciones={opcionesTipo} loading={lTipo}
+          onSelect={(id, label) => setForm(p => ({ ...p, idTipoAudiencia: id, tipoLabel: label }))} onClose={() => setModal(null)} />
       )}
-{modal === "sala" && (
-  <BuscadorModal
-    titulo="Seleccionar sala"
-    placeholder="Buscar por nombre o capacidad..."
-    opciones={opcionesSala}
-    loading={lSala}
-    onSelect={(id, label) => {
-      // Buscar la sala seleccionada para obtener su enlaceVirtual
-      const salaSeleccionada = salas.find(s => s.idSalaAud === id);
-      setForm(p => ({ 
-        ...p, 
-        idSalaAud: id, 
-        salaLabel: label,
-        // Si la sala tiene enlaceVirtual, autocompletar el campo
-        linkVideoconferencia: salaSeleccionada?.enlaceVirtual || p.linkVideoconferencia
-      }));
-    }}
-    onClose={() => setModal(null)}
-  />
-)}
+      {modal === "sala" && (
+        <BuscadorModal titulo="Seleccionar sala" placeholder="Buscar por nombre o capacidad..." opciones={opcionesSala} loading={lSala}
+          onSelect={(id, label) => {
+            const salaSeleccionada = salas.find((s: any) => s.idSalaAud === id);
+            setForm(p => ({ ...p, idSalaAud: id, salaLabel: label, linkVideoconferencia: salaSeleccionada?.enlaceVirtual || p.linkVideoconferencia }));
+          }}
+          onClose={() => setModal(null)} />
+      )}
     </>
   );
 }
@@ -651,7 +458,6 @@ function FormParte({ idExpediente, onSaved, onCancel }: { idExpediente: number; 
   const { data: dP, loading: lP } = useQuery(GET_PERSONAS);
   const { data: dR, loading: lR } = useQuery(GET_ROLES_PROC);
   const [crear] = useMutation(CREAR_PARTE);
-
   const [form, setForm] = useState({ idPersona: 0, personaLabel: "", idRol: 0, rolLabel: "" });
   const [err, setErr]   = useState("");
   const [saving, setSaving] = useState(false);
@@ -659,17 +465,8 @@ function FormParte({ idExpediente, onSaved, onCancel }: { idExpediente: number; 
 
   const personas: any[] = dP?.allPersonas ?? [];
   const roles: any[]    = dR?.allRolesProcesal ?? [];
-
-  const opcionesPersona: OpcionModal[] = personas.map((p: any) => ({
-    id: p.idPersona,
-    titulo: `${p.nombre} ${p.primerApellido} ${p.segundoApellido ?? ""}`.trim(),
-    extra: p.numeroDocumento,
-    subtitulo: p.esAbogado ? "Abogado" : undefined,
-  }));
-  const opcionesRol: OpcionModal[] = roles.map((r: any) => ({
-    id: r.idRol,
-    titulo: r.nombreRol,
-  }));
+  const opcionesPersona: OpcionModal[] = personas.map((p: any) => ({ id: p.idPersona, titulo: `${p.nombre} ${p.primerApellido} ${p.segundoApellido ?? ""}`.trim(), extra: p.numeroDocumento, subtitulo: p.esAbogado ? "Abogado" : undefined }));
+  const opcionesRol: OpcionModal[]     = roles.map((r: any) => ({ id: r.idRol, titulo: r.nombreRol }));
 
   const guardar = async () => {
     if (!form.idPersona || !form.idRol) { setErr("Persona y rol son obligatorios."); return; }
@@ -684,23 +481,12 @@ function FormParte({ idExpediente, onSaved, onCancel }: { idExpediente: number; 
     <>
       <FormInline titulo="Agregar parte procesal" icono={Users} color="indigo" onCancel={onCancel} onSave={guardar} saving={saving} error={err}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="sm:col-span-2">
-            <CampoSelector label="Persona" required valorLabel={form.personaLabel} onAbrir={() => setModal("persona")} onLimpiar={() => setForm(p => ({ ...p, idPersona: 0, personaLabel: "" }))} color="indigo" />
-          </div>
-          <div className="sm:col-span-2">
-            <CampoSelector label="Rol procesal" required valorLabel={form.rolLabel} onAbrir={() => setModal("rol")} onLimpiar={() => setForm(p => ({ ...p, idRol: 0, rolLabel: "" }))} color="indigo" />
-          </div>
+          <div className="sm:col-span-2"><CampoSelector label="Persona" required valorLabel={form.personaLabel} onAbrir={() => setModal("persona")} onLimpiar={() => setForm(p => ({ ...p, idPersona: 0, personaLabel: "" }))} color="indigo" /></div>
+          <div className="sm:col-span-2"><CampoSelector label="Rol procesal" required valorLabel={form.rolLabel} onAbrir={() => setModal("rol")} onLimpiar={() => setForm(p => ({ ...p, idRol: 0, rolLabel: "" }))} color="indigo" /></div>
         </div>
       </FormInline>
-
-      {modal === "persona" && (
-        <BuscadorModal titulo="Seleccionar persona" placeholder="Buscar por nombre o documento..." opciones={opcionesPersona} loading={lP}
-          onSelect={(id, label) => setForm(p => ({ ...p, idPersona: id, personaLabel: label }))} onClose={() => setModal(null)} />
-      )}
-      {modal === "rol" && (
-        <BuscadorModal titulo="Seleccionar rol procesal" placeholder="Buscar por nombre..." opciones={opcionesRol} loading={lR}
-          onSelect={(id, label) => setForm(p => ({ ...p, idRol: id, rolLabel: label }))} onClose={() => setModal(null)} />
-      )}
+      {modal === "persona" && <BuscadorModal titulo="Seleccionar persona" placeholder="Buscar por nombre o documento..." opciones={opcionesPersona} loading={lP} onSelect={(id, label) => setForm(p => ({ ...p, idPersona: id, personaLabel: label }))} onClose={() => setModal(null)} />}
+      {modal === "rol" && <BuscadorModal titulo="Seleccionar rol procesal" placeholder="Buscar por nombre..." opciones={opcionesRol} loading={lR} onSelect={(id, label) => setForm(p => ({ ...p, idRol: id, rolLabel: label }))} onClose={() => setModal(null)} />}
     </>
   );
 }
@@ -711,26 +497,17 @@ function FormParte({ idExpediente, onSaved, onCancel }: { idExpediente: number; 
 function FormResolucion({ idExpediente, onSaved, onCancel }: { idExpediente: number; onSaved: () => void; onCancel: () => void }) {
   const { data: dR, loading: lR } = useQuery(GET_TIPOS_RES);
   const [crear] = useMutation(CREAR_RESOLUCION);
-
   const [form, setForm] = useState({ idTipoRes: 0, tipoLabel: "", numeroResolucion: "", fechaResolucion: "", parteDispositiva: "", fundamentacion: "" });
   const [err, setErr]   = useState("");
   const [saving, setSaving] = useState(false);
   const [modalAbierto, setModalAbierto] = useState(false);
 
   const tipos: any[] = dR?.allTiposResolucion ?? [];
-  const opciones: OpcionModal[] = tipos.map((t: any) => ({
-    id: t.idTipoRes,
-    titulo: t.nombre,
-    extra: t.codigo,
-    subtitulo: t.nivelJerarquico ? `Nivel ${t.nivelJerarquico}` : undefined,
-  }));
-
+  const opciones: OpcionModal[] = tipos.map((t: any) => ({ id: t.idTipoRes, titulo: t.nombre, extra: t.codigo, subtitulo: t.nivelJerarquico ? `Nivel ${t.nivelJerarquico}` : undefined }));
   const set = (k: string) => (e: React.ChangeEvent<any>) => setForm(p => ({ ...p, [k]: e.target.value }));
 
   const guardar = async () => {
-    if (!form.idTipoRes || !form.numeroResolucion || !form.fechaResolucion || !form.parteDispositiva) {
-      setErr("Tipo, número, fecha y parte dispositiva son obligatorios."); return;
-    }
+    if (!form.idTipoRes || !form.numeroResolucion || !form.fechaResolucion || !form.parteDispositiva) { setErr("Tipo, número, fecha y parte dispositiva son obligatorios."); return; }
     setSaving(true); setErr("");
     try {
       await crear({ variables: { input: { idExpediente: Number(idExpediente), idTipoRes: Number(form.idTipoRes), numeroResolucion: form.numeroResolucion, fechaResolucion: form.fechaResolucion, parteDispositiva: form.parteDispositiva, fundamentacion: form.fundamentacion || undefined } } });
@@ -742,9 +519,7 @@ function FormResolucion({ idExpediente, onSaved, onCancel }: { idExpediente: num
     <>
       <FormInline titulo="Nueva resolución" icono={Scale} color="purple" onCancel={onCancel} onSave={guardar} saving={saving} error={err}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="sm:col-span-2">
-            <CampoSelector label="Tipo de resolución" required valorLabel={form.tipoLabel} onAbrir={() => setModalAbierto(true)} onLimpiar={() => setForm(p => ({ ...p, idTipoRes: 0, tipoLabel: "" }))} color="purple" />
-          </div>
+          <div className="sm:col-span-2"><CampoSelector label="Tipo de resolución" required valorLabel={form.tipoLabel} onAbrir={() => setModalAbierto(true)} onLimpiar={() => setForm(p => ({ ...p, idTipoRes: 0, tipoLabel: "" }))} color="purple" /></div>
           <div>
             <label className={labelCls}>N° Resolución <span className="text-red-500">*</span></label>
             <input type="text" placeholder="Ej: RES-001/2025" value={form.numeroResolucion} onChange={set("numeroResolucion")} className={inputCls} disabled={saving} />
@@ -763,44 +538,51 @@ function FormResolucion({ idExpediente, onSaved, onCancel }: { idExpediente: num
           </div>
         </div>
       </FormInline>
-
-      {modalAbierto && (
-        <BuscadorModal titulo="Seleccionar tipo de resolución" placeholder="Buscar por nombre o código..." opciones={opciones} loading={lR}
-          onSelect={(id, label) => setForm(p => ({ ...p, idTipoRes: id, tipoLabel: label }))} onClose={() => setModalAbierto(false)} />
-      )}
+      {modalAbierto && <BuscadorModal titulo="Seleccionar tipo de resolución" placeholder="Buscar por nombre o código..." opciones={opciones} loading={lR} onSelect={(id, label) => setForm(p => ({ ...p, idTipoRes: id, tipoLabel: label }))} onClose={() => setModalAbierto(false)} />}
     </>
   );
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// FORM DOCUMENTO
+// FORM DOCUMENTO — sube PDF + crea el registro en un solo paso
 // ══════════════════════════════════════════════════════════════════════════
+const DJANGO_BASE = "http://localhost:8000";
+
 function FormDocumento({ idExpediente, onSaved, onCancel }: { idExpediente: number; onSaved: () => void; onCancel: () => void }) {
   const { data: dD, loading: lD } = useQuery(GET_TIPOS_DOC);
-  const [crear] = useMutation(CREAR_DOCUMENTO);
-
-  const [form, setForm] = useState({ idTipoDoc: 0, tipoLabel: "", titulo: "", numeroFolio: "", tamanoKb: "" });
-  const [err, setErr]   = useState("");
-  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ idTipoDoc: 0, tipoLabel: "", titulo: "", numeroFolio: "" });
+  const [archivo, setArchivo]           = useState<File | null>(null);
+  const [err, setErr]                   = useState("");
+  const [saving, setSaving]             = useState(false);
   const [modalAbierto, setModalAbierto] = useState(false);
+  const inputFileRef                    = useRef<HTMLInputElement>(null);
 
   const tipos: any[] = dD?.allTiposDoc ?? [];
-  const opciones: OpcionModal[] = tipos.map((t: any) => ({
-    id: t.idTipoDoc,
-    titulo: t.nombre,
-    extra: t.codigo,
-    subtitulo: t.esPublico ? "Público" : "Privado",
-  }));
-
+  const opciones: OpcionModal[] = tipos.map((t: any) => ({ id: t.idTipoDoc, titulo: t.nombre, extra: t.codigo, subtitulo: t.esPublico ? "Público" : "Privado" }));
   const set = (k: string) => (e: React.ChangeEvent<any>) => setForm(p => ({ ...p, [k]: e.target.value }));
 
+  const manejarArchivo = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0] ?? null;
+    if (f && !f.name.toLowerCase().endsWith(".pdf")) { setErr("Solo se permiten archivos PDF."); return; }
+    setArchivo(f); setErr("");
+  };
+
   const guardar = async () => {
-    if (!form.idTipoDoc || !form.titulo) { setErr("Tipo y título son obligatorios."); return; }
+    if (!form.idTipoDoc || !form.titulo.trim()) { setErr("Tipo y título son obligatorios."); return; }
     setSaving(true); setErr("");
     try {
-      await crear({ variables: { idExpediente: Number(idExpediente), idTipoDoc: Number(form.idTipoDoc), titulo: form.titulo, numeroFolio: form.numeroFolio ? Number(form.numeroFolio) : undefined, tamanoKb: form.tamanoKb ? Number(form.tamanoKb) : 0 } });
+      const formData = new FormData();
+      formData.append("titulo", form.titulo.trim());
+      formData.append("idExpediente", String(idExpediente));
+      formData.append("idTipoDoc", String(form.idTipoDoc));
+      if (form.numeroFolio) formData.append("numeroFolio", form.numeroFolio);
+      if (archivo) formData.append("archivo", archivo);
+
+      const resp = await fetch(`${DJANGO_BASE}/api/subir-documento/`, { method: "POST", body: formData });
+      const json = await resp.json();
+      if (!json.ok) { setErr(json.mensaje ?? "Error al guardar."); return; }
       onSaved();
-    } catch (e: any) { setErr(e.message ?? "Error al guardar."); } finally { setSaving(false); }
+    } catch { setErr("No se pudo conectar con el servidor."); } finally { setSaving(false); }
   };
 
   return (
@@ -819,16 +601,31 @@ function FormDocumento({ idExpediente, onSaved, onCancel }: { idExpediente: numb
             <input type="number" placeholder="Ej: 42" value={form.numeroFolio} onChange={set("numeroFolio")} className={inputCls} disabled={saving} />
           </div>
           <div>
-            <label className={labelCls}>Tamaño (KB)</label>
-            <input type="number" placeholder="Ej: 256" value={form.tamanoKb} onChange={set("tamanoKb")} className={inputCls} disabled={saving} />
+            <label className={labelCls}>Archivo PDF (opcional)</label>
+            <div onClick={() => !saving && inputFileRef.current?.click()}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${archivo ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20" : "border-dashed border-gray-300 dark:border-slate-600 hover:border-emerald-400 dark:hover:border-emerald-500 bg-white dark:bg-slate-900"} ${saving ? "opacity-50 cursor-not-allowed" : ""}`}>
+              {archivo ? (
+                <>
+                  <FileText className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span className="flex-1 text-xs text-emerald-700 dark:text-emerald-400 font-medium truncate">{archivo.name}</span>
+                  <button type="button" onClick={e => { e.stopPropagation(); setArchivo(null); if (inputFileRef.current) inputFileRef.current.value = ""; }} className="p-0.5 rounded text-gray-400 hover:text-red-500 transition-colors">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <polyline points="16 16 12 12 8 16" /><line x1="12" y1="12" x2="12" y2="21" /><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
+                  </svg>
+                  <span className="text-xs text-gray-400 dark:text-gray-500">Clic para seleccionar PDF</span>
+                </>
+              )}
+            </div>
+            <input ref={inputFileRef} type="file" accept="application/pdf" className="hidden" onChange={manejarArchivo} />
           </div>
         </div>
       </FormInline>
-
-      {modalAbierto && (
-        <BuscadorModal titulo="Seleccionar tipo de documento" placeholder="Buscar por nombre o código..." opciones={opciones} loading={lD}
-          onSelect={(id, label) => setForm(p => ({ ...p, idTipoDoc: id, tipoLabel: label }))} onClose={() => setModalAbierto(false)} />
-      )}
+      {modalAbierto && <BuscadorModal titulo="Seleccionar tipo de documento" placeholder="Buscar por nombre o código..." opciones={opciones} loading={lD} onSelect={(id, label) => setForm(p => ({ ...p, idTipoDoc: id, tipoLabel: label }))} onClose={() => setModalAbierto(false)} />}
     </>
   );
 }
@@ -840,25 +637,17 @@ function FormActuacion({ idExpediente, onSaved, onCancel }: { idExpediente: numb
   const { usuario } = useAuth();
   const { data: dA, loading: lA } = useQuery(GET_TIPOS_ACT);
   const [crear] = useMutation(CREAR_ACTUACION);
-
   const [form, setForm] = useState({ idTipoActuacion: 0, tipoLabel: "", folioInicio: "", folioFin: "", descripcion: "" });
   const [err, setErr]   = useState("");
   const [saving, setSaving] = useState(false);
   const [modalAbierto, setModalAbierto] = useState(false);
 
   const tipos: any[] = dA?.allTiposActuacion ?? [];
-  const opciones: OpcionModal[] = tipos.map((t: any) => ({
-    id: t.idTipoActuacion,
-    titulo: t.nombre,
-    extra: t.codigo,
-  }));
-
+  const opciones: OpcionModal[] = tipos.map((t: any) => ({ id: t.idTipoActuacion, titulo: t.nombre, extra: t.codigo }));
   const set = (k: string) => (e: React.ChangeEvent<any>) => setForm(p => ({ ...p, [k]: e.target.value }));
 
   const guardar = async () => {
-    if (!form.idTipoActuacion || !form.folioInicio || !form.folioFin) {
-      setErr("Tipo, folio inicio y folio fin son obligatorios."); return;
-    }
+    if (!form.idTipoActuacion || !form.folioInicio || !form.folioFin) { setErr("Tipo, folio inicio y folio fin son obligatorios."); return; }
     if (!usuario?.idUsuario) { setErr("No se pudo identificar al usuario."); return; }
     setSaving(true); setErr("");
     try {
@@ -871,9 +660,7 @@ function FormActuacion({ idExpediente, onSaved, onCancel }: { idExpediente: numb
     <>
       <FormInline titulo="Registrar actuación" icono={ClipboardList} color="blue" onCancel={onCancel} onSave={guardar} saving={saving} error={err}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="sm:col-span-2">
-            <CampoSelector label="Tipo de actuación" required valorLabel={form.tipoLabel} onAbrir={() => setModalAbierto(true)} onLimpiar={() => setForm(p => ({ ...p, idTipoActuacion: 0, tipoLabel: "" }))} color="blue" />
-          </div>
+          <div className="sm:col-span-2"><CampoSelector label="Tipo de actuación" required valorLabel={form.tipoLabel} onAbrir={() => setModalAbierto(true)} onLimpiar={() => setForm(p => ({ ...p, idTipoActuacion: 0, tipoLabel: "" }))} color="blue" /></div>
           <div>
             <label className={labelCls}>Folio inicio <span className="text-red-500">*</span></label>
             <input type="number" placeholder="Ej: 1" value={form.folioInicio} onChange={set("folioInicio")} className={inputCls} disabled={saving} />
@@ -891,11 +678,7 @@ function FormActuacion({ idExpediente, onSaved, onCancel }: { idExpediente: numb
           </div>
         </div>
       </FormInline>
-
-      {modalAbierto && (
-        <BuscadorModal titulo="Seleccionar tipo de actuación" placeholder="Buscar por nombre o código..." opciones={opciones} loading={lA}
-          onSelect={(id, label) => setForm(p => ({ ...p, idTipoActuacion: id, tipoLabel: label }))} onClose={() => setModalAbierto(false)} />
-      )}
+      {modalAbierto && <BuscadorModal titulo="Seleccionar tipo de actuación" placeholder="Buscar por nombre o código..." opciones={opciones} loading={lA} onSelect={(id, label) => setForm(p => ({ ...p, idTipoActuacion: id, tipoLabel: label }))} onClose={() => setModalAbierto(false)} />}
     </>
   );
 }
@@ -906,20 +689,13 @@ function FormActuacion({ idExpediente, onSaved, onCancel }: { idExpediente: numb
 function FormConformacion({ idExpediente, onSaved, onCancel }: { idExpediente: number; onSaved: () => void; onCancel: () => void }) {
   const { data: dV, loading: lV } = useQuery(GET_VOCALES);
   const [crear] = useMutation(CREAR_CONFORMACION);
-
   const [form, setForm] = useState({ idVocal: 0, vocalLabel: "", rolEnCaso: "" });
   const [err, setErr]   = useState("");
   const [saving, setSaving] = useState(false);
   const [modalAbierto, setModalAbierto] = useState(false);
 
   const vocales: any[] = (dV?.allVocales ?? []).filter((v: any) => v.activo);
-  const opciones: OpcionModal[] = vocales.map((v: any) => ({
-    id: v.idVocal,
-    titulo: `${v.idPersona?.nombre} ${v.idPersona?.primerApellido}`,
-    subtitulo: v.cargo,
-    extra: v.idSala?.nombreSala,
-  }));
-
+  const opciones: OpcionModal[] = vocales.map((v: any) => ({ id: v.idVocal, titulo: `${v.idPersona?.nombre} ${v.idPersona?.primerApellido}`, subtitulo: v.cargo, extra: v.idSala?.nombreSala }));
   const set = (k: string) => (e: React.ChangeEvent<any>) => setForm(p => ({ ...p, [k]: e.target.value }));
 
   const guardar = async () => {
@@ -935,20 +711,14 @@ function FormConformacion({ idExpediente, onSaved, onCancel }: { idExpediente: n
     <>
       <FormInline titulo="Asignar vocal" icono={Building2} color="indigo" onCancel={onCancel} onSave={guardar} saving={saving} error={err}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="sm:col-span-2">
-            <CampoSelector label="Vocal" required valorLabel={form.vocalLabel} onAbrir={() => setModalAbierto(true)} onLimpiar={() => setForm(p => ({ ...p, idVocal: 0, vocalLabel: "" }))} color="indigo" />
-          </div>
+          <div className="sm:col-span-2"><CampoSelector label="Vocal" required valorLabel={form.vocalLabel} onAbrir={() => setModalAbierto(true)} onLimpiar={() => setForm(p => ({ ...p, idVocal: 0, vocalLabel: "" }))} color="indigo" /></div>
           <div className="sm:col-span-2">
             <label className={labelCls}>Rol en el caso <span className="text-red-500">*</span></label>
             <input type="text" placeholder="Ej: Vocal Relator, Presidente de Sala..." value={form.rolEnCaso} onChange={set("rolEnCaso")} className={inputCls} disabled={saving} />
           </div>
         </div>
       </FormInline>
-
-      {modalAbierto && (
-        <BuscadorModal titulo="Seleccionar vocal activo" placeholder="Buscar por nombre, cargo o sala..." opciones={opciones} loading={lV}
-          onSelect={(id, label) => setForm(p => ({ ...p, idVocal: id, vocalLabel: label }))} onClose={() => setModalAbierto(false)} />
-      )}
+      {modalAbierto && <BuscadorModal titulo="Seleccionar vocal activo" placeholder="Buscar por nombre, cargo o sala..." opciones={opciones} loading={lV} onSelect={(id, label) => setForm(p => ({ ...p, idVocal: id, vocalLabel: label }))} onClose={() => setModalAbierto(false)} />}
     </>
   );
 }
@@ -1023,11 +793,9 @@ function TimelineHistorial({ historial }: { historial: any[] }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// PÁGINA PRINCIPAL
+// TIPOS para asistencia
 // ══════════════════════════════════════════════════════════════════════════
-
 type EstadoAsistencia = "PRESENTE" | "AUSENTE" | "JUSTIFICADO" | null;
-
 interface RegistroLocal {
   idPersona: number;
   nombre: string;
@@ -1036,321 +804,138 @@ interface RegistroLocal {
   motivoInasistencia: string;
 }
 
-function ModalAsistencia({
-  audiencia,
-  partes,
-  onClose,
-}: {
-  audiencia: any;
-  partes: any[];
-  onClose: () => void;
-}) {
-  const { data: dataExistente, loading: loadingExistente } = useQuery(
-    GET_ASISTENCIAS_AUDIENCIA,
-    { variables: { idAudiencia: Number(audiencia.idAudiencia) }, fetchPolicy: "network-only" }
-  );
-
+// ══════════════════════════════════════════════════════════════════════════
+// MODAL ASISTENCIA
+// ══════════════════════════════════════════════════════════════════════════
+function ModalAsistencia({ audiencia, partes, onClose }: { audiencia: any; partes: any[]; onClose: () => void }) {
+  const { data: dataExistente, loading: loadingExistente } = useQuery(GET_ASISTENCIAS_AUDIENCIA, { variables: { idAudiencia: Number(audiencia.idAudiencia) }, fetchPolicy: "network-only" });
   const [registrarBatch] = useMutation(REGISTRAR_ASISTENCIA_BATCH);
-  const [guardando, setGuardando] = useState(false);
+  const [guardando, setGuardando]   = useState(false);
   const [modoEdicion, setModoEdicion] = useState(false);
   const [yaGuardado, setYaGuardado] = useState(false);
-  const [mensajeOk, setMensajeOk] = useState("");
+  const [mensajeOk, setMensajeOk]   = useState("");
+  const [registros, setRegistros]   = useState<RegistroLocal[]>([]);
 
-  // Estado local: un registro por cada parte activa
-  const [registros, setRegistros] = useState<RegistroLocal[]>([]);
-
-  // Cuando llegan los datos existentes, inicializamos el estado
   useEffect(() => {
     if (!loadingExistente) {
       const asistenciasGuardadas: any[] = dataExistente?.asistenciasPorAudiencia ?? [];
       const hayDatos = asistenciasGuardadas.length > 0;
       setYaGuardado(hayDatos);
-      setModoEdicion(!hayDatos); // Si no hay datos, abrir en modo edición directamente
-
+      setModoEdicion(!hayDatos);
       const iniciales: RegistroLocal[] = partes.map((p: any) => {
-        // Buscar si ya hay asistencia guardada para esta persona
-        const guardado = asistenciasGuardadas.find(
-          (a: any) => a.idPersona?.idPersona === p.idPersona?.idPersona
-        );
-
+        const guardado = asistenciasGuardadas.find((a: any) => a.idPersona?.idPersona === p.idPersona?.idPersona);
         let estado: EstadoAsistencia = null;
         if (guardado) {
-          if (guardado.asistio) {
-            estado = "PRESENTE";
-          } else if (
-            guardado.motivoInasistencia?.toLowerCase().includes("justif")
-          ) {
-            estado = "JUSTIFICADO";
-          } else {
-            estado = "AUSENTE";
-          }
+          if (guardado.asistio) estado = "PRESENTE";
+          else if (guardado.motivoInasistencia?.toLowerCase().includes("justif")) estado = "JUSTIFICADO";
+          else estado = "AUSENTE";
         }
-
-        return {
-          idPersona: Number(p.idPersona?.idPersona),
-          nombre: `${p.idPersona?.nombre} ${p.idPersona?.primerApellido}`,
-          rolEnAudiencia: p.idRol?.nombreRol ?? "Parte procesal",
-          estado,
-          motivoInasistencia: guardado?.motivoInasistencia ?? "",
-        };
+        return { idPersona: Number(p.idPersona?.idPersona), nombre: `${p.idPersona?.nombre} ${p.idPersona?.primerApellido}`, rolEnAudiencia: p.idRol?.nombreRol ?? "Parte procesal", estado, motivoInasistencia: guardado?.motivoInasistencia ?? "" };
       });
-
       setRegistros(iniciales);
     }
   }, [loadingExistente, dataExistente]);
 
-  const setEstado = (idPersona: number, estado: EstadoAsistencia) => {
-    setRegistros((prev) =>
-      prev.map((r) => (r.idPersona === idPersona ? { ...r, estado } : r))
-    );
-  };
-
-  const setMotivo = (idPersona: number, motivo: string) => {
-    setRegistros((prev) =>
-      prev.map((r) =>
-        r.idPersona === idPersona ? { ...r, motivoInasistencia: motivo } : r
-      )
-    );
-  };
-
-  const todosMarcados = registros.every((r) => r.estado !== null);
+  const setEstado = (idPersona: number, estado: EstadoAsistencia) => setRegistros(prev => prev.map(r => r.idPersona === idPersona ? { ...r, estado } : r));
+  const setMotivo = (idPersona: number, motivo: string) => setRegistros(prev => prev.map(r => r.idPersona === idPersona ? { ...r, motivoInasistencia: motivo } : r));
+  const todosMarcados = registros.every(r => r.estado !== null);
 
   const guardar = async () => {
     if (!todosMarcados) return;
     setGuardando(true);
     try {
-      const { data } = await registrarBatch({
-        variables: {
-          idAudiencia: Number(audiencia.idAudiencia),
-          registros: registros.map((r) => ({
-            idPersona: Number(r.idPersona),
-            rolEnAudiencia: r.rolEnAudiencia,
-            estado: r.estado,
-            motivoInasistencia: r.motivoInasistencia || null,
-          })),
-        },
-      });
-      if (data?.registrarAsistenciaBatch?.ok) {
-        setYaGuardado(true);
-        setModoEdicion(false);
-        setMensajeOk(data.registrarAsistenciaBatch.mensaje);
-      }
-    } catch (e: any) {
-      console.error(e);
-    } finally {
-      setGuardando(false);
-    }
+      const { data } = await registrarBatch({ variables: { idAudiencia: Number(audiencia.idAudiencia), registros: registros.map(r => ({ idPersona: Number(r.idPersona), rolEnAudiencia: r.rolEnAudiencia, estado: r.estado, motivoInasistencia: r.motivoInasistencia || null })) } });
+      if (data?.registrarAsistenciaBatch?.ok) { setYaGuardado(true); setModoEdicion(false); setMensajeOk(data.registrarAsistenciaBatch.mensaje); }
+    } catch (e: any) { console.error(e); } finally { setGuardando(false); }
   };
 
-  // Colores y etiquetas por estado
   const estadoConfig = {
-    PRESENTE: {
-      label: "Presente",
-      bg: "bg-emerald-500 hover:bg-emerald-600",
-      bgActivo: "bg-emerald-500 ring-2 ring-emerald-300 dark:ring-emerald-700",
-      bgInactivo: "bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-gray-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30",
-      texto: "text-white",
-    },
-    AUSENTE: {
-      label: "Ausente",
-      bg: "bg-red-500 hover:bg-red-600",
-      bgActivo: "bg-red-500 ring-2 ring-red-300 dark:ring-red-700",
-      bgInactivo: "bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-gray-400 hover:bg-red-100 dark:hover:bg-red-900/30",
-      texto: "text-white",
-    },
-    JUSTIFICADO: {
-      label: "Justificado",
-      bg: "bg-amber-500 hover:bg-amber-600",
-      bgActivo: "bg-amber-500 ring-2 ring-amber-300 dark:ring-amber-700",
-      bgInactivo: "bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-gray-400 hover:bg-amber-100 dark:hover:bg-amber-900/30",
-      texto: "text-white",
-    },
+    PRESENTE:    { label: "Presente",    bgActivo: "bg-emerald-500 ring-2 ring-emerald-300 dark:ring-emerald-700 text-white", bgInactivo: "bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-gray-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30" },
+    AUSENTE:     { label: "Ausente",     bgActivo: "bg-red-500 ring-2 ring-red-300 dark:ring-red-700 text-white",             bgInactivo: "bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-gray-400 hover:bg-red-100 dark:hover:bg-red-900/30" },
+    JUSTIFICADO: { label: "Justificado", bgActivo: "bg-amber-500 ring-2 ring-amber-300 dark:ring-amber-700 text-white",       bgInactivo: "bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-gray-400 hover:bg-amber-100 dark:hover:bg-amber-900/30" },
   };
 
-  const presentes   = registros.filter((r) => r.estado === "PRESENTE").length;
-  const ausentes    = registros.filter((r) => r.estado === "AUSENTE").length;
-  const justificados = registros.filter((r) => r.estado === "JUSTIFICADO").length;
+  const presentes    = registros.filter(r => r.estado === "PRESENTE").length;
+  const ausentes     = registros.filter(r => r.estado === "AUSENTE").length;
+  const justificados = registros.filter(r => r.estado === "JUSTIFICADO").length;
 
   return (
-    <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-      onClick={!guardando ? onClose : undefined}
-    >
-      <div
-        className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-lg flex flex-col max-h-[92vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* ── Cabecera ── */}
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={!guardando ? onClose : undefined}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-lg flex flex-col max-h-[92vh]" onClick={e => e.stopPropagation()}>
         <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center">
-              <ClipboardList className="w-4 h-4 text-white" />
-            </div>
+            <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center"><ClipboardList className="w-4 h-4 text-white" /></div>
             <div>
-              <p className="text-sm font-bold text-gray-800 dark:text-white">
-                {yaGuardado && !modoEdicion ? "Ver asistencia" : "Tomar asistencia"}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {audiencia.idTipoAudiencia?.nombre} · {new Date(audiencia.fechaHoraProgramada).toLocaleDateString("es-BO")}
-              </p>
+              <p className="text-sm font-bold text-gray-800 dark:text-white">{yaGuardado && !modoEdicion ? "Ver asistencia" : "Tomar asistencia"}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{audiencia.idTipoAudiencia?.nombre} · {new Date(audiencia.fechaHoraProgramada).toLocaleDateString("es-BO")}</p>
             </div>
           </div>
-          {!guardando && (
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
+          {!guardando && <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"><X className="w-5 h-5" /></button>}
         </div>
 
-        {/* ── Resumen de contadores (solo cuando hay datos) ── */}
-        {registros.some((r) => r.estado !== null) && (
+        {registros.some(r => r.estado !== null) && (
           <div className="flex-shrink-0 px-6 py-3 border-b border-gray-200 dark:border-slate-700 flex gap-4">
-            <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{presentes} presentes</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
-              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{ausentes} ausentes</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{justificados} justificados</span>
-            </div>
+            <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-emerald-500" /><span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{presentes} presentes</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-red-500" /><span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{ausentes} ausentes</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-amber-500" /><span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{justificados} justificados</span></div>
           </div>
         )}
 
-        {/* ── Cuerpo ── */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
           {loadingExistente ? (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500" />
-            </div>
+            <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500" /></div>
           ) : registros.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 dark:text-gray-500">
-              <Users className="w-10 h-10 mx-auto mb-2" />
-              <p className="text-sm">No hay partes procesales activas</p>
-            </div>
+            <div className="text-center py-10 text-gray-400 dark:text-gray-500"><Users className="w-10 h-10 mx-auto mb-2" /><p className="text-sm">No hay partes procesales activas</p></div>
           ) : (
-            registros.map((r) => (
-              <div
-                key={r.idPersona}
-                className="p-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/60 space-y-2"
-              >
-                {/* Nombre y rol */}
+            registros.map(r => (
+              <div key={r.idPersona} className="p-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/60 space-y-2">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
-                    {r.nombre.charAt(0)}
-                  </div>
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold shrink-0">{r.nombre.charAt(0)}</div>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-gray-800 dark:text-white truncate">{r.nombre}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">{r.rolEnAudiencia}</p>
                   </div>
                 </div>
-
-                {/* Botones de estado */}
                 {modoEdicion ? (
                   <div className="flex gap-2">
-                    {(["PRESENTE", "AUSENTE", "JUSTIFICADO"] as EstadoAsistencia[]).map((est) => {
+                    {(["PRESENTE", "AUSENTE", "JUSTIFICADO"] as EstadoAsistencia[]).map(est => {
                       const cfg = estadoConfig[est!];
                       const activo = r.estado === est;
-                      return (
-                        <button
-                          key={est}
-                          onClick={() => setEstado(r.idPersona, est)}
-                          className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                            activo ? `${cfg.bgActivo} ${cfg.texto}` : cfg.bgInactivo
-                          }`}
-                        >
-                          {cfg.label}
-                        </button>
-                      );
+                      return <button key={est} onClick={() => setEstado(r.idPersona, est)} className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${activo ? cfg.bgActivo : cfg.bgInactivo}`}>{cfg.label}</button>;
                     })}
                   </div>
                 ) : (
-                  // Modo solo lectura
                   <div className="flex items-center gap-2">
-                    {r.estado && (
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold text-white ${
-                        r.estado === "PRESENTE" ? "bg-emerald-500" :
-                        r.estado === "AUSENTE"  ? "bg-red-500"     : "bg-amber-500"
-                      }`}>
-                        {estadoConfig[r.estado].label}
-                      </span>
-                    )}
-                    {r.motivoInasistencia && r.estado !== "PRESENTE" && (
-                      <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                        {r.motivoInasistencia}
-                      </span>
-                    )}
+                    {r.estado && <span className={`px-3 py-1 rounded-full text-xs font-semibold text-white ${r.estado === "PRESENTE" ? "bg-emerald-500" : r.estado === "AUSENTE" ? "bg-red-500" : "bg-amber-500"}`}>{estadoConfig[r.estado].label}</span>}
+                    {r.motivoInasistencia && r.estado !== "PRESENTE" && <span className="text-xs text-gray-500 dark:text-gray-400 truncate">{r.motivoInasistencia}</span>}
                   </div>
                 )}
-
-                {/* Campo de motivo (solo en edición y si es AUSENTE o JUSTIFICADO) */}
                 {modoEdicion && (r.estado === "AUSENTE" || r.estado === "JUSTIFICADO") && (
-                  <input
-                    type="text"
-                    placeholder={
-                      r.estado === "JUSTIFICADO"
-                        ? "Motivo de justificación (opcional)..."
-                        : "Motivo de inasistencia (opcional)..."
-                    }
-                    value={r.motivoInasistencia}
-                    onChange={(e) => setMotivo(r.idPersona, e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-600 text-gray-800 dark:text-gray-200 text-xs focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                  />
+                  <input type="text" placeholder={r.estado === "JUSTIFICADO" ? "Motivo de justificación (opcional)..." : "Motivo de inasistencia (opcional)..."} value={r.motivoInasistencia} onChange={e => setMotivo(r.idPersona, e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-600 text-gray-800 dark:text-gray-200 text-xs focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all" />
                 )}
               </div>
             ))
           )}
-
-          {/* Mensaje de éxito */}
           {mensajeOk && !modoEdicion && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-400 text-sm">
-              <CheckCircle className="w-4 h-4 shrink-0" />
-              {mensajeOk}
+              <CheckCircle className="w-4 h-4 shrink-0" />{mensajeOk}
             </div>
           )}
         </div>
 
-        {/* ── Pie ── */}
         <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-slate-700 flex gap-2">
           {modoEdicion ? (
             <>
-              <button
-                onClick={yaGuardado ? () => setModoEdicion(false) : onClose}
-                disabled={guardando}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 text-sm font-medium transition-colors disabled:opacity-40"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={guardar}
-                disabled={guardando || !todosMarcados}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
-              >
-                {guardando ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
-                ) : (
-                  <><Save className="w-4 h-4" /> Guardar asistencia</>
-                )}
+              <button onClick={yaGuardado ? () => setModoEdicion(false) : onClose} disabled={guardando} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 text-sm font-medium transition-colors disabled:opacity-40">Cancelar</button>
+              <button onClick={guardar} disabled={guardando || !todosMarcados} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors">
+                {guardando ? <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</> : <><Save className="w-4 h-4" /> Guardar asistencia</>}
               </button>
             </>
           ) : (
             <>
-              <button
-                onClick={onClose}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 text-sm font-medium transition-colors"
-              >
-                Cerrar
-              </button>
-              <button
-                onClick={() => setModoEdicion(true)}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-semibold transition-colors"
-              >
+              <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 text-sm font-medium transition-colors">Cerrar</button>
+              <button onClick={() => setModoEdicion(true)} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-semibold transition-colors">
                 <Edit2 className="w-4 h-4" /> Editar asistencia
               </button>
             </>
@@ -1361,118 +946,54 @@ function ModalAsistencia({
   );
 }
 
-
-function ModalCitaciones({
-  audiencia,
-  partes,
-  onClose,
-}: {
-  audiencia: any;
-  partes: any[];
-  onClose: () => void;
-}) {
+// ══════════════════════════════════════════════════════════════════════════
+// MODAL CITACIONES
+// ══════════════════════════════════════════════════════════════════════════
+function ModalCitaciones({ audiencia, partes, onClose }: { audiencia: any; partes: any[]; onClose: () => void }) {
   const [enviarCitaciones] = useMutation(ENVIAR_CITACIONES_AUDIENCIA);
-  const [enviando, setEnviando] = useState(false);
-  const [resultado, setResultado] = useState<any | null>(null);
+  const [enviando, setEnviando]     = useState(false);
+  const [resultado, setResultado]   = useState<any | null>(null);
 
-  // Separar partes con y sin email
-  const partesConEmail = partes.filter((p: any) =>
-    p.idPersona?.contactos?.some(
-      (c: any) => c.tipoContacto?.toLowerCase() === "email"
-    )
-  );
-  const partesSinEmail = partes.filter(
-    (p: any) =>
-      !p.idPersona?.contactos?.some(
-        (c: any) => c.tipoContacto?.toLowerCase() === "email"
-      )
-  );
-
-  const fmtFechaHora = (iso?: string | null) => {
-    if (!iso) return "—";
-    return new Date(iso).toLocaleString("es-BO", {
-      day: "2-digit", month: "short", year: "numeric",
-      hour: "2-digit", minute: "2-digit",
-    });
-  };
+  const partesConEmail = partes.filter((p: any) => p.idPersona?.contactos?.some((c: any) => c.tipoContacto?.toLowerCase() === "email"));
+  const partesSinEmail = partes.filter((p: any) => !p.idPersona?.contactos?.some((c: any) => c.tipoContacto?.toLowerCase() === "email"));
 
   const confirmar = async () => {
     setEnviando(true);
     try {
-      const { data } = await enviarCitaciones({
-        variables: { idAudiencia: Number(audiencia.idAudiencia) },
-      });
+      const { data } = await enviarCitaciones({ variables: { idAudiencia: Number(audiencia.idAudiencia) } });
       setResultado(data?.enviarCitacionesAudiencia);
-    } catch (e: any) {
-      setResultado({ ok: false, mensaje: e.message ?? "Error al enviar." });
-    } finally {
-      setEnviando(false);
-    }
+    } catch (e: any) { setResultado({ ok: false, mensaje: e.message ?? "Error al enviar." }); } finally { setEnviando(false); }
   };
 
   return (
-    <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-      onClick={!enviando ? onClose : undefined}
-    >
-      <div
-        className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={!enviando ? onClose : undefined}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
         <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center">
-              <Send className="w-4 h-4 text-white" />
-            </div>
+            <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center"><Send className="w-4 h-4 text-white" /></div>
             <div>
-              <p className="text-sm font-bold text-gray-800 dark:text-white">
-                Enviar Citaciones
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {audiencia.idTipoAudiencia?.nombre} ·{" "}
-                {fmtFechaHora(audiencia.fechaHoraProgramada)}
-              </p>
+              <p className="text-sm font-bold text-gray-800 dark:text-white">Enviar Citaciones</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{audiencia.idTipoAudiencia?.nombre} · {fmtFechaHora(audiencia.fechaHoraProgramada)}</p>
             </div>
           </div>
-          {!enviando && (
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
+          {!enviando && <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"><X className="w-5 h-5" /></button>}
         </div>
 
-        
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {!resultado ? (
             <>
-              
               {partesConEmail.length > 0 && (
                 <div>
-                  <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2">
-                    Recibirán citación ({partesConEmail.length})
-                  </p>
+                  <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2">Recibirán citación ({partesConEmail.length})</p>
                   <div className="space-y-2">
                     {partesConEmail.map((p: any) => {
-                      const email = p.idPersona?.contactos?.find(
-                        (c: any) => c.tipoContacto?.toLowerCase() === "email"
-                      )?.valor;
+                      const email = p.idPersona?.contactos?.find((c: any) => c.tipoContacto?.toLowerCase() === "email")?.valor;
                       return (
-                        <div
-                          key={p.idParte}
-                          className="flex items-center gap-3 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50"
-                        >
+                        <div key={p.idParte} className="flex items-center gap-3 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50">
                           <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-gray-800 dark:text-white truncate">
-                              {p.idPersona?.nombre} {p.idPersona?.primerApellido}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                              {p.idRol?.nombreRol} · {email}
-                            </p>
+                            <p className="text-sm font-semibold text-gray-800 dark:text-white truncate">{p.idPersona?.nombre} {p.idPersona?.primerApellido}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{p.idRol?.nombreRol} · {email}</p>
                           </div>
                         </div>
                       );
@@ -1480,115 +1001,60 @@ function ModalCitaciones({
                   </div>
                 </div>
               )}
-
-              
               {partesSinEmail.length > 0 && (
                 <div>
-                  <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2">
-                    Sin email registrado ({partesSinEmail.length})
-                  </p>
+                  <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2">Sin email registrado ({partesSinEmail.length})</p>
                   <div className="space-y-2">
                     {partesSinEmail.map((p: any) => (
-                      <div
-                        key={p.idParte}
-                        className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-slate-800/60 border border-gray-200 dark:border-slate-700"
-                      >
+                      <div key={p.idParte} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-slate-800/60 border border-gray-200 dark:border-slate-700">
                         <AlertCircle className="w-4 h-4 text-gray-400 shrink-0" />
                         <div>
-                          <p className="text-sm text-gray-600 dark:text-gray-300">
-                            {p.idPersona?.nombre} {p.idPersona?.primerApellido}
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            {p.idRol?.nombreRol} · Sin email
-                          </p>
+                          <p className="text-sm text-gray-600 dark:text-gray-300">{p.idPersona?.nombre} {p.idPersona?.primerApellido}</p>
+                          <p className="text-xs text-gray-400">{p.idRol?.nombreRol} · Sin email</p>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
-
               {partesConEmail.length === 0 && (
                 <div className="flex flex-col items-center gap-3 py-8 text-center">
                   <AlertCircle className="w-10 h-10 text-amber-400" />
-                  <p className="text-sm text-gray-600 dark:text-gray-300 font-medium">
-                    Ninguna parte tiene email registrado
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    Registra los contactos de las partes antes de enviar citaciones.
-                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-300 font-medium">Ninguna parte tiene email registrado</p>
+                  <p className="text-xs text-gray-400">Registra los contactos de las partes antes de enviar citaciones.</p>
                 </div>
               )}
             </>
           ) : (
-            // Resultado del envío
             <div className="flex flex-col items-center gap-4 py-6 text-center">
-              {resultado.ok ? (
-                <CheckCircle className="w-12 h-12 text-emerald-500" />
-              ) : (
-                <AlertCircle className="w-12 h-12 text-amber-400" />
-              )}
-              <p className="text-sm font-semibold text-gray-800 dark:text-white">
-                {resultado.mensaje}
-              </p>
+              {resultado.ok ? <CheckCircle className="w-12 h-12 text-emerald-500" /> : <AlertCircle className="w-12 h-12 text-amber-400" />}
+              <p className="text-sm font-semibold text-gray-800 dark:text-white">{resultado.mensaje}</p>
               {resultado.destinatarios?.length > 0 && (
                 <div className="w-full text-left space-y-1">
-                  <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-                    Enviados a:
-                  </p>
-                  {resultado.destinatarios.map((d: string) => (
-                    <p key={d} className="text-xs text-gray-600 dark:text-gray-300">
-                      ✓ {d}
-                    </p>
-                  ))}
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Enviados a:</p>
+                  {resultado.destinatarios.map((d: string) => <p key={d} className="text-xs text-gray-600 dark:text-gray-300">✓ {d}</p>)}
                 </div>
               )}
               {resultado.sinEmail?.length > 0 && (
                 <div className="w-full text-left space-y-1">
-                  <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-                    Sin email (no enviados):
-                  </p>
-                  {resultado.sinEmail.map((d: string) => (
-                    <p key={d} className="text-xs text-gray-400">
-                      ✗ {d}
-                    </p>
-                  ))}
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Sin email (no enviados):</p>
+                  {resultado.sinEmail.map((d: string) => <p key={d} className="text-xs text-gray-400">✗ {d}</p>)}
                 </div>
               )}
             </div>
           )}
         </div>
 
-     
         <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-slate-700 flex gap-2">
           {!resultado ? (
             <>
-              <button
-                onClick={onClose}
-                disabled={enviando}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 text-sm font-medium transition-colors disabled:opacity-40"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={confirmar}
-                disabled={enviando || partesConEmail.length === 0}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
-              >
-                {enviando ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Enviando...</>
-                ) : (
-                  <><Send className="w-4 h-4" /> Enviar {partesConEmail.length} citación{partesConEmail.length !== 1 ? "es" : ""}</>
-                )}
+              <button onClick={onClose} disabled={enviando} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 text-sm font-medium transition-colors disabled:opacity-40">Cancelar</button>
+              <button onClick={confirmar} disabled={enviando || partesConEmail.length === 0} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors">
+                {enviando ? <><Loader2 className="w-4 h-4 animate-spin" /> Enviando...</> : <><Send className="w-4 h-4" /> Enviar {partesConEmail.length} citación{partesConEmail.length !== 1 ? "es" : ""}</>}
               </button>
             </>
           ) : (
-            <button
-              onClick={onClose}
-              className="flex-1 px-4 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold transition-colors"
-            >
-              Cerrar
-            </button>
+            <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold transition-colors">Cerrar</button>
           )}
         </div>
       </div>
@@ -1596,25 +1062,167 @@ function ModalCitaciones({
   );
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// TARJETA DOCUMENTO — muestra el archivo, permite ver, descargar y reemplazar
+// ══════════════════════════════════════════════════════════════════════════
+function TarjetaDocumento({ doc, eliminandoId, onEliminar, onArchivoSubido }: {
+  doc: any; eliminandoId: number | null; onEliminar: () => void; onArchivoSubido: () => void;
+}) {
+  const [subiendo, setSubiendo]         = useState(false);
+  const [errorSubida, setErrorSubida]   = useState("");
+  const [rutaLocal, setRutaLocal]       = useState<string | null>(doc.rutaArchivo || null);
+  const [tamanoLocal, setTamanoLocal]   = useState<number>(doc.tamanoKb ?? 0);
+  const inputRef                        = useRef<HTMLInputElement>(null);
 
+  const DJANGO_BASE = "http://localhost:8000";
+
+  const manejarReemplazo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const archivo = e.target.files?.[0];
+    if (!archivo) return;
+    if (!archivo.name.toLowerCase().endsWith(".pdf")) { setErrorSubida("Solo se permiten archivos PDF."); return; }
+
+    setSubiendo(true); setErrorSubida("");
+    const formData = new FormData();
+    formData.append("titulo", doc.titulo);
+    formData.append("idExpediente", String(doc.idExpediente?.idExpediente ?? doc.idExpediente));
+    formData.append("idTipoDoc", String(doc.idTipoDoc?.idTipoDoc ?? doc.idTipoDoc));
+    formData.append("archivo", archivo);
+
+    try {
+      const resp = await fetch(`${DJANGO_BASE}/api/subir-documento/`, { method: "POST", body: formData });
+      const json = await resp.json();
+      if (json.ok) { setRutaLocal(json.rutaArchivo); setTamanoLocal(json.tamanoKb); onArchivoSubido(); }
+      else { setErrorSubida(json.mensaje ?? "Error al subir."); }
+    } catch { setErrorSubida("No se pudo conectar con el servidor."); }
+    finally { setSubiendo(false); if (inputRef.current) inputRef.current.value = ""; }
+  };
+
+  const urlArchivo    = rutaLocal ? `${DJANGO_BASE}/media/${rutaLocal}` : null;
+  const nombreArchivo = rutaLocal ? rutaLocal.split("/").pop() ?? "documento.pdf" : "documento.pdf";
+
+  return (
+    <div className="p-4 bg-gray-50 dark:bg-slate-800/60 rounded-xl border border-gray-200 dark:border-slate-700 space-y-3">
+
+      {/* Fila superior */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-gray-800 dark:text-white truncate">{doc.titulo}</p>
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            <Pill className="bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300">{doc.idTipoDoc?.codigo}</Pill>
+            {doc.idTipoDoc?.esPublico
+              ? <Pill className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">Público</Pill>
+              : <Pill className="bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-gray-400">Privado</Pill>}
+            {doc.firmadoDigitalmente && <Pill className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">Firmado</Pill>}
+          </div>
+        </div>
+        <BtnEliminar disabled={eliminandoId === doc.idDocumento} onClick={onEliminar} />
+      </div>
+
+      {/* Metadatos */}
+      <div className="grid grid-cols-3 gap-3">
+        <InfoCell label="Folio"              value={doc.numeroFolio ?? "—"} />
+        <InfoCell label="Fecha presentación" value={fmtFecha(doc.fechaPresentacion)} />
+        <InfoCell label="Tamaño"             value={tamanoLocal > 0 ? `${tamanoLocal} KB` : "—"} />
+      </div>
+
+      {/* Zona de archivo */}
+      {urlArchivo ? (
+        <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800/40">
+          {/* Icono PDF */}
+          <div className="w-9 h-9 rounded-lg bg-red-500 flex items-center justify-center shrink-0">
+            <FileText className="w-4 h-4 text-white" />
+          </div>
+
+          {/* Nombre + tamaño */}
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-red-700 dark:text-red-400 truncate">{nombreArchivo}</p>
+            <p className="text-[10px] text-red-400 dark:text-red-500 mt-0.5">
+              {tamanoLocal > 0 ? `${tamanoLocal} KB` : "PDF"} · subido el {fmtFecha(doc.fechaPresentacion)}
+            </p>
+          </div>
+
+          {/* Ver en nueva pestaña */}
+          <a
+            href={urlArchivo}
+            target="_blank"
+            rel="noreferrer"
+            title="Ver PDF"
+            className="p-1.5 rounded-lg text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+            </svg>
+          </a>
+
+          {/* Descargar */}
+          <a
+            href={urlArchivo}
+            download={nombreArchivo}
+            title="Descargar PDF"
+            className="p-1.5 rounded-lg text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+          </a>
+
+          {/* Reemplazar */}
+          <button onClick={() => inputRef.current?.click()} title="Reemplazar archivo" disabled={subiendo}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors disabled:opacity-40">
+            {subiendo ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+              </svg>
+            )}
+          </button>
+        </div>
+      ) : (
+        /* Sin archivo */
+        <button onClick={() => inputRef.current?.click()} disabled={subiendo}
+          className="w-full flex flex-col items-center gap-2 py-4 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-400 dark:text-gray-500 hover:border-red-400 dark:hover:border-red-500 hover:text-red-500 dark:hover:text-red-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+          {subiendo ? (
+            <><Loader2 className="w-5 h-5 animate-spin" /><span className="text-xs font-medium">Subiendo...</span></>
+          ) : (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+              </svg>
+              <span className="text-xs font-medium">Agregar PDF</span>
+            </>
+          )}
+        </button>
+      )}
+
+      {/* Error subida */}
+      {errorSubida && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 text-red-600 dark:text-red-400 text-xs">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {errorSubida}
+        </div>
+      )}
+
+      {/* Input oculto */}
+      <input ref={inputRef} type="file" accept="application/pdf" className="hidden" onChange={manejarReemplazo} />
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// PÁGINA PRINCIPAL
+// ══════════════════════════════════════════════════════════════════════════
 export default function ExpedienteDetallePage() {
-  const { id }      = useParams<{ id: string }>();
-  const navigate    = useNavigate();
+  const { id }       = useParams<{ id: string }>();
+  const navigate     = useNavigate();
   const idExpediente = Number(id);
 
-  const [tabActiva, setTabActiva] = useState<TabId>("general");
-  const [showForm, setShowForm]   = useState<Partial<Record<TabId, boolean>>>({});
+  const [tabActiva, setTabActiva]     = useState<TabId>("general");
+  const [showForm, setShowForm]       = useState<Partial<Record<TabId, boolean>>>({});
   const [editandoAud, setEditandoAud] = useState<any | null>(null);
-  // Para bloquear botones de eliminar individualmente
   const [eliminandoId, setEliminandoId] = useState<number | null>(null);
   const [generandoPdf, setGenerandoPdf] = useState<number | null>(null);
-
   const [citacionAud, setCitacionAud] = useState<any | null>(null);
-
   const [asistenciaAud, setAsistenciaAud] = useState<any | null>(null);
 
-  const [enviarCitaciones] = useMutation(ENVIAR_CITACIONES_AUDIENCIA);
-
+  const [enviarCitaciones]   = useMutation(ENVIAR_CITACIONES_AUDIENCIA);
   const { executeCreate, executeDelete } = useCrudNotifications("Expediente");
 
   const [eliminarAudiencia]    = useMutation(ELIMINAR_AUDIENCIA);
@@ -1646,33 +1254,18 @@ export default function ExpedienteDetallePage() {
     actuaciones: actuaciones.length, historial: historial.length,
   };
 
-
-  
-  // ← PEGA AQUÍ
   const generarPdf = async (resolucion: any) => {
     setGenerandoPdf(resolucion.idResolucion);
-    try {
-      await generarPdfResolucion({ expediente: exp, resolucion, partes, vocales });
-    } catch (e) {
-      console.error("Error generando PDF:", e);
-    } finally {
-      setGenerandoPdf(null);
-    }
+    try { await generarPdfResolucion({ expediente: exp, resolucion, partes, vocales }); }
+    catch (e) { console.error("Error generando PDF:", e); }
+    finally { setGenerandoPdf(null); }
   };
-
-
 
   const abrirForm  = (tab: TabId) => { setShowForm(p => ({ ...p, [tab]: true })); if (tab !== "audiencias") setEditandoAud(null); };
   const cerrarForm = (tab: TabId) => { setShowForm(p => ({ ...p, [tab]: false })); setEditandoAud(null); };
   const onSaved    = (tab: TabId) => { cerrarForm(tab); refetch(); };
 
-  // ✅ Eliminar con toast + bloqueo de botón
-  const eliminar = async (
-    id: number,
-    fn: () => Promise<any>,
-    confirmMsg: string,
-    toastMsgs: { loading: string; success: string; error: string },
-  ) => {
+  const eliminar = async (id: number, fn: () => Promise<any>, confirmMsg: string, toastMsgs: { loading: string; success: string; error: string }) => {
     await executeDelete(
       async () => {
         setEliminandoId(id);
@@ -1680,14 +1273,10 @@ export default function ExpedienteDetallePage() {
           const { data: res } = await fn();
           const result = Object.values(res ?? {})[0] as any;
           if (!result?.ok) throw new Error(result?.mensaje ?? "No se pudo eliminar.");
-          await refetch();
-          return true;
-        } finally {
-          setEliminandoId(null);
-        }
+          await refetch(); return true;
+        } finally { setEliminandoId(null); }
       },
-      toastMsgs,
-      confirmMsg,
+      toastMsgs, confirmMsg,
     );
   };
 
@@ -1696,10 +1285,8 @@ export default function ExpedienteDetallePage() {
 
       {/* ENCABEZADO */}
       <div className="flex items-center gap-4 mb-6">
-        <button
-          onClick={() => navigate("/expedientes")}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors text-sm font-medium"
-        >
+        <button onClick={() => navigate("/expedientes")}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors text-sm font-medium">
           <ChevronLeft className="w-4 h-4" /> Expedientes
         </button>
         <div className="flex-1 min-w-0">
@@ -1711,9 +1298,7 @@ export default function ExpedienteDetallePage() {
                 <FolderOpen className="w-5 h-5 text-blue-500 shrink-0" />
                 Expediente <span className="font-mono text-blue-600 dark:text-blue-400">{exp.numeroExpediente}</span>
               </h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                {exp.idTipoProceso?.nombre} · {exp.idSala?.nombreSala} · {exp.idSala?.idTribunal?.nombreTribunal}
-              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{exp.idTipoProceso?.nombre} · {exp.idSala?.nombreSala} · {exp.idSala?.idTribunal?.nombreTribunal}</p>
             </div>
           ) : null}
         </div>
@@ -1729,21 +1314,12 @@ export default function ExpedienteDetallePage() {
             const count = counts[tab.id];
             const activa = tabActiva === tab.id;
             return (
-              <button
-                key={tab.id}
-                onClick={() => { setTabActiva(tab.id); setShowForm({}); setEditandoAud(null); }}
-                className={`w-full flex items-center gap-2.5 px-4 py-3 text-sm font-medium transition-all border-l-2 ${
-                  activa
-                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
-                    : "border-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700/50 hover:text-gray-800 dark:hover:text-gray-200"
-                }`}
-              >
+              <button key={tab.id} onClick={() => { setTabActiva(tab.id); setShowForm({}); setEditandoAud(null); }}
+                className={`w-full flex items-center gap-2.5 px-4 py-3 text-sm font-medium transition-all border-l-2 ${activa ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400" : "border-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700/50 hover:text-gray-800 dark:hover:text-gray-200"}`}>
                 <Icon className="w-4 h-4 shrink-0" />
                 <span className="flex-1 text-left">{tab.label}</span>
                 {count !== null && count > 0 && (
-                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${activa ? "bg-blue-500 text-white" : "bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-gray-300"}`}>
-                    {count}
-                  </span>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${activa ? "bg-blue-500 text-white" : "bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-gray-300"}`}>{count}</span>
                 )}
               </button>
             );
@@ -1752,17 +1328,14 @@ export default function ExpedienteDetallePage() {
 
         {/* PANEL */}
         <div className="flex-1 min-w-0 bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm p-6">
-
           {loading && (
             <div className="flex flex-col items-center justify-center h-64 gap-3 text-gray-400">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-              <p className="text-sm">Cargando expediente...</p>
+              <Loader2 className="w-8 h-8 animate-spin text-blue-500" /><p className="text-sm">Cargando expediente...</p>
             </div>
           )}
           {error && (
             <div className="flex flex-col items-center justify-center h-64 gap-3 text-red-400">
-              <AlertCircle className="w-8 h-8" />
-              <p className="text-sm">Error al cargar el expediente</p>
+              <AlertCircle className="w-8 h-8" /><p className="text-sm">Error al cargar el expediente</p>
             </div>
           )}
 
@@ -1803,10 +1376,10 @@ export default function ExpedienteDetallePage() {
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {[
-                      { label: "Partes procesales", count: partes.length,      color: "blue",    tab: "partes"      as TabId },
-                      { label: "Audiencias",         count: audiencias.length,  color: "indigo",  tab: "audiencias"  as TabId },
-                      { label: "Resoluciones",       count: resoluciones.length,color: "purple",  tab: "resoluciones"as TabId },
-                      { label: "Documentos",         count: documentos.length,  color: "emerald", tab: "documentos"  as TabId },
+                      { label: "Partes procesales", count: partes.length,       color: "blue",    tab: "partes"       as TabId },
+                      { label: "Audiencias",         count: audiencias.length,   color: "indigo",  tab: "audiencias"   as TabId },
+                      { label: "Resoluciones",       count: resoluciones.length, color: "purple",  tab: "resoluciones" as TabId },
+                      { label: "Documentos",         count: documentos.length,   color: "emerald", tab: "documentos"   as TabId },
                     ].map(({ label, count, color, tab }) => {
                       const s = RESUMEN_STYLES[color];
                       return (
@@ -1832,9 +1405,7 @@ export default function ExpedienteDetallePage() {
                       {vocales.map((c: any) => (
                         <div key={c.idConformacion} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/60 rounded-xl border border-gray-200 dark:border-slate-700">
                           <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-                              <UserCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                            </div>
+                            <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center"><UserCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /></div>
                             <div>
                               <p className="text-sm font-semibold text-gray-800 dark:text-white">{c.idVocal?.idPersona?.nombre} {c.idVocal?.idPersona?.primerApellido}</p>
                               <p className="text-xs text-gray-500 dark:text-gray-400">{c.idVocal?.cargo} · {c.idVocal?.idSala?.nombreSala}</p>
@@ -1842,10 +1413,7 @@ export default function ExpedienteDetallePage() {
                           </div>
                           <div className="flex items-center gap-2">
                             <Pill className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400">{c.rolEnCaso}</Pill>
-                            <BtnEliminar
-                              disabled={eliminandoId === c.idConformacion}
-                              onClick={() => eliminar(c.idConformacion, () => eliminarConformacion({ variables: { id: Number(c.idConformacion) } }) as any, `¿Quitar al vocal ${c.idVocal?.idPersona?.nombre} de este expediente?`, { loading: "Quitando vocal...", success: "Vocal quitado del expediente", error: "Error al quitar el vocal" })}
-                            />
+                            <BtnEliminar disabled={eliminandoId === c.idConformacion} onClick={() => eliminar(c.idConformacion, () => eliminarConformacion({ variables: { id: Number(c.idConformacion) } }) as any, `¿Quitar al vocal ${c.idVocal?.idPersona?.nombre} de este expediente?`, { loading: "Quitando vocal...", success: "Vocal quitado del expediente", error: "Error al quitar el vocal" })} />
                           </div>
                         </div>
                       ))}
@@ -1876,10 +1444,7 @@ export default function ExpedienteDetallePage() {
                               <td className="px-4 py-3">{p.idPersona?.esAbogado ? <Pill className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400">Sí</Pill> : <span className="text-xs text-gray-400">No</span>}</td>
                               <td className="px-4 py-3"><Pill className={p.activo ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"}>{p.activo ? "Activo" : "Excluido"}</Pill></td>
                               <td className="px-4 py-3 text-right">
-                                <BtnEliminar
-                                  disabled={eliminandoId === p.idParte}
-                                  onClick={() => eliminar(p.idParte, () => eliminarParte({ variables: { id: Number(p.idParte) } }) as any, `¿Eliminar a ${p.idPersona?.nombre} ${p.idPersona?.primerApellido} como parte procesal?`, { loading: "Eliminando parte...", success: "Parte procesal eliminada", error: "Error al eliminar la parte" })}
-                                />
+                                <BtnEliminar disabled={eliminandoId === p.idParte} onClick={() => eliminar(p.idParte, () => eliminarParte({ variables: { id: Number(p.idParte) } }) as any, `¿Eliminar a ${p.idPersona?.nombre} ${p.idPersona?.primerApellido} como parte procesal?`, { loading: "Eliminando parte...", success: "Parte procesal eliminada", error: "Error al eliminar la parte" })} />
                               </td>
                             </tr>
                           ))}
@@ -1915,27 +1480,10 @@ export default function ExpedienteDetallePage() {
                               <Pill className={estadoAudienciaColor[a.estadoAudiencia] ?? "bg-gray-100 text-gray-600"}>{a.estadoAudiencia}</Pill>
                               {!showForm["audiencias"] && (
                                 <div className="flex items-center gap-1">
-                                  <button
-                                    onClick={() => setCitacionAud(a)}
-                                    title="Enviar citaciones por email"
-                                    className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                                  >
-                                    <Send className="w-3.5 h-3.5" />
-                                  </button>
-
-                                  <button
-                                    onClick={() => setAsistenciaAud(a)}
-                                    title="Tomar asistencia"
-                                    className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
-                                  >
-                                    <ClipboardList className="w-3.5 h-3.5" />
-                                  </button>
-
+                                  <button onClick={() => setCitacionAud(a)} title="Enviar citaciones por email" className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"><Send className="w-3.5 h-3.5" /></button>
+                                  <button onClick={() => setAsistenciaAud(a)} title="Tomar asistencia" className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"><ClipboardList className="w-3.5 h-3.5" /></button>
                                   <button onClick={() => { setEditandoAud(a); abrirForm("audiencias"); }} className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
-                                  <BtnEliminar
-                                    disabled={eliminandoId === a.idAudiencia}
-                                    onClick={() => eliminar(a.idAudiencia, () => eliminarAudiencia({ variables: { id: Number(a.idAudiencia) } }) as any, `¿Eliminar la audiencia del ${fmtFechaHora(a.fechaHoraProgramada)}?`, { loading: "Eliminando audiencia...", success: "Audiencia eliminada", error: "Error al eliminar la audiencia" })}
-                                  />
+                                  <BtnEliminar disabled={eliminandoId === a.idAudiencia} onClick={() => eliminar(a.idAudiencia, () => eliminarAudiencia({ variables: { id: Number(a.idAudiencia) } }) as any, `¿Eliminar la audiencia del ${fmtFechaHora(a.fechaHoraProgramada)}?`, { loading: "Eliminando audiencia...", success: "Audiencia eliminada", error: "Error al eliminar la audiencia" })} />
                                 </div>
                               )}
                             </div>
@@ -1951,27 +1499,9 @@ export default function ExpedienteDetallePage() {
                       ))}
                     </div>
                   )}
-
-
-                  {citacionAud && (
-                  <ModalCitaciones
-                    audiencia={citacionAud}
-                    partes={partes.filter((p: any) => p.activo)}
-                    onClose={() => setCitacionAud(null)}
-                  />
-                )}
-
-
-                  {asistenciaAud && (
-                  <ModalAsistencia
-                    audiencia={asistenciaAud}
-                    partes={partes.filter((p: any) => p.activo)}
-                    onClose={() => setAsistenciaAud(null)}
-                  />
-                )}
+                  {citacionAud && <ModalCitaciones audiencia={citacionAud} partes={partes.filter((p: any) => p.activo)} onClose={() => setCitacionAud(null)} />}
+                  {asistenciaAud && <ModalAsistencia audiencia={asistenciaAud} partes={partes.filter((p: any) => p.activo)} onClose={() => setAsistenciaAud(null)} />}
                 </div>
-                
-                
               )}
 
               {/* ══ RESOLUCIONES ══ */}
@@ -1989,28 +1519,11 @@ export default function ExpedienteDetallePage() {
                           <div className="flex items-center gap-2 shrink-0">
                             <Pill className={r.estado === "VIGENTE" ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" : "bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300"}>{r.estado}</Pill>
                             {r.esRecurrible && <Pill className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">Recurrible · {r.plazoRecursoDias}d</Pill>}
-                            
-                            
-                            {/* ← PEGA AQUÍ */}
-                            <button
-                              onClick={() => generarPdf(r)}
-                              disabled={generandoPdf === r.idResolucion}
-                              title="Descargar resolución en PDF"
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 text-xs font-semibold border border-red-200 dark:border-red-800/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {generandoPdf === r.idResolucion ? (
-                                <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generando...</>
-                              ) : (
-                                <><FileDown className="w-3.5 h-3.5" /> PDF</>
-                              )}
+                            <button onClick={() => generarPdf(r)} disabled={generandoPdf === r.idResolucion} title="Descargar resolución en PDF"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 text-xs font-semibold border border-red-200 dark:border-red-800/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                              {generandoPdf === r.idResolucion ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generando...</> : <><FileDown className="w-3.5 h-3.5" /> PDF</>}
                             </button>
-
-                        
-                            
-                            <BtnEliminar
-                              disabled={eliminandoId === r.idResolucion}
-                              onClick={() => eliminar(r.idResolucion, () => eliminarResolucion({ variables: { id: Number(r.idResolucion) } }) as any, `¿Eliminar la resolución ${r.numeroResolucion}?`, { loading: "Eliminando resolución...", success: `Resolución ${r.numeroResolucion} eliminada`, error: "Error al eliminar la resolución" })}
-                            />
+                            <BtnEliminar disabled={eliminandoId === r.idResolucion} onClick={() => eliminar(r.idResolucion, () => eliminarResolucion({ variables: { id: Number(r.idResolucion) } }) as any, `¿Eliminar la resolución ${r.numeroResolucion}?`, { loading: "Eliminando resolución...", success: `Resolución ${r.numeroResolucion} eliminada`, error: "Error al eliminar la resolución" })} />
                           </div>
                         </div>
                         <InfoCell label="Fecha de Resolución" value={fmtFecha(r.fechaResolucion)} />
@@ -2060,36 +1573,20 @@ export default function ExpedienteDetallePage() {
                   {documentos.length === 0 && !showForm["documentos"] ? (
                     <TablaVacia icono={FileText} mensaje="Sin documentos registrados" onAgregar={() => abrirForm("documentos")} labelAgregar="Registrar documento" />
                   ) : (
-                    <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-slate-700">
-                      <table className="w-full">
-                        <thead className="bg-gray-50 dark:bg-slate-800/80">
-                          <tr>{["Título", "Tipo", "Folio", "Fecha", "Firma", "Público", ""].map(h => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>)}</tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-                          {documentos.map((d: any) => (
-                            <tr key={d.idDocumento} className="hover:bg-gray-50 dark:hover:bg-slate-800/40">
-                              <td className="px-4 py-3"><p className="text-sm font-medium text-gray-800 dark:text-white">{d.titulo}</p>{d.tamanoKb > 0 && <p className="text-xs text-gray-400">{d.tamanoKb} KB</p>}</td>
-                              <td className="px-4 py-3"><Pill className="bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300">{d.idTipoDoc?.codigo}</Pill></td>
-                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{d.numeroFolio ?? "—"}</td>
-                              <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{fmtFecha(d.fechaPresentacion)}</td>
-                              <td className="px-4 py-3">{d.firmadoDigitalmente ? <Pill className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">Firmado</Pill> : <span className="text-xs text-gray-400">No</span>}</td>
-                              <td className="px-4 py-3">{d.idTipoDoc?.esPublico ? <Pill className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">Sí</Pill> : <span className="text-xs text-gray-400">No</span>}</td>
-                              <td className="px-4 py-3 text-right">
-                                <BtnEliminar
-                                  disabled={eliminandoId === d.idDocumento}
-                                  onClick={() => eliminar(d.idDocumento, () => eliminarDocumento({ variables: { id: Number(d.idDocumento) } }) as any, `¿Eliminar el documento "${d.titulo}"?`, { loading: "Eliminando documento...", success: `"${d.titulo}" eliminado`, error: "Error al eliminar el documento" })}
-                                />
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div className="space-y-3">
+                      {documentos.map((d: any) => (
+                        <TarjetaDocumento
+                          key={d.idDocumento}
+                          doc={d}
+                          eliminandoId={eliminandoId}
+                          onEliminar={() => eliminar(d.idDocumento, () => eliminarDocumento({ variables: { id: Number(d.idDocumento) } }) as any, `¿Eliminar el documento "${d.titulo}"?`, { loading: "Eliminando documento...", success: `"${d.titulo}" eliminado`, error: "Error al eliminar el documento" })}
+                          onArchivoSubido={() => refetch()}
+                        />
+                      ))}
                     </div>
                   )}
                 </div>
               )}
-
-              
 
               {/* ══ ACTUACIONES ══ */}
               {tabActiva === "actuaciones" && (
@@ -2114,10 +1611,7 @@ export default function ExpedienteDetallePage() {
                               <td className="px-4 py-3">{a.esPublica ? <Pill className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">Sí</Pill> : <span className="text-xs text-gray-400">No</span>}</td>
                               <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 max-w-xs truncate">{a.descripcion ?? "—"}</td>
                               <td className="px-4 py-3 text-right">
-                                <BtnEliminar
-                                  disabled={eliminandoId === a.idActuacion}
-                                  onClick={() => eliminar(a.idActuacion, () => eliminarActuacion({ variables: { id: Number(a.idActuacion) } }) as any, `¿Eliminar esta actuación procesal?`, { loading: "Eliminando actuación...", success: "Actuación eliminada", error: "Error al eliminar la actuación" })}
-                                />
+                                <BtnEliminar disabled={eliminandoId === a.idActuacion} onClick={() => eliminar(a.idActuacion, () => eliminarActuacion({ variables: { id: Number(a.idActuacion) } }) as any, `¿Eliminar esta actuación procesal?`, { loading: "Eliminando actuación...", success: "Actuación eliminada", error: "Error al eliminar la actuación" })} />
                               </td>
                             </tr>
                           ))}
