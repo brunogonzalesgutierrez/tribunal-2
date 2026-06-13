@@ -485,7 +485,15 @@ def _aplicar_filtro_fecha(qs, campo_fecha, anio=None, mes=None, fecha_inicio=Non
         qs = qs.filter(**{f"{campo_fecha}__year": anio_actual, f"{campo_fecha}__month": mes})
     return qs
 
+class CrearEstadoExpedienteInput(graphene.InputObjectType):
+    nombre_estado = graphene.String(required=True)
+    es_terminal   = graphene.Boolean()
+    nivel         = graphene.Int()  # ← NUEVO
 
+class ActualizarEstadoExpedienteInput(graphene.InputObjectType):
+    nombre_estado = graphene.String()
+    es_terminal   = graphene.Boolean()
+    nivel         = graphene.Int()  # ← NUEVO
 
 
 
@@ -1266,24 +1274,42 @@ class CrearEstadoExpediente(graphene.Mutation):
     class Arguments:
         nombre_estado = graphene.String(required=True)
         es_terminal   = graphene.Boolean()
+        nivel         = graphene.Int()  # ← NUEVO: nivel jerárquico
+
     estado = graphene.Field(EstadoExpedienteType)
-    def mutate(root, info, nombre_estado, es_terminal=False):
+    
+    def mutate(root, info, nombre_estado, es_terminal=False, nivel=None):
+        # Crear el estado con nivel si se proporciona, si no usar valor por defecto (0)
         return CrearEstadoExpediente(estado=EstadoExpediente.objects.create(
-            nombre_estado=nombre_estado, es_terminal=es_terminal))
+            nombre_estado=nombre_estado, 
+            es_terminal=es_terminal,
+            nivel=nivel if nivel is not None else 0
+        ))
+
 
 class ActualizarEstadoExpediente(graphene.Mutation):
     class Arguments:
         id            = graphene.Int(required=True)
         nombre_estado = graphene.String()
         es_terminal   = graphene.Boolean()
+        nivel         = graphene.Int()  # ← NUEVO: nivel jerárquico
+
     estado = graphene.Field(EstadoExpedienteType)
-    def mutate(root, info, id, nombre_estado=None, es_terminal=None):
+    
+    def mutate(root, info, id, nombre_estado=None, es_terminal=None, nivel=None):
         try:
             obj = EstadoExpediente.objects.get(id_estado=id)
-            if nombre_estado:           obj.nombre_estado = nombre_estado
-            if es_terminal is not None: obj.es_terminal = es_terminal
+            
+            if nombre_estado is not None:
+                obj.nombre_estado = nombre_estado
+            if es_terminal is not None:
+                obj.es_terminal = es_terminal
+            if nivel is not None:
+                obj.nivel = nivel
+                
             obj.save()
             return ActualizarEstadoExpediente(estado=obj)
+            
         except EstadoExpediente.DoesNotExist:
             return ActualizarEstadoExpediente(estado=None)
 

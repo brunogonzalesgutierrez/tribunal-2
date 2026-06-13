@@ -10,6 +10,7 @@ import { useCrudNotifications } from "../../hooks/useCrudNotifications";
 import {
   Flag, Plus, Search, Edit, Trash2,
   ChevronLeft, ChevronRight, X, CheckCircle, Scale,
+  TrendingUp, TrendingDown, GripVertical,
 } from "lucide-react";
 
 // ─── TIPOS ───────────────────────────────────────────────
@@ -17,9 +18,10 @@ interface EstadoExpediente {
   idEstado: number;
   nombreEstado: string;
   esTerminal: boolean;
+  nivel: number;  // ← NUEVO
 }
 
-const initialForm = { nombreEstado: "", esTerminal: false };
+const initialForm = { nombreEstado: "", esTerminal: false, nivel: 0 };
 
 // ─── MODAL ───────────────────────────────────────────────
 function Modal({ children, onClose, title }: {
@@ -43,16 +45,18 @@ function Modal({ children, onClose, title }: {
   );
 }
 
-const Field = ({ label, value, onChange, placeholder = "", required = false, disabled = false }: {
+const Field = ({ label, value, onChange, placeholder = "", required = false, disabled = false, type = "text" }: {
   label: string; value: string; onChange: (v: string) => void;
-  placeholder?: string; required?: boolean; disabled?: boolean;
+  placeholder?: string; required?: boolean; disabled?: boolean; type?: string;
 }) => (
   <div className="mb-4">
     <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
       {label} {required && <span className="text-red-500">*</span>}
     </label>
     <input
-      value={value} placeholder={placeholder}
+      type={type}
+      value={value}
+      placeholder={placeholder}
       onChange={e => onChange(e.target.value)}
       disabled={disabled}
       className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all outline-none disabled:opacity-50 disabled:cursor-not-allowed"
@@ -67,9 +71,10 @@ export default function EstadosExpedientePage() {
   const [form, setForm] = useState(initialForm);
   const [busqueda, setBusqueda] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [ordenarPorNivel, setOrdenarPorNivel] = useState(false);
   const itemsPerPage = 10;
 
-  // ✅ Estados para bloqueo de botones
+  // Estados para bloqueo de botones
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
@@ -79,26 +84,46 @@ export default function EstadosExpedientePage() {
   const [eliminarEstado] = useMutation(ELIMINAR_ESTADO_EXPEDIENTE);
   const { executeCreate, executeUpdate, executeDelete, toast } = useCrudNotifications("Estado");
 
-  const estados: EstadoExpediente[] = data?.allEstadosExpediente ?? [];
-  const activos   = estados.filter(e => !e.esTerminal).length;
+  let estados: EstadoExpediente[] = data?.allEstadosExpediente ?? [];
+
+  // Ordenar por nivel si está activado
+  if (ordenarPorNivel) {
+    estados = [...estados].sort((a, b) => a.nivel - b.nivel);
+  }
+
+  const activos = estados.filter(e => !e.esTerminal).length;
   const terminales = estados.filter(e => e.esTerminal).length;
+  const nivelesUnicos = [...new Set(estados.map(e => e.nivel))].sort((a, b) => a - b);
 
   const estadosFiltrados = estados.filter(e =>
     e.nombreEstado.toLowerCase().includes(busqueda.toLowerCase())
   );
   const totalPages = Math.ceil(estadosFiltrados.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginados  = estadosFiltrados.slice(startIndex, startIndex + itemsPerPage);
+  const paginados = estadosFiltrados.slice(startIndex, startIndex + itemsPerPage);
 
-  const abrirCrear = () => { setEditando(null); setForm(initialForm); setModalAbierto(true); };
+  const abrirCrear = () => { 
+    setEditando(null); 
+    setForm(initialForm); 
+    setModalAbierto(true); 
+  };
+  
   const abrirEditar = (e: EstadoExpediente) => {
     setEditando(e);
-    setForm({ nombreEstado: e.nombreEstado, esTerminal: e.esTerminal });
+    setForm({ 
+      nombreEstado: e.nombreEstado, 
+      esTerminal: e.esTerminal,
+      nivel: e.nivel 
+    });
     setModalAbierto(true);
   };
-  const cerrar = () => { setModalAbierto(false); setEditando(null); };
+  
+  const cerrar = () => { 
+    setModalAbierto(false); 
+    setEditando(null); 
+  };
 
-  // ✅ Guardar con bloqueo
+  // Guardar con bloqueo
   const guardar = async () => {
     if (!form.nombreEstado) { 
       toast.error("El nombre del estado es obligatorio."); 
@@ -115,7 +140,8 @@ export default function EstadosExpedientePage() {
             variables: { 
               id: Number(editando.idEstado), 
               nombreEstado: form.nombreEstado, 
-              esTerminal: form.esTerminal 
+              esTerminal: form.esTerminal,
+              nivel: Number(form.nivel)
             } 
           });
           await refetch(); 
@@ -127,7 +153,8 @@ export default function EstadosExpedientePage() {
           await crearEstado({ 
             variables: { 
               nombreEstado: form.nombreEstado, 
-              esTerminal: form.esTerminal 
+              esTerminal: form.esTerminal,
+              nivel: Number(form.nivel)
             } 
           });
           await refetch(); 
@@ -140,7 +167,7 @@ export default function EstadosExpedientePage() {
     }
   };
 
-  // ✅ Eliminar con bloqueo
+  // Eliminar con bloqueo
   const eliminar = async (id: number, nombre: string) => {
     if (deletingId === id) return;
     setDeletingId(id);
@@ -164,6 +191,17 @@ export default function EstadosExpedientePage() {
     } finally {
       setDeletingId(null);
     }
+  };
+
+  // Obtener clase CSS según el nivel
+  const getNivelColor = (nivel: number) => {
+    if (nivel === 0) return "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400";
+    if (nivel === 1) return "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400";
+    if (nivel === 2) return "bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400";
+    if (nivel === 3) return "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400";
+    if (nivel === 4) return "bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400";
+    if (nivel === 5) return "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400";
+    return "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400";
   };
 
   return (
@@ -191,7 +229,7 @@ export default function EstadosExpedientePage() {
       </div>
 
       {/* STATS */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-5">
         <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg hover:shadow-xl transition-all group">
           <div className="flex items-center justify-between">
             <div>
@@ -206,6 +244,7 @@ export default function EstadosExpedientePage() {
             <p className="text-xs text-gray-500 dark:text-gray-400">Estados registrados</p>
           </div>
         </div>
+        
         <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg hover:shadow-xl transition-all group">
           <div className="flex items-center justify-between">
             <div>
@@ -220,6 +259,7 @@ export default function EstadosExpedientePage() {
             <p className="text-xs text-gray-500 dark:text-gray-400">Estados no terminales</p>
           </div>
         </div>
+        
         <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg hover:shadow-xl transition-all group">
           <div className="flex items-center justify-between">
             <div>
@@ -234,17 +274,46 @@ export default function EstadosExpedientePage() {
             <p className="text-xs text-gray-500 dark:text-gray-400">Estados finales</p>
           </div>
         </div>
+
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg hover:shadow-xl transition-all group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Niveles</p>
+              <p className="text-3xl font-bold text-indigo-600 dark:text-indigo-400 mt-2">{nivelesUnicos.length}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <GripVertical className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Niveles jerárquicos</p>
+          </div>
+        </div>
       </div>
 
-      {/* BUSCADOR */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <input
-          placeholder="Buscar por nombre de estado..."
-          value={busqueda}
-          onChange={e => { setBusqueda(e.target.value); setCurrentPage(1); }}
-          className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white dark:bg-slate-800/90 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all outline-none"
-        />
+      {/* BUSCADOR Y ORDEN */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            placeholder="Buscar por nombre de estado..."
+            value={busqueda}
+            onChange={e => { setBusqueda(e.target.value); setCurrentPage(1); }}
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white dark:bg-slate-800/90 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all outline-none"
+          />
+        </div>
+        
+        <button
+          onClick={() => setOrdenarPorNivel(!ordenarPorNivel)}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+            ordenarPorNivel 
+              ? 'bg-indigo-500 text-white shadow-md shadow-indigo-500/25' 
+              : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700'
+          }`}
+        >
+          {ordenarPorNivel ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+          Ordenar por nivel
+        </button>
       </div>
 
       {/* TABLA */}
@@ -253,7 +322,7 @@ export default function EstadosExpedientePage() {
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-slate-900/50 border-b border-gray-200 dark:border-slate-700">
               <tr>
-                {["Nombre", "Tipo", "Acciones"].map(h => (
+                {["Nombre", "Nivel", "Tipo", "Acciones"].map(h => (
                   <th key={h} className={`px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${h === "Acciones" ? "text-right" : "text-left"}`}>{h}</th>
                 ))}
               </tr>
@@ -261,12 +330,12 @@ export default function EstadosExpedientePage() {
             <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
               {loading ? (
                 [...Array(4)].map((_, i) => (
-                  <tr key={i}>{[...Array(3)].map((_, j) => (
+                  <tr key={i}>{[...Array(4)].map((_, j) => (
                     <td key={j} className="px-6 py-4"><div className="h-3 bg-gray-200 dark:bg-slate-700 rounded-full animate-pulse w-24" /></td>
                   ))}</tr>
                 ))
               ) : paginados.length === 0 ? (
-                <tr><td colSpan={3} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                <tr><td colSpan={4} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                   <div className="flex flex-col items-center gap-2">
                     <Flag className="w-12 h-12 text-gray-300 dark:text-gray-600" />
                     <p>No se encontraron estados</p>
@@ -276,6 +345,12 @@ export default function EstadosExpedientePage() {
                 paginados.map(e => (
                   <tr key={e.idEstado} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
                     <td className="px-6 py-4 text-sm font-medium text-gray-800 dark:text-white">{e.nombreEstado}</td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${getNivelColor(e.nivel)}`}>
+                        <GripVertical className="w-3 h-3" />
+                        Nivel {e.nivel}
+                      </span>
+                    </td>
                     <td className="px-6 py-4">
                       {e.esTerminal ? (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
@@ -338,7 +413,7 @@ export default function EstadosExpedientePage() {
       {/* MODAL */}
       {modalAbierto && (
         <Modal onClose={cerrar} title={editando ? "Editar estado" : "Nuevo estado"}>
-          <div className="space-y-1">
+          <div className="space-y-4">
             <Field
               label="Nombre del estado"
               value={form.nombreEstado}
@@ -347,6 +422,36 @@ export default function EstadosExpedientePage() {
               required
               disabled={saving}
             />
+            
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                Nivel jerárquico
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  min="0"
+                  max="10"
+                  value={form.nivel}
+                  onChange={e => setForm(p => ({ ...p, nivel: parseInt(e.target.value) }))}
+                  disabled={saving}
+                  className="flex-1 h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-slate-700 accent-amber-500"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  max="10"
+                  value={form.nivel}
+                  onChange={e => setForm(p => ({ ...p, nivel: parseInt(e.target.value) || 0 }))}
+                  disabled={saving}
+                  className="w-20 px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-center text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Nivel 0 = más bajo, Nivel 10 = más alto (controla el orden de los estados)
+              </p>
+            </div>
+
             <div className="mb-4">
               <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
                 <input
@@ -362,6 +467,7 @@ export default function EstadosExpedientePage() {
                 </div>
               </label>
             </div>
+            
             <div className="flex gap-3 justify-end pt-2">
               <button 
                 onClick={cerrar} 

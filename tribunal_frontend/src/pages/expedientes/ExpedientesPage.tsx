@@ -34,6 +34,7 @@ interface EstadoExpediente {
   idEstado: number;
   nombreEstado: string;
   esTerminal: boolean;
+  nivel: number;
 }
 interface Expediente {
   idExpediente: number;
@@ -69,7 +70,7 @@ const initialForm = {
 function Modal({ children, onClose, title }: { children: React.ReactNode; onClose: () => void; title: string }) {
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center">
           <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
             <FolderOpen className="w-5 h-5 text-blue-500" />
@@ -317,7 +318,7 @@ function BuscadorTipoProceso({
 }
 
 // ============================================================
-// COMPONENTE: Buscador de Estados (Modal)
+// COMPONENTE: Buscador de Estados (Modal) - SOLO NIVEL 0
 // ============================================================
 function BuscadorEstado({
   onSelect,
@@ -331,7 +332,10 @@ function BuscadorEstado({
 
   const estados: EstadoExpediente[] = data?.allEstadosExpediente ?? [];
 
-  const filtrados = estados.filter(e =>
+  // ✅ FILTRAR SOLO ESTADOS DE NIVEL 0 (Ingresado, Rechazado, etc.)
+  const estadosNivel0 = estados.filter(e => e.nivel === 0);
+  
+  const filtrados = estadosNivel0.filter(e =>
     e.nombreEstado.toLowerCase().includes(busqueda.toLowerCase())
   );
 
@@ -341,7 +345,7 @@ function BuscadorEstado({
         <div className="flex-shrink-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
           <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
             <Search className="w-5 h-5 text-blue-500" />
-            Seleccionar Estado
+            Seleccionar Estado Inicial
           </h2>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
             <X className="w-5 h-5 text-gray-500" />
@@ -360,6 +364,9 @@ function BuscadorEstado({
               autoFocus
             />
           </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            Solo se muestran estados iniciales (nivel 0)
+          </p>
         </div>
 
         <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
@@ -370,7 +377,7 @@ function BuscadorEstado({
           ) : filtrados.length === 0 ? (
             <div className="text-center py-12 text-gray-500 dark:text-gray-400">
               <Search className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
-              <p>No se encontraron estados</p>
+              <p>No se encontraron estados iniciales</p>
             </div>
           ) : (
             <div className="space-y-2 pb-4">
@@ -389,7 +396,9 @@ function BuscadorEstado({
                     <div>
                       <p className="font-semibold text-gray-800 dark:text-white">{e.nombreEstado}</p>
                       <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                        {e.esTerminal ? '📌 Estado terminal' : '🔄 En proceso'}
+                        <span className="inline-block px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs">
+                          Nivel {e.nivel}
+                        </span>
                       </p>
                     </div>
                     <div className="text-blue-500">
@@ -415,7 +424,6 @@ function BuscadorEstado({
   );
 }
 
-// ─── PÁGINA PRINCIPAL ────────────────────────────────────
 // ─── PÁGINA PRINCIPAL ────────────────────────────────────
 export default function ExpedientesPage() {
   const navigate = useNavigate();
@@ -457,10 +465,18 @@ export default function ExpedientesPage() {
 
   const { executeCreate, executeUpdate, executeDelete, toast } = useCrudNotifications('Expediente');
 
-  // ========== 3. EXTRAER DATOS DE LAS QUERIES (ANTES de useEffect) ==========
+  // ========== 3. EXTRAER DATOS ==========
+  const salas: SalaTribunal[] = dataSalas?.allSalasTribunal ?? [];
   const tiposProceso: TipoProceso[] = dataTipos?.allTiposProceso ?? [];
+  const estados: EstadoExpediente[] = dataEstados?.allEstadosExpediente ?? [];
+  
+  // Estados de nivel 0 para preselección
+  const estadosNivel0 = estados.filter(e => e.nivel === 0);
+  const primerEstado = estadosNivel0[0];
+  const primerTipoProceso = tiposProceso[0];
+  const primerSala = salas[0];
 
-  // ========== 4. TODOS LOS useEffect (AHORA tiposProceso YA EXISTE) ==========
+  // ========== 4. TODOS LOS useEffect ==========
   useEffect(() => {
     if (soloMiSala && miSalaId && !salaSeleccionada) {
       setForm(prev => ({ ...prev, idSala: String(miSalaId) }));
@@ -476,18 +492,26 @@ export default function ExpedientesPage() {
     }
   }, []);
 
-  // ✅ Este useEffect ahora funciona porque tiposProceso ya está declarado
+  // ✅ Preseleccionar primer tipo de proceso y primer estado si no hay selección
   useEffect(() => {
-    if (tiposProceso.length > 0 && modalAbierto && !editando && !tipoProcSeleccionado) {
-      const sumario = tiposProceso.find(t =>
-        t.nombre.toLowerCase().includes("sumario")
-      );
-      if (sumario) {
-        setForm(prev => ({ ...prev, idTipoProceso: String(sumario.idTipoProceso) }));
-        setTipoProcSeleccionado(`${sumario.nombre} (${sumario.codigo})`);
-      }
+  if (modalAbierto && !editando) {
+    // Preseleccionar tipo de proceso
+    if (primerTipoProceso && !tipoProcSeleccionado) {
+      setForm(prev => ({ ...prev, idTipoProceso: String(primerTipoProceso.idTipoProceso) }));
+      setTipoProcSeleccionado(`${primerTipoProceso.nombre} (${primerTipoProceso.codigo})`);
     }
-  }, [tiposProceso, modalAbierto, editando, tipoProcSeleccionado]);
+    // Preseleccionar estado inicial (nivel 0)
+    if (primerEstado && !estadoSeleccionado) {
+      setForm(prev => ({ ...prev, idEstadoExpediente: String(primerEstado.idEstado) }));
+      setEstadoSeleccionado(primerEstado.nombreEstado);
+    }
+    // 🔧 CORREGIDO: Solo preseleccionar sala si el usuario NO tiene sala asignada
+    if (!soloMiSala && primerSala && !salaSeleccionada) {
+      setForm(prev => ({ ...prev, idSala: String(primerSala.idSala) }));
+      setSalaSeleccionada(`${primerSala.nombreSala} — ${primerSala.idTribunal?.nombreTribunal || ''}`);
+    }
+  }
+}, [modalAbierto, editando, primerTipoProceso, primerEstado, primerSala, soloMiSala]);
 
   // ========== 5. CONDICIONAL DE CARGA ==========
   if (loading) {
@@ -513,8 +537,6 @@ export default function ExpedientesPage() {
   }
 
   const todasLasPartes: ParteProcesalLista[] = dataPartesLista?.allPartesProcesales ?? [];
-  const salas: SalaTribunal[] = dataSalas?.allSalasTribunal ?? [];
-  const estados: EstadoExpediente[] = dataEstados?.allEstadosExpediente ?? [];
 
   const expedientesFiltrados = expedientes.filter(e => {
     const texto = busqueda.toLowerCase();
@@ -551,22 +573,23 @@ export default function ExpedientesPage() {
     setEstadoSeleccionado(nombre);
   };
 
-  const abrirCrear = () => {
-    setEditando(null);
-    const sumario = tiposProceso.find(t =>
-      t.nombre.toLowerCase().includes("sumario")
-    );
-    setForm({
-      ...initialForm,
-      idTipoProceso: sumario ? String(sumario.idTipoProceso) : "0",
-      idSala: soloMiSala && miSalaId ? String(miSalaId) : "0",
-    });
-    setTipoProcSeleccionado(sumario ? `${sumario.nombre} (${sumario.codigo})` : "");
-    setRecienCreado(null);
-    setSalaSeleccionada(soloMiSala && miSalaNombre ? miSalaNombre : "");
-    setEstadoSeleccionado("");
-    setModalAbierto(true);
-  };
+const abrirCrear = () => {
+  setEditando(null);
+  setForm({
+    ...initialForm,
+    idTipoProceso: primerTipoProceso ? String(primerTipoProceso.idTipoProceso) : "0",
+    // ✅ Si tiene sala asignada, usa miSalaId, si no, usa la primera sala
+    idSala: soloMiSala && miSalaId ? String(miSalaId) : (primerSala ? String(primerSala.idSala) : "0"),
+    idEstadoExpediente: primerEstado ? String(primerEstado.idEstado) : "0",
+  });
+  setTipoProcSeleccionado(primerTipoProceso ? `${primerTipoProceso.nombre} (${primerTipoProceso.codigo})` : "");
+  setEstadoSeleccionado(primerEstado ? primerEstado.nombreEstado : "");
+  setRecienCreado(null);
+  // ✅ Si tiene sala asignada, usa miSalaNombre, si no, usa el nombre de la primera sala
+  setSalaSeleccionada(soloMiSala && miSalaNombre ? miSalaNombre : (primerSala ? `${primerSala.nombreSala} — ${primerSala.idTribunal?.nombreTribunal || ''}` : ""));
+  setModalAbierto(true);
+};
+
 
   const abrirEditar = (exp: Expediente) => {
     setEditando(exp);
@@ -930,152 +953,166 @@ export default function ExpedientesPage() {
         </div>
       )}
 
-      {/* MODAL CREAR/EDITAR */}
+      {/* MODAL CREAR/EDITAR - DISEÑO DE 2 COLUMNAS */}
       {modalAbierto && (
         <Modal onClose={cerrarModal} title={editando ? "Editar expediente" : "Nuevo expediente"}>
-          <div className="space-y-4">
-            <Field 
-              label="Número de expediente" 
-              value={form.numeroExpediente} 
-              onChange={f("numeroExpediente")} 
-              required 
-              placeholder="Ej: 001/2025"
-              disabled={saving}
-            />
-            <Field 
-              label="Año" 
-              value={form.ano} 
-              onChange={f("ano")} 
-              type="number" 
-              required
-              disabled={saving}
-            />
-            
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
-                Sala del tribunal <span className="text-red-500">*</span>
-              </label>
-              {salaSeleccionada ? (
-                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
-                  <span className="flex-1 text-sm text-gray-800 dark:text-white">{salaSeleccionada}</span>
-                  {!soloMiSala && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Columna 1 */}
+            <div>
+              <Field 
+                label="Número de expediente" 
+                value={form.numeroExpediente} 
+                onChange={f("numeroExpediente")} 
+                required 
+                placeholder="Ej: 001/2025"
+                disabled={saving}
+              />
+              
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                  Sala del tribunal <span className="text-red-500">*</span>
+                </label>
+                {salaSeleccionada ? (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+                    <Building2 className="w-4 h-4 text-gray-400 shrink-0" />
+                    <span className="flex-1 text-sm text-gray-800 dark:text-white truncate">{salaSeleccionada}</span>
+                    {!soloMiSala && (
+                      <button
+                        onClick={() => {
+                          setForm(prev => ({ ...prev, idSala: "0" }));
+                          setSalaSeleccionada("");
+                        }}
+                        disabled={saving}
+                        className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors disabled:opacity-40"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                    {soloMiSala && (
+                      <span className="text-xs text-blue-500 bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded-full shrink-0">
+                        Asignada
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setBuscadorSalaAbierto(true)}
+                    disabled={saving}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Buscar sala
+                  </button>
+                )}
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                  Estado inicial <span className="text-gray-400 text-xs">(Nivel 0)</span>
+                </label>
+                {estadoSeleccionado ? (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800">
+                    <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span className="flex-1 text-sm text-gray-800 dark:text-white">{estadoSeleccionado}</span>
                     <button
                       onClick={() => {
-                        setForm(prev => ({ ...prev, idSala: "0" }));
-                        setSalaSeleccionada("");
+                        setForm(prev => ({ ...prev, idEstadoExpediente: "0" }));
+                        setEstadoSeleccionado("");
                       }}
                       disabled={saving}
-                      className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="p-1 rounded-lg text-gray-500 hover:bg-emerald-200 dark:hover:bg-emerald-800 transition-colors"
                     >
                       <X className="w-4 h-4" />
                     </button>
-                  )}
-                  {soloMiSala && (
-                    <span className="text-xs text-blue-500 bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded-full">
-                      Asignada a tu rol
-                    </span>
-                  )}
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setBuscadorSalaAbierto(true)}
-                  disabled={saving}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Plus className="w-4 h-4" />
-                  Buscar y seleccionar sala
-                </button>
-              )}
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
-                Tipo de proceso <span className="text-red-500">*</span>
-              </label>
-              {tipoProcSeleccionado ? (
-                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
-                  <span className="flex-1 text-sm text-gray-800 dark:text-white">{tipoProcSeleccionado}</span>
+                  </div>
+                ) : (
                   <button
-                    onClick={() => {
-                      setForm(prev => ({ ...prev, idTipoProceso: "0" }));
-                      setTipoProcSeleccionado("");
-                    }}
+                    type="button"
+                    onClick={() => setBuscadorEstadoAbierto(true)}
                     disabled={saving}
-                    className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-emerald-400 dark:hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all"
                   >
-                    <X className="w-4 h-4" />
+                    <Plus className="w-4 h-4" />
+                    Buscar estado inicial
                   </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setBuscadorTipoAbierto(true)}
-                  disabled={saving}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Plus className="w-4 h-4" />
-                  Buscar y seleccionar tipo de proceso
-                </button>
-              )}
+                )}
+              </div>
             </div>
 
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Estado inicial</label>
-              {estadoSeleccionado ? (
-                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700">
-                  <span className="flex-1 text-sm text-gray-800 dark:text-white">{estadoSeleccionado}</span>
-                  <button
-                    onClick={() => {
-                      setForm(prev => ({ ...prev, idEstadoExpediente: "0" }));
-                      setEstadoSeleccionado("");
-                    }}
-                    disabled={saving}
-                    className="p-1 rounded-lg text-gray-500 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setBuscadorEstadoAbierto(true)}
-                  disabled={saving}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Plus className="w-4 h-4" />
-                  Buscar y seleccionar estado
-                </button>
-              )}
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Descripción</label>
-              <textarea
-                value={form.descripcion}
-                onChange={e => f("descripcion")(e.target.value)}
+            {/* Columna 2 */}
+            <div>
+              <Field 
+                label="Año" 
+                value={form.ano} 
+                onChange={f("ano")} 
+                type="number" 
+                required
                 disabled={saving}
-                rows={3}
-                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-none disabled:opacity-50 disabled:cursor-not-allowed"
-                placeholder="Descripción del expediente..."
               />
+
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                  Tipo de proceso <span className="text-red-500">*</span>
+                </label>
+                {tipoProcSeleccionado ? (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+                    <FileText className="w-4 h-4 text-blue-500 shrink-0" />
+                    <span className="flex-1 text-sm text-gray-800 dark:text-white truncate">{tipoProcSeleccionado}</span>
+                    <button
+                      onClick={() => {
+                        setForm(prev => ({ ...prev, idTipoProceso: "0" }));
+                        setTipoProcSeleccionado("");
+                      }}
+                      disabled={saving}
+                      className="p-1 rounded-lg text-gray-500 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setBuscadorTipoAbierto(true)}
+                    disabled={saving}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Buscar tipo de proceso
+                  </button>
+                )}
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Descripción</label>
+                <textarea
+                  value={form.descripcion}
+                  onChange={e => f("descripcion")(e.target.value)}
+                  disabled={saving}
+                  rows={3}
+                  className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-none disabled:opacity-50 disabled:cursor-not-allowed"
+                  placeholder="Descripción del expediente..."
+                />
+              </div>
             </div>
-            <div className="flex gap-3 justify-end pt-4">
-              <button 
-                onClick={cerrarModal} 
-                disabled={saving}
-                className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Cancelar
-              </button>
-              <button 
-                onClick={guardar} 
-                disabled={saving}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium text-sm shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {saving ? "Guardando..." : (editando ? "Guardar cambios" : "Crear y ver detalle →")}
-              </button>
-            </div>
+          </div>
+
+          {/* Botones - ocupan todo el ancho */}
+          <div className="flex gap-3 justify-end pt-4 mt-2 border-t border-gray-200 dark:border-slate-700">
+            <button 
+              onClick={cerrarModal} 
+              disabled={saving}
+              className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium"
+            >
+              Cancelar
+            </button>
+            <button 
+              onClick={guardar} 
+              disabled={saving}
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium text-sm shadow-md transition-all"
+            >
+              {saving ? "Guardando..." : (editando ? "Guardar cambios" : "Crear y ver detalle →")}
+            </button>
           </div>
         </Modal>
       )}

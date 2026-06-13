@@ -29,6 +29,7 @@ export const GET_ESTADOS_EXPEDIENTE = gql`
       idEstado
       nombreEstado
       esTerminal
+      nivel
     }
   }
 `;
@@ -202,17 +203,17 @@ export const ELIMINAR_TIPO_PROCESO = gql`
 // ─── ESTADO EXPEDIENTE ───────────────────────────────────
 
 export const CREAR_ESTADO_EXPEDIENTE = gql`
-  mutation CrearEstadoExpediente($nombreEstado: String!, $esTerminal: Boolean) {
-    crearEstadoExpediente(nombreEstado: $nombreEstado, esTerminal: $esTerminal) {
-      estado { idEstado nombreEstado esTerminal }
+  mutation CrearEstadoExpediente($nombreEstado: String!, $esTerminal: Boolean, $nivel: Int) {
+    crearEstadoExpediente(nombreEstado: $nombreEstado, esTerminal: $esTerminal, nivel:$nivel) {
+      estado { idEstado nombreEstado esTerminal nivel}
     }
   }
 `;
 
 export const ACTUALIZAR_ESTADO_EXPEDIENTE = gql`
-  mutation ActualizarEstadoExpediente($id: Int!, $nombreEstado: String, $esTerminal: Boolean) {
-    actualizarEstadoExpediente(id: $id, nombreEstado: $nombreEstado, esTerminal: $esTerminal) {
-      estado { idEstado nombreEstado esTerminal }
+  mutation ActualizarEstadoExpediente($id: Int!, $nombreEstado: String, $esTerminal: Boolean, $nivel:Int) {
+    actualizarEstadoExpediente(id: $id, nombreEstado: $nombreEstado, esTerminal: $esTerminal, nivel:$nivel) {
+      estado { idEstado nombreEstado esTerminal nivel}
     }
   }
 `;

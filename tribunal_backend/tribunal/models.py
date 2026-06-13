@@ -114,13 +114,14 @@ class EstadoExpediente(models.Model):
     id_estado = models.AutoField(primary_key=True)
     nombre_estado = models.CharField(max_length=100)
     es_terminal = models.BooleanField(default=False)
+    nivel = models.IntegerField(default=0, help_text="Nivel jerárquico del estado (0=inicial, 1,2,3...)")
 
     class Meta:
         db_table = 'estado_expediente'
+        ordering = ['nivel']  
 
     def __str__(self):
         return self.nombre_estado
-
 
 class TipoProceso(models.Model):
     id_tipo_proceso = models.AutoField(primary_key=True)

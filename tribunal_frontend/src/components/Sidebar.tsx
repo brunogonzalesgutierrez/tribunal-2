@@ -18,42 +18,54 @@ import { LucideIcon, Flag, Layers,  // ← agregar estos dos
 import { PERMISOS } from '../config/permisos';
 
 // ── Query de badges ────────────────────────────────────────
+// ── Query de badges ────────────────────────────────────────
 const GET_BADGES = gql`
   query GetSidebarBadges {
     allAudiencias {
       idAudiencia
       estadoAudiencia
       fechaHoraProgramada
+      idExpediente {
+        idSala {
+          idSala
+        }
+      }
     }
     allExpedientes {
       idExpediente
       idEstadoExpediente { esTerminal }
+      idSala {
+        idSala
+      }
     }
     allNotificaciones {
       idNotificacion
       estadoNotificacion
+      idExpediente {
+        idSala {
+          idSala
+        }
+      }
     }
     allSolicitudes {
       idSolicitud
       estadoSolicitud
     }
-    allDocumentos {
-      idDocumento
-      firmadoDigitalmente
-      fechaPresentacion
-    }
   }
 `;
 
 // ── Hook de badges ─────────────────────────────────────────
-function useSidebarBadges() {
-  const { data } = useQuery(GET_BADGES, {
+// ── Hook de badges ─────────────────────────────────────────
+function useSidebarBadges(salaId: number | null | undefined, esAdmin: boolean) {
+  const { data, loading, error } = useQuery(GET_BADGES, {
     fetchPolicy: 'cache-and-network',
-    pollInterval: 60000, // refresca cada 60s
+    pollInterval: 60000,
   });
 
   const esHoy = (fechaStr: string) => {
-    const f = new Date(fechaStr), h = new Date();
+    if (!fechaStr) return false;
+    const f = new Date(fechaStr);
+    const h = new Date();
     return (
       f.getDate() === h.getDate() &&
       f.getMonth() === h.getMonth() &&
@@ -61,28 +73,41 @@ function useSidebarBadges() {
     );
   };
 
-  const audiencias  = data?.allAudiencias    ?? [];
-  const expedientes = data?.allExpedientes   ?? [];
-  const notifs      = data?.allNotificaciones ?? [];
-  const solicitudes = data?.allSolicitudes   ?? [];
+  let audiencias  = data?.allAudiencias    ?? [];
+  let expedientes = data?.allExpedientes   ?? [];
+  let notifs      = data?.allNotificaciones ?? [];
+  let solicitudes = data?.allSolicitudes   ?? [];
+
+  // Filtrar por sala si no es administrador
+  if (!esAdmin && salaId) {
+    const salaIdNum = Number(salaId);
+    
+    audiencias = audiencias.filter((a: any) => {
+      const salaAudiencia = a.idExpediente?.idSala?.idSala;
+      return salaAudiencia === salaIdNum;
+    });
+    
+    expedientes = expedientes.filter((e: any) => {
+      const salaExp = e.idSala?.idSala;
+      return salaExp === salaIdNum;
+    });
+    
+    notifs = notifs.filter((n: any) => {
+      const salaNotif = n.idExpediente?.idSala?.idSala;
+      return salaNotif === salaIdNum;
+    });
+  }
 
   return {
-    // Audiencias programadas para HOY
     audienciasHoy: audiencias.filter(
       (a: any) => a.estadoAudiencia === 'PROGRAMADA' && esHoy(a.fechaHoraProgramada)
     ).length,
-
-    // Expedientes activos (no terminales)
     expedientesActivos: expedientes.filter(
       (e: any) => !e.idEstadoExpediente?.esTerminal
     ).length,
-
-    // Notificaciones pendientes
     notifPendientes: notifs.filter(
       (n: any) => n.estadoNotificacion === 'PENDIENTE'
     ).length,
-
-    // Solicitudes pendientes
     solicitudesPendientes: solicitudes.filter(
       (s: any) => s.estadoSolicitud === 'PENDIENTE'
     ).length,
@@ -137,7 +162,9 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
   const { logout, hasPermission, usuario } = useAuth();
   const location  = useLocation();
   const navigate  = useNavigate();
-  const badges    = useSidebarBadges();
+    const salaId = usuario?.salaAsignadaId;
+  const esAdmin = usuario?.rol === "Administrador";
+  const badges = useSidebarBadges(salaId, esAdmin);
 
   const [expandedMenu, setExpandedMenu]   = useState<string | null>(null);
   const [favorites, setFavorites]         = useState<Array<{name: string, path: string}>>([]);
