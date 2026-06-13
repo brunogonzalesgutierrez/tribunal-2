@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import {
   X, Edit, Trash2, Scale, AlertCircle, ChevronLeft, ChevronRight,
@@ -11,6 +10,25 @@ export interface Expediente {
   idExpediente: number;
   numeroExpediente: string;
   ano: number;
+  idSala?: {
+    idSala: number;
+    nombreSala: string;
+    idTribunal?: {
+      idTribunal: number;
+      nombreTribunal: string;
+    };
+  };
+  idTipoProceso?: {
+    idTipoProceso: number;
+    nombre: string;
+    codigo: string;
+  };
+  idEstadoExpediente?: {
+    idEstado: number;
+    nombreEstado: string;
+    esTerminal: boolean;
+    nivel?: number;
+  };
 }
 
 export interface TipoAudiencia {
@@ -39,7 +57,15 @@ export interface Audiencia {
   estadoAudiencia: string;
   motivoSuspension?: string;
   linkVideoconferencia?: string;
-  idExpediente: { idExpediente: number; numeroExpediente: string; ano: number };
+  idExpediente: { 
+    idExpediente: number; 
+    numeroExpediente: string; 
+    ano: number;
+    idSala?: {
+      idSala: number;
+      nombreSala: string;
+    };
+  };
   idTipoAudiencia: { idTipoAudiencia: number; nombre: string; duracionEstimada: number };
   idSalaAud?: { idSalaAud: number; nombreSala: string; capacidad: number; equipadaVideoconf: boolean };
 }

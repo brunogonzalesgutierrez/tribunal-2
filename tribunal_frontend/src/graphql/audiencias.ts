@@ -130,9 +130,26 @@ export const GET_AUDIENCIAS = gql`
       estadoAudiencia
       motivoSuspension
       linkVideoconferencia
-      idExpediente { idExpediente numeroExpediente ano }
-      idTipoAudiencia { idTipoAudiencia nombre duracionEstimada }
-      idSalaAud { idSalaAud nombreSala capacidad equipadaVideoconf }
+      idExpediente { 
+        idExpediente 
+        numeroExpediente 
+        ano
+        idSala {
+          idSala
+          nombreSala
+        }
+      }
+      idTipoAudiencia { 
+        idTipoAudiencia 
+        nombre 
+        duracionEstimada 
+      }
+      idSalaAud { 
+        idSalaAud 
+        nombreSala 
+        capacidad 
+        equipadaVideoconf 
+      }
     }
   }
 `;
@@ -323,6 +340,10 @@ export const GET_EXPEDIENTES_SIMPLE = gql`
       idExpediente
       numeroExpediente
       ano
+      idSala {
+        idSala
+        nombreSala
+      }
       idEstadoExpediente { nombreEstado }
     }
   }

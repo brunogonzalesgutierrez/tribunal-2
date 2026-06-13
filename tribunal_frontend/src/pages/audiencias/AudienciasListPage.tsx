@@ -25,6 +25,7 @@ import {
 } from "../../shared/ui";
 import { useCrudNotifications } from '../../hooks/useCrudNotifications';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from "../../context/AuthContext";
 
 interface ParteProcesalLista {
   idParte: number;
@@ -46,15 +47,25 @@ function BuscadorExpediente({
   onSelect,
   onClose,
   disabled,
+  soloMiSala = false,
+  miSalaId,
 }: {
   onSelect: (id: number, nombre: string, enlaceVirtual?: string) => void;
   onClose: () => void;
   disabled?: boolean;
+  soloMiSala?: boolean;
+  miSalaId?: number;
 }) {
   const [busqueda, setBusqueda] = useState("");
   const { data, loading } = useQuery(GET_EXPEDIENTES_SIMPLE);
 
-  const expedientes: Expediente[] = data?.allExpedientes ?? [];
+  let expedientes: Expediente[] = data?.allExpedientes ?? [];
+
+  // ✅ CORREGIDO: Forzar conversión a número
+  if (soloMiSala && miSalaId) {
+    const salaIdNum = Number(miSalaId);
+    expedientes = expedientes.filter(e => Number(e.idSala?.idSala) === salaIdNum);
+  }
 
   const filtrados = expedientes.filter(e =>
     `${e.numeroExpediente} ${e.ano}`.toLowerCase().includes(busqueda.toLowerCase())
@@ -67,6 +78,11 @@ function BuscadorExpediente({
           <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
             <Search className="w-5 h-5 text-blue-500" />
             Seleccionar Expediente
+            {soloMiSala && miSalaId && (
+              <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">
+                Solo expedientes de tu sala
+              </span>
+            )}
           </h2>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
             <X className="w-5 h-5 text-gray-500" />
@@ -240,7 +256,7 @@ function BuscadorTipoAudiencia({
 }
 
 // ============================================================
-// COMPONENTE: Buscador de Salas (Modal) - ACTUALIZADO
+// COMPONENTE: Buscador de Salas (Modal)
 // ============================================================
 function BuscadorSalaAudiencia({
   onSelect,
@@ -343,6 +359,7 @@ function BuscadorSalaAudiencia({
     </div>
   );
 }
+
 // ─── CARD MÓVIL ──────────────────────────────────────────
 function AudienciaCard({
   a, onEdit, onDelete, disabled,
@@ -422,16 +439,22 @@ function AudienciaCard({
 // ════════════════════════════════════════════════════════
 export default function AudienciasListPage() {
   const navigate = useNavigate();
+  const { usuario } = useAuth();
+
+  const miSalaId = usuario?.salaAsignadaId;
+  const esAdministrador = usuario?.rol === "Administrador";
+  const soloMiSala = !esAdministrador && miSalaId !== undefined && miSalaId !== null;
+
   const { data, loading, refetch } = useQuery(GET_AUDIENCIAS);
-  const { data: dExp }  = useQuery(GET_EXPEDIENTES_SIMPLE);
+  const { data: dExp } = useQuery(GET_EXPEDIENTES_SIMPLE);
   const { data: dTipo } = useQuery(GET_TIPOS_AUDIENCIA);
   const { data: dSala } = useQuery(GET_SALAS_AUDIENCIA);
   const { data: dataPartesLista } = useQuery(GET_PARTES_PROCESALES_LISTA);
   const todasLasPartes: ParteProcesalLista[] = dataPartesLista?.allPartesProcesales ?? [];
 
-  const [crearAudiencia]      = useMutation(CREAR_AUDIENCIA);
+  const [crearAudiencia] = useMutation(CREAR_AUDIENCIA);
   const [actualizarAudiencia] = useMutation(ACTUALIZAR_AUDIENCIA);
-  const [eliminarAudiencia]   = useMutation(ELIMINAR_AUDIENCIA);
+  const [eliminarAudiencia] = useMutation(ELIMINAR_AUDIENCIA);
 
   const { executeCreate, executeUpdate, executeDelete } = useCrudNotifications('Audiencia');
   const toast = useToast();
@@ -449,7 +472,6 @@ export default function AudienciasListPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // ✅ Estado para bloqueo de botones
   const [saving, setSaving] = useState(false);
 
   const initForm = {
@@ -460,7 +482,17 @@ export default function AudienciasListPage() {
   const [form, setForm] = useState(initForm);
   const f = (k: string) => (v: string) => setForm(p => ({ ...p, [k]: v }));
 
-  const audiencias: Audiencia[] = data?.allAudiencias ?? [];
+  let audiencias: Audiencia[] = data?.allAudiencias ?? [];
+
+  // ✅ CORREGIDO: Forzar conversión a número en el filtro
+  if (soloMiSala && miSalaId !== undefined && miSalaId !== null) {
+    const salaIdNum = Number(miSalaId);
+    audiencias = audiencias.filter(a => {
+      const salaAudiencia = Number(a.idExpediente?.idSala?.idSala);
+      return salaAudiencia === salaIdNum;
+    });
+  }
+
   const expedientes: Expediente[] = dExp?.allExpedientes ?? [];
   const tipos: TipoAudiencia[] = dTipo?.allTiposAudiencia ?? [];
   const salas: SalaAudiencia[] = dSala?.allSalasAudiencia ?? [];
@@ -530,23 +562,17 @@ export default function AudienciasListPage() {
     }
   };
 
-  const resetBusqueda = () => {
-    setBusq("");
-    setCurrentPage(1);
-  };
-
-  // ✅ GUARDAR CON BLOQUEO
   const guardar = async () => {
     if (!form.idExpediente || !form.idTipoAudiencia || !form.fechaHoraProgramada) {
       toast.error("Expediente, tipo de audiencia y fecha son obligatorios.");
       return;
     }
-    
+
     if (saving) return;
     setSaving(true);
-    
+
     const salaId = form.idSalaAud && form.idSalaAud !== 0 ? Number(form.idSalaAud) : undefined;
-    
+
     try {
       if (editando) {
         await executeUpdate(async () => {
@@ -590,7 +616,6 @@ export default function AudienciasListPage() {
     }
   };
 
-  // ✅ ELIMINAR CON BLOQUEO
   const eliminar = async (a: Audiencia) => {
     await executeDelete(
       async () => {
@@ -610,7 +635,6 @@ export default function AudienciasListPage() {
     );
   };
 
-  // Resetear página cuando cambia la búsqueda
   const handleBusquedaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setBusq(e.target.value);
     setCurrentPage(1);
@@ -628,6 +652,12 @@ export default function AudienciasListPage() {
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Gestión de audiencias judiciales • {audiencias.length} registros
+            {soloMiSala && miSalaId && audiencias.length > 0 && (
+              <span className="ml-2 inline-flex items-center gap-1 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">
+                <DoorOpen className="w-3 h-3" />
+                Sala: {audiencias[0]?.idExpediente?.idSala?.nombreSala || "Mi sala"}
+              </span>
+            )}
           </p>
         </div>
         <button
@@ -639,7 +669,7 @@ export default function AudienciasListPage() {
         </button>
       </div>
 
-      {/* Stats - Clases fijas */}
+      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-lg dark:shadow-slate-900/30 hover:shadow-xl transition-all duration-300 group">
           <div className="flex items-center justify-between">
@@ -702,7 +732,7 @@ export default function AudienciasListPage() {
         </div>
       </div>
 
-      {/* Buscador de tabla */}
+      {/* Buscador */}
       <div className="relative max-w-md">
         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
@@ -717,7 +747,7 @@ export default function AudienciasListPage() {
       <TablaDesktop
         headers={["Expediente", "Tipo", "Fecha programada", "Sala", "Estado", "Link", "Acciones"]}
         loading={loading}
-        emptyMsg="No hay audiencias registradas"
+        emptyMsg={soloMiSala ? "No hay audiencias para tu sala" : "No hay audiencias registradas"}
         emptyIcon={<Scale className="w-12 h-12 text-gray-300 dark:text-gray-600" />}
       >
         {paginated.map(a => (
@@ -973,6 +1003,8 @@ export default function AudienciasListPage() {
           onSelect={seleccionarExpediente}
           onClose={() => setBuscadorExpAbierto(false)}
           disabled={saving}
+          soloMiSala={soloMiSala}
+          miSalaId={miSalaId}
         />
       )}
       {buscadorTipoAbierto && (
