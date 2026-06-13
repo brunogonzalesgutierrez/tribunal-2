@@ -128,7 +128,7 @@ function BuscadorSala({
                 <button
                   key={s.idSala}
                   onClick={() => {
-                    onSelect(s.idSala, `${s.nombreSala} — ${s.idTribunal?.nombreTribunal || ''}`);
+                    onSelect(Number(s.idSala), `${s.nombreSala} — ${s.idTribunal?.nombreTribunal || ''}`);
                     onClose();
                   }}
                   className="w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700"
@@ -220,7 +220,7 @@ export default function RolesPage() {
     setForm({ 
       nombre: r.nombre, 
       descripcion: r.descripcion ?? "",
-      idSala: r.salaAsignada?.idSala ?? null
+      idSala: r.salaAsignada?.idSala ? Number(r.salaAsignada.idSala) : null
     });
     setSalaSeleccionada(r.salaAsignada ? `${r.salaAsignada.nombreSala}` : "");
     setModalForm(true);
@@ -272,7 +272,11 @@ export default function RolesPage() {
           if (form.idSala) {
             input.idSala = form.idSala;
           }
-          await crearRol({ variables: input });
+          await crearRol({ variables: { 
+            nombre: form.nombre,
+            descripcion: form.descripcion,
+            idSala: form.idSala ?? undefined
+          }});;
           await refetch();
           cerrarForm();
           return true;
