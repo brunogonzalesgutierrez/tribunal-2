@@ -10,10 +10,12 @@ import pyotp
 import random
 import hashlib
 from django.core.mail import send_mail
+import os
+from email.mime.image import MIMEImage
 from django.conf import settings as django_settings
 from .models import *
 from django.utils import timezone 
-
+from django.core.mail import EmailMultiAlternatives
 # ============================================================
 # TYPES
 # ============================================================
@@ -3487,10 +3489,16 @@ class EnviarReportesPorEmail(graphene.Mutation):
 
 
 
+MESES_ES = [
+    "enero", "febrero", "marzo", "abril", "mayo", "junio",
+    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+]
 
-   
+SECRETARIO_NOMBRE = "Fátima Aguirre Avalos"
+SECRETARIO_CARGO  = "Sria. al Tribunal de 1ra Instancia"
 
-
+LOGO_UAGRM_PATH    = os.path.join(django_settings.BASE_DIR, "static", "img", "escudo_uagrm.png")
+LOGO_TRIBUNAL_PATH = os.path.join(django_settings.BASE_DIR, "static", "img", "escudo_tribunal.png")
 
 
 class ResultadoCitacionType(graphene.ObjectType):
@@ -3501,23 +3509,11 @@ class ResultadoCitacionType(graphene.ObjectType):
     sin_email     = graphene.List(graphene.String)
     destinatarios = graphene.List(graphene.String)
 
-
 class EnviarCitacionesAudiencia(graphene.Mutation):
     """
-    Envía un correo de citación personalizado a cada parte procesal
-    del expediente al que pertenece la audiencia.
-
-    Uso desde GraphQL:
-        mutation {
-          enviarCitacionesAudiencia(idAudiencia: 5) {
-            ok
-            mensaje
-            enviados
-            fallidos
-            sinEmail
-            destinatarios
-          }
-        }
+    Envía un correo de NOTIFICACIÓN y/o CITACIÓN con el formato oficial
+    del Tribunal de Justicia Universitaria (U.A.G.R.M.) a cada parte
+    procesal activa del expediente al que pertenece la audiencia.
     """
     class Arguments:
         id_audiencia = graphene.Int(required=True)
@@ -3543,22 +3539,21 @@ class EnviarCitacionesAudiencia(graphene.Mutation):
         expediente   = audiencia.id_expediente
         tipo_aud     = audiencia.id_tipo_audiencia.nombre if audiencia.id_tipo_audiencia else "Audiencia"
         sala_nombre  = audiencia.id_sala_aud.nombre_sala if audiencia.id_sala_aud else "Por confirmar"
-        tribunal     = expediente.id_sala.id_tribunal.nombre_tribunal if expediente.id_sala else "Tribunal"
+        tribunal     = expediente.id_sala.id_tribunal.nombre_tribunal if expediente.id_sala else "Tribunal de Justicia Universitaria"
         link         = audiencia.link_videoconferencia or ""
 
-        # Formatear fecha
+        # Fecha/hora de la audiencia citada
         from django.utils.timezone import localtime
-        fecha_local  = localtime(audiencia.fecha_hora_programada)
-        import locale
-        try:
-            locale.setlocale(locale.LC_TIME, 'es_BO.UTF-8')
-        except:
-            try:
-                locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')
-            except:
-                pass
-        fecha_str = fecha_local.strftime("%d de %B de %Y")
+        fecha_local = localtime(audiencia.fecha_hora_programada)
+        fecha_str = f"{fecha_local.day} de {MESES_ES[fecha_local.month - 1]} de {fecha_local.year}"
         hora_str  = fecha_local.strftime("%H:%M")
+
+        # Fecha/hora de la notificación (ahora) -> formato del documento físico
+        ahora_local = localtime(timezone.now())
+        hora_notif  = ahora_local.strftime("%H:%M")
+        dia_notif   = ahora_local.day
+        mes_notif   = MESES_ES[ahora_local.month - 1]
+        anio_notif  = ahora_local.year
 
         # 2. Obtener partes activas del expediente
         partes = ParteProcesal.objects.filter(
@@ -3573,6 +3568,18 @@ class EnviarCitacionesAudiencia(graphene.Mutation):
                 enviados=0, fallidos=0, sin_email=[], destinatarios=[],
             )
 
+        # 3. Cargar los escudos institucionales una sola vez
+        logo_uagrm_bytes = None
+        logo_tribunal_bytes = None
+        try:
+            with open(LOGO_UAGRM_PATH, "rb") as f:
+                logo_uagrm_bytes = f.read()
+            with open(LOGO_TRIBUNAL_PATH, "rb") as f:
+                logo_tribunal_bytes = f.read()
+        except (FileNotFoundError, OSError):
+            # Si no se encuentran los archivos, el correo se envía sin escudos
+            pass
+
         enviados      = 0
         fallidos      = 0
         sin_email     = []
@@ -3586,7 +3593,7 @@ class EnviarCitacionesAudiencia(graphene.Mutation):
             if persona.segundo_apellido:
                 nombre_completo += f" {persona.segundo_apellido}"
 
-            # 3. Buscar email principal; si no hay, cualquier EMAIL
+            # Buscar email principal; si no hay, cualquier EMAIL
             contacto = (
                 ContactoPersona.objects.filter(
                     id_persona=persona,
@@ -3606,203 +3613,205 @@ class EnviarCitacionesAudiencia(graphene.Mutation):
 
             email_destino = contacto.valor.strip()
 
-            # 4. Construir el cuerpo del correo
-            link_seccion = ""
+            # ── Item "Con lo siguiente" ─────────────────────────────────
+            item_audiencia = (
+                f"{tipo_aud} correspondiente al Expediente N° "
+                f"{expediente.numero_expediente}/{expediente.ano}, "
+                f"programada para el {fecha_str} a las {hora_str} hrs., "
+                f"en la {sala_nombre} del {tribunal}."
+            )
+
+            item_link_html  = ""
+            item_link_texto = ""
             if link:
-                link_seccion = f"\n  Enlace de videoconferencia: {link}\n"
+                item_link_html = (
+                    f'<p style="margin:6px 0 0;font-weight:bold;">2.- Enlace de '
+                    f'videoconferencia: <a href="{link}" style="color:#1d4ed8;">{link}</a></p>'
+                )
+                item_link_texto = f"\n2.- Enlace de videoconferencia: {link}"
 
-            cuerpo = f"""Estimado/a {nombre_completo},
+            # ── Asunto ───────────────────────────────────────────────────
+            asunto = (
+                f"NOTIFICACIÓN Y/O CITACIÓN — Exp. {expediente.numero_expediente}/"
+                f"{expediente.ano} — {tipo_aud}"
+            )
 
-Por medio del presente, el {tribunal} le cita formalmente a comparecer a la siguiente audiencia:
+            # ── Versión texto plano ─────────────────────────────────────
+            cuerpo = f"""TRIBUNAL DE JUSTICIA UNIVERSITARIA DE PRIMERA INSTANCIA
+UNIVERSIDAD AUTÓNOMA "GABRIEL RENÉ MORENO"
 
-  Expediente N°  : {expediente.numero_expediente} ({expediente.ano})
-  Tipo de audiencia: {tipo_aud}
-  Fecha          : {fecha_str}
-  Hora           : {hora_str} hrs.
-  Sala           : {sala_nombre}{link_seccion}
+NOTIFICACIÓN y/o CITACIÓN
 
-Su participación en calidad de: {rol}
+Expediente Nro. {expediente.numero_expediente}/{expediente.ano}
 
-Se le recuerda que la inasistencia sin justificación puede tener consecuencias procesales conforme a la normativa vigente.
+En la ciudad de Santa Cruz a horas {hora_notif} del día {dia_notif} del mes de {mes_notif} del año {anio_notif}.
 
-Este mensaje fue generado automáticamente por el Sistema de Gestión Judicial.
-Por favor no responda a este correo electrónico.
+Notifiqué y/o Cité a:
+{nombre_completo} — en calidad de {rol}.
 
-Atentamente,
-{tribunal}
-Sistema de Gestión Judicial
+Lugar:
+Notificación electrónica enviada al correo {email_destino}.
+
+Con lo siguiente:
+1.- {item_audiencia}{item_link_texto}
+
+Quien informado de su tenor se dio por: NOTIFICADO(A)
+
+Recibiendo copia de ley y dándose por notificado(a) mediante la presente comunicación electrónica.
+
+Certifico. -
+
+Abg. {SECRETARIO_NOMBRE}
+{SECRETARIO_CARGO}
+Tribunal de Justicia Universitaria
+U.A.G.R.M.
+
+Este mensaje fue generado automáticamente por el Sistema de Gestión Judicial. Por favor no responda a este correo electrónico.
 """
 
-            asunto = (
-                f"CITACIÓN — {tipo_aud} · Exp. {expediente.numero_expediente} · "
-                f"{fecha_str} {hora_str} hrs."
-            )
+            # ── Versión HTML (formato del documento oficial) ────────────
+            html_cuerpo = f"""
+            <!DOCTYPE html>
+            <html lang="es">
+            <head><meta charset="UTF-8"></head>
+            <body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 0;">
+              <tr><td align="center">
+              <table width="650" cellpadding="0" cellspacing="0"
+                     style="background:#ffffff;border:1px solid #d1d5db;border-radius:4px;">
+                <tr><td style="padding:32px 40px;">
+
+                  <!-- Encabezado con escudos -->
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td width="90" style="vertical-align:middle;">
+                        {f'<img src="cid:logo_uagrm" width="80" height="80" style="display:block;" alt="UAGRM"/>' if logo_uagrm_bytes else ''}
+                      </td>
+                      <td style="text-align:center;vertical-align:middle;padding:0 8px;">
+                        <p style="margin:0;font-size:13px;font-weight:bold;color:#111827;line-height:1.45;">
+                          UNIVERSIDAD AUTÓNOMA "GABRIEL RENÉ MORENO"<br/>
+                          TRIBUNAL DE JUSTICIA UNIVERSITARIA<br/>
+                          DE PRIMERA INSTANCIA
+                        </p>
+                      </td>
+                      <td width="90" style="vertical-align:middle;text-align:right;">
+                        {f'<img src="cid:logo_tribunal" width="75" height="80" style="display:block;margin-left:auto;" alt="Tribunal de Justicia Universitaria"/>' if logo_tribunal_bytes else ''}
+                      </td>
+                    </tr>
+                  </table>
+
+                  <!-- Título -->
+                  <p style="margin:26px 0 0;text-align:center;font-size:15px;font-weight:bold;
+                            color:#111827;letter-spacing:0.5px;">
+                    NOTIFICACIÓN y/o CITACIÓN
+                  </p>
+
+                  <!-- Cuerpo -->
+                  <div style="margin-top:24px;font-size:13.5px;color:#1f2937;line-height:1.9;">
+
+                    <p style="margin:0 0 14px;">
+                      Expediente Nro. <strong>{expediente.numero_expediente}/{expediente.ano}</strong>
+                    </p>
+
+                    <p style="margin:0 0 14px;">
+                      En la ciudad de Santa Cruz a horas <strong>{hora_notif}</strong> del día
+                      <strong>{dia_notif}</strong> del mes de <strong>{mes_notif}</strong> del año
+                      <strong>{anio_notif}</strong>.
+                    </p>
+
+                    <p style="margin:0 0 4px;"><strong>Notifiqué y/o Cité a:</strong></p>
+                    <p style="margin:0 0 14px;">{nombre_completo} — en calidad de <strong>{rol}</strong>.</p>
+
+                    <p style="margin:0 0 4px;"><strong>Lugar:</strong></p>
+                    <p style="margin:0 0 14px;">
+                      Notificación electrónica enviada al correo <strong>{email_destino}</strong>.
+                    </p>
+
+                    <p style="margin:0 0 4px;">Con lo siguiente:</p>
+                    <p style="margin:0;font-weight:bold;">1.- {item_audiencia}</p>
+                    {item_link_html}
+
+                    <p style="margin:18px 0 4px;font-weight:bold;">
+                      Quien informado de su tenor se dio por: NOTIFICADO(A)
+                    </p>
+
+                    <p style="margin:0 0 14px;">
+                      Recibiendo copia de ley y dándose por notificado(a) mediante la presente
+                      comunicación electrónica.
+                    </p>
+
+                    <p style="margin:0 0 26px;">Certifico. -</p>
+
+                    <p style="margin:0;font-size:13px;color:#1f2937;line-height:1.6;">
+                      <strong>Abg. {SECRETARIO_NOMBRE}</strong><br/>
+                      {SECRETARIO_CARGO}<br/>
+                      Tribunal de Justicia Universitaria<br/>
+                      U.A.G.R.M.
+                    </p>
+                  </div>
+
+                  <!-- Pie -->
+                  <p style="margin:28px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;
+                            font-size:11px;color:#9ca3af;">
+                    Este mensaje fue generado automáticamente por el Sistema de Gestión Judicial.
+                    Por favor no responda a este correo electrónico.
+                  </p>
+
+                </td></tr>
+              </table>
+              </td></tr>
+            </table>
+            </body>
+            </html>
+            """
 
             # 5. Enviar
             try:
-                html_cuerpo = f"""
-                <!DOCTYPE html>
-                <html lang="es">
-                <head><meta charset="UTF-8"></head>
-                <body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,sans-serif;">
-                <table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 0;">
-                    <tr><td align="center">
-                    <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+                if logo_uagrm_bytes or logo_tribunal_bytes:
+                    from email.mime.multipart import MIMEMultipart
+                    from email.mime.text import MIMEText
+                    import smtplib
+                    from django.conf import settings as s
 
-                        <!-- Franja superior -->
-                        <tr>
-                        <td style="background:#1a37db;padding:28px 40px;">
-                            <p style="margin:0;color:#ffffff;font-size:11px;letter-spacing:2px;text-transform:uppercase;">Estado Plurinacional de Bolivia</p>
-                            <h1 style="margin:6px 0 0;color:#ffffff;font-size:20px;font-weight:700;">{tribunal}</h1>
-                            <p style="margin:4px 0 0;color:#bfcfff;font-size:12px;">Sistema de Gestión Judicial</p>
-                        </td>
-                        </tr>
+                    outer = MIMEMultipart("related")
+                    outer["Subject"] = asunto
+                    outer["From"] = django_settings.DEFAULT_FROM_EMAIL
+                    outer["To"] = email_destino
 
-                        <!-- Etiqueta CITACIÓN JUDICIAL -->
-                        <tr>
-                        <td style="background:#1e40af;padding:10px 40px;">
-                            <p style="margin:0;color:#ffffff;font-size:13px;font-weight:700;letter-spacing:1px;">⚖ CITACIÓN JUDICIAL</p>
-                        </td>
-                        </tr>
+                    alt = MIMEMultipart("alternative")
+                    outer.attach(alt)
+                    alt.attach(MIMEText(cuerpo, "plain", "utf-8"))
+                    alt.attach(MIMEText(html_cuerpo, "html", "utf-8"))
 
-                        <!-- Saludo -->
-                        <tr>
-                        <td style="padding:32px 40px 16px;">
-                            <p style="margin:0;color:#374151;font-size:15px;">Estimado/a <strong>{nombre_completo}</strong>,</p>
-                            <p style="margin:12px 0 0;color:#6b7280;font-size:14px;line-height:1.6;">
-                            Por medio del presente, el <strong>{tribunal}</strong> le cita formalmente
-                            a comparecer a la siguiente audiencia judicial:
-                            </p>
-                        </td>
-                        </tr>
+                    if logo_uagrm_bytes:
+                        img1 = MIMEImage(logo_uagrm_bytes)
+                        img1.add_header("Content-ID", "<logo_uagrm>")
+                        img1.add_header("Content-Disposition", "inline", filename="escudo_uagrm.png")
+                        outer.attach(img1)
+                    if logo_tribunal_bytes:
+                        img2 = MIMEImage(logo_tribunal_bytes)
+                        img2.add_header("Content-ID", "<logo_tribunal>")
+                        img2.add_header("Content-Disposition", "inline", filename="escudo_tribunal.png")
+                        outer.attach(img2)
 
-                        <!-- Tabla de datos -->
-                        <tr>
-                        <td style="padding:0 40px 24px;">
-                            <table width="100%" cellpadding="0" cellspacing="0"
-                                style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
-                            <tr style="background:#f9fafb;">
-                                <td style="padding:10px 16px;font-size:11px;color:#6b7280;font-weight:700;
-                                        letter-spacing:1px;text-transform:uppercase;width:40%;
-                                        border-bottom:1px solid #e5e7eb;">
-                                Expediente N°
-                                </td>
-                                <td style="padding:10px 16px;font-size:14px;color:#111827;font-weight:700;
-                                        border-bottom:1px solid #e5e7eb;">
-                                {expediente.numero_expediente} &nbsp;·&nbsp; {expediente.ano}
-                                </td>
-                            </tr>
-                            <tr>
-                                <td style="padding:10px 16px;font-size:11px;color:#6b7280;font-weight:700;
-                                        letter-spacing:1px;text-transform:uppercase;
-                                        border-bottom:1px solid #e5e7eb;background:#f9fafb;">
-                                Tipo de audiencia
-                                </td>
-                                <td style="padding:10px 16px;font-size:14px;color:#111827;
-                                        border-bottom:1px solid #e5e7eb;">
-                                {tipo_aud}
-                                </td>
-                            </tr>
-                            <tr style="background:#f9fafb;">
-                                <td style="padding:10px 16px;font-size:11px;color:#6b7280;font-weight:700;
-                                        letter-spacing:1px;text-transform:uppercase;
-                                        border-bottom:1px solid #e5e7eb;">
-                                Fecha
-                                </td>
-                                <td style="padding:10px 16px;font-size:14px;color:#111827;font-weight:600;
-                                        border-bottom:1px solid #e5e7eb;">
-                                {fecha_str}
-                                </td>
-                            </tr>
-                            <tr>
-                                <td style="padding:10px 16px;font-size:11px;color:#6b7280;font-weight:700;
-                                        letter-spacing:1px;text-transform:uppercase;
-                                        border-bottom:1px solid #e5e7eb;background:#f9fafb;">
-                                Hora
-                                </td>
-                                <td style="padding:10px 16px;font-size:14px;color:#111827;font-weight:600;
-                                        border-bottom:1px solid #e5e7eb;">
-                                {hora_str} hrs.
-                                </td>
-                            </tr>
-                            <tr style="background:#f9fafb;">
-                                <td style="padding:10px 16px;font-size:11px;color:#6b7280;font-weight:700;
-                                        letter-spacing:1px;text-transform:uppercase;">
-                                Sala
-                                </td>
-                                <td style="padding:10px 16px;font-size:14px;color:#111827;">
-                                {sala_nombre}
-                                </td>
-                            </tr>
-                            </table>
-                        </td>
-                        </tr>
-
-                        <!-- Rol -->
-                        <tr>
-                        <td style="padding:0 40px 24px;">
-                            <table width="100%" cellpadding="0" cellspacing="0"
-                                style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;">
-                            <tr>
-                                <td style="padding:14px 20px;">
-                                <p style="margin:0;font-size:12px;color:#1d4ed8;font-weight:700;
-                                            text-transform:uppercase;letter-spacing:1px;">
-                                    Su participación en calidad de:
-                                </p>
-                                <p style="margin:4px 0 0;font-size:16px;color:#1e3a8a;font-weight:700;">
-                                    {rol}
-                                </p>
-                                </td>
-                            </tr>
-                            </table>
-                        </td>
-                        </tr>
-
-                        {'<!-- Link videoconferencia --><tr><td style="padding:0 40px 24px;"><table width="100%" cellpadding="0" cellspacing="0" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;"><tr><td style="padding:14px 20px;"><p style="margin:0;font-size:12px;color:#15803d;font-weight:700;text-transform:uppercase;letter-spacing:1px;">🎥 Enlace de videoconferencia</p><a href="' + link + '" style="display:inline-block;margin-top:6px;color:#16a34a;font-size:14px;word-break:break-all;">' + link + '</a></td></tr></table></td></tr>' if link else ''}
-
-                        <!-- Advertencia -->
-                        <tr>
-                        <td style="padding:0 40px 32px;">
-                            <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.6;
-                                    border-top:1px solid #e5e7eb;padding-top:20px;">
-                            ⚠ Se le recuerda que la inasistencia sin justificación puede tener
-                            consecuencias procesales conforme a la normativa vigente.
-                            </p>
-                            <p style="margin:16px 0 0;font-size:12px;color:#9ca3af;">
-                            Este mensaje fue generado automáticamente por el Sistema de Gestión Judicial.
-                            Por favor no responda a este correo electrónico.
-                            </p>
-                        </td>
-                        </tr>
-
-                        <!-- Pie -->
-                        <tr>
-                        <td style="background:#1a37db;padding:20px 40px;text-align:center;">
-                            <p style="margin:0;color:#bfcfff;font-size:12px;">
-                            {tribunal} &nbsp;·&nbsp; Sistema de Gestión Judicial
-                            </p>
-                        </td>
-                        </tr>
-
-                    </table>
-                    </td></tr>
-                </table>
-                </body>
-                </html>
-                """
-
-                from django.core.mail import EmailMultiAlternatives
-                msg = EmailMultiAlternatives(
-                    subject=asunto,
-                    body=cuerpo,        # versión texto plano (fallback)
-                    from_email=django_settings.DEFAULT_FROM_EMAIL,
-                    to=[email_destino],
-                )
-                msg.attach_alternative(html_cuerpo, "text/html")
-                msg.send(fail_silently=False)
+                    with smtplib.SMTP(s.EMAIL_HOST, s.EMAIL_PORT) as srv:
+                        srv.ehlo()
+                        srv.starttls()
+                        srv.login(s.EMAIL_HOST_USER, s.EMAIL_HOST_PASSWORD)
+                        srv.sendmail(s.EMAIL_HOST_USER, [email_destino], outer.as_string())
+                else:
+                    msg = EmailMultiAlternatives(
+                        subject=asunto,
+                        body=cuerpo,
+                        from_email=django_settings.DEFAULT_FROM_EMAIL,
+                        to=[email_destino],
+                    )
+                    msg.attach_alternative(html_cuerpo, "text/html")
+                    msg.send(fail_silently=False)
                 enviados += 1
                 destinatarios.append(f"{nombre_completo} <{email_destino}>")
             except Exception as e:
+                print(f"ERROR ENVIANDO EMAIL: {e}")
                 fallidos += 1
 
         # 6. Resultado
@@ -3814,7 +3823,7 @@ Sistema de Gestión Judicial
                 sin_email=sin_email, destinatarios=[],
             )
 
-        mensaje = f"Citaciones enviadas: {enviados}."
+        mensaje = f"Notificaciones/Citaciones enviadas: {enviados}."
         if fallidos:
             mensaje += f" Fallidos: {fallidos}."
         if sin_email:
@@ -3828,8 +3837,6 @@ Sistema de Gestión Judicial
             sin_email=sin_email,
             destinatarios=destinatarios,
         )
-
-
 
 
 class RegistroAsistenciaInput(graphene.InputObjectType):

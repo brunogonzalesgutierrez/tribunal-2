@@ -6,10 +6,34 @@ DROP DATABASE tribunal_db;
 CREATE DATABASE tribunal_db;
 
 
+
+cd tribunal_backend
+
+venv\Scripts\activate
+
 python manage.py migrate
 
 
-python poblar_db.py
+python manage.py runserver
+
+
+cd tribunal_backend
+
+venv\Scripts\activate
+
+
+python poblar.py
 
 
 admin        → Admin123!
+
+
+
+
+terminal 1:
+
+cd tribunal_backend
+
+venv\Scripts\activate
+
+python manage.py runserver
