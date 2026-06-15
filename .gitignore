@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 .env
 048-2018.pdf
+iniciar.bat
+poblar.bat
+reiniciar.bat
