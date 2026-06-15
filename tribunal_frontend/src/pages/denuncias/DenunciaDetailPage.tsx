@@ -19,7 +19,7 @@ import {
   Edit, Eye, FileText, Send, User, X, Scale,
   Sparkles, FolderOpen, Users, Plus, Loader2, AlertTriangle,
   Gavel, FileCheck, ClipboardList, MessageSquare, Building2,
-  GitBranch, History,
+  GitBranch, History, XCircle,
 } from "lucide-react";
 
 // ─── HELPERS ─────────────────────────────────────────────
@@ -34,6 +34,13 @@ const ESTADOS = [
   { value: "APELADA", label: "Apelada", etapa: 8, color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400", icon: Send },
   { value: "EJECUTADA", label: "Ejecutada", etapa: 9, color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400", icon: FileCheck },
 ];
+
+
+const ESTADO_ARCHIVADA = {
+  value: "ARCHIVADA", label: "Archivada", etapa: 0,
+  color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+  icon: XCircle,
+};
 
 const TIPOS_DENUNCIADO = [
   { value: "ESTUDIANTE", label: "Estudiante", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
@@ -77,6 +84,7 @@ export default function DenunciaDetailPage() {
   const denuncia = data?.denunciaById;
 
   const getEstadoInfo = (estado: string) => {
+    if (estado === "ARCHIVADA") return ESTADO_ARCHIVADA;
     return ESTADOS.find(e => e.value === estado) || ESTADOS[0];
   };
 
@@ -327,6 +335,17 @@ export default function DenunciaDetailPage() {
                   </p>
                 </div>
               )}
+
+              {denuncia.estado === "ARCHIVADA" && (
+                <div className="bg-red-50 dark:bg-red-900/20 rounded-2xl border border-red-200 dark:border-red-800 p-6 text-center">
+                  <XCircle className="w-12 h-12 mx-auto text-red-500 mb-3" />
+                  <h3 className="text-lg font-semibold text-red-700 dark:text-red-400">Denuncia Archivada</h3>
+                  <p className="text-sm text-red-600 dark:text-red-300 mt-1">
+                    Esta denuncia fue rechazada o archivada y no continuará su tramitación.
+                  </p>
+                </div>
+              )}
+
             </div>
           )}
 

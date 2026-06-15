@@ -49,9 +49,14 @@ const initialForm = {
 
 const ESTADOS = [
   { value: "REGISTRADA", label: "Registrada", color: "bg-gray-100 text-gray-700" },
-  { value: "EN_TRAMITE", label: "En Trámite", color: "bg-blue-100 text-blue-700" },
+  { value: "SUBSANACION", label: "Subsanación", color: "bg-amber-100 text-amber-700" },
+  { value: "ADMITIDA", label: "Admitida", color: "bg-blue-100 text-blue-700" },
+  { value: "DECLARACION_INFORMATIVA", label: "Declaración Informativa", color: "bg-indigo-100 text-indigo-700" },
+  { value: "PRUEBAS", label: "Período Probatorio", color: "bg-purple-100 text-purple-700" },
+  { value: "CONCLUSION", label: "Conclusión", color: "bg-slate-100 text-slate-700" },
   { value: "RESUELTA", label: "Resuelta", color: "bg-emerald-100 text-emerald-700" },
-  { value: "APELADA", label: "Apelada", color: "bg-amber-100 text-amber-700" },
+  { value: "APELADA", label: "Apelada", color: "bg-orange-100 text-orange-700" },
+  { value: "EJECUTADA", label: "Ejecutada", color: "bg-green-100 text-green-700" },
   { value: "ARCHIVADA", label: "Archivada", color: "bg-red-100 text-red-700" },
 ];
 
@@ -271,7 +276,7 @@ export default function DenunciasPage() {
   const paginatedDenuncias = denunciasFiltradas.slice(startIndex, startIndex + itemsPerPage);
 
   const totalDenuncias = denuncias.length;
-  const enTramite = denuncias.filter(d => d.estado === "EN_TRAMITE" || d.estado === "REGISTRADA").length;
+  const enTramite = denuncias.filter(d => !["EJECUTADA", "ARCHIVADA"].includes(d.estado)).length;
   const resueltas = denuncias.filter(d => d.estado === "RESUELTA").length;
 
   const f = (field: string) => (v: string) => setForm(prev => ({ ...prev, [field]: v }));

@@ -16,6 +16,17 @@ from django.conf import settings as django_settings
 from .models import *
 from django.utils import timezone 
 from django.core.mail import EmailMultiAlternatives
+
+import io
+from django.core.mail import EmailMessage
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+)
+
 # ============================================================
 # TYPES
 # ============================================================
@@ -2019,8 +2030,8 @@ class ActualizarRecurso(graphene.Mutation):
                 
                 # Obtener o crear estado inicial
                 estado_inicial, _ = EstadoExpediente.objects.get_or_create(
-                    nombre_estado="EN TRÁMITE",
-                    defaults={'es_terminal': False}
+                    nombre_estado="Denuncia Presentada",
+                    defaults={'es_terminal': False, 'nivel': 1}
                 )
                 
                 # ✅ CREAR EXPEDIENTE ALZADA (sin imports adicionales)
@@ -2879,15 +2890,6 @@ class RegenerarQr(graphene.Mutation):
         )
 
 
-import io
-from django.core.mail import EmailMessage
-from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
-from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
-)
 
 
 # ────────────────────────────────────────────────────────────
@@ -3019,7 +3021,8 @@ def generar_pdf_reporte(anio: int, destinatario_rol: str, mes: int = None, fecha
     # ══════════════════════════════════════════════════════
     # SECCIÓN 2 — EXPEDIENTES (Administrador + Secretario)
     # ══════════════════════════════════════════════════════
-    if destinatario_rol in ("Administrador", "Secretario"):
+    if "Administrador" in destinatario_rol or "Secretario" in destinatario_rol:
+    
         story.append(Paragraph("2. Expedientes por Tipo de Proceso", seccion_style))
 
         exp_tipo = list(
@@ -3063,7 +3066,7 @@ def generar_pdf_reporte(anio: int, destinatario_rol: str, mes: int = None, fecha
     # ══════════════════════════════════════════════════════
     # SECCIÓN 3 — CARGA POR SALA (Administrador)
     # ══════════════════════════════════════════════════════
-    if destinatario_rol == "Administrador":
+    if "Administrador" in destinatario_rol:
         story.append(Paragraph("3. Carga por Sala", seccion_style))
 
         salas = SalaTribunal.objects.select_related("id_tribunal").filter(activa=True)
@@ -3087,7 +3090,7 @@ def generar_pdf_reporte(anio: int, destinatario_rol: str, mes: int = None, fecha
     # ══════════════════════════════════════════════════════
     # SECCIÓN 4 — ACTIVIDAD USUARIOS (Administrador)
     # ══════════════════════════════════════════════════════
-    if destinatario_rol == "Administrador":
+    if "Administrador" in destinatario_rol:
         story.append(Paragraph("4. Actividad por Usuario", seccion_style))
 
         usuarios = Usuario.objects.filter(activo=True).select_related("rol")
@@ -3143,7 +3146,7 @@ Resumen del reporte:
   • Cargo: {usuario.cargo_oficial or 'No especificado'}
   • Período: {periodo}
 
-El documento PDF adjunto contiene las estadísticas de audiencias{', expedientes' if rol_nombre in ('Administrador','Secretario') else ''}{' y actividad de usuarios' if rol_nombre == 'Administrador' else ''} del período indicado.
+El documento PDF adjunto contiene las estadísticas de audiencias{', expedientes' if 'Administrador' in rol_nombre or 'Secretario' in rol_nombre else ''}{' y actividad de usuarios' if 'Administrador' in rol_nombre else ''} del período indicado.
 
 Este mensaje fue generado automáticamente. Por favor no responda a este correo.
 
@@ -3381,7 +3384,11 @@ class EnviarReportesPorEmail(graphene.Mutation):
     Output = EnvioReporteResultType
 
     def mutate(self, info, anio, roles=None, usuario_ids=None, mes=None, fecha_inicio=None, fecha_fin=None):
-        ROLES_VALIDOS = {"Administrador", "Vocal", "Secretario"}
+        ROLES_VALIDOS = {
+            "Administrador", "AdminSala1", "AdminSala2",
+            "SecretarioSala1", "SecretarioSala2",
+            "VocalSala1", "VocalSala2",
+        }
         MESES_NOMBRES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
         if fecha_inicio and fecha_fin:
             periodo_label = f"{fecha_inicio} al {fecha_fin}"
@@ -3947,6 +3954,10 @@ class ActualizarDenuncia(graphene.Mutation):
         if input.get('fecha_resolucion'):
             from datetime import datetime
             denuncia.fecha_resolucion = datetime.strptime(input.fecha_resolucion, '%Y-%m-%d').date()
+        if input.get('descripcion'):
+            denuncia.descripcion = input.descripcion
+        if input.get('tipo_denunciado'):
+            denuncia.tipo_denunciado = input.tipo_denunciado
         
         denuncia.save()
         return ActualizarDenuncia(denuncia=denuncia)
