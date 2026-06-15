@@ -17,9 +17,13 @@ git pull
 
 
 
+borrar u commit
+
+git reset HEAD~1
 
 
 
+git rm -r --cached .gitignore
 
 conectar cuenta
 

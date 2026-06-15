@@ -451,9 +451,10 @@ class CrearDenunciaInput(graphene.InputObjectType):
 class ActualizarDenunciaInput(graphene.InputObjectType):
     estado = graphene.String()
     resolucion = graphene.String()
-    fecha_resolucion = graphene.String() 
-    tipo_denunciado = graphene.String()   
-    descripcion = graphene.String()       
+    fecha_resolucion = graphene.String()
+    tipo_denunciado = graphene.String()
+    descripcion = graphene.String()
+    tipo_resolucion = graphene.String()   # ← AGREGAR ESTA LÍNEA
 
 # DESPUÉS
 class CrearResolucionAntiguaInput(graphene.InputObjectType):
@@ -3958,6 +3959,8 @@ class ActualizarDenuncia(graphene.Mutation):
             denuncia.descripcion = input.descripcion
         if input.get('tipo_denunciado'):
             denuncia.tipo_denunciado = input.tipo_denunciado
+        if input.get('tipo_resolucion'):          # ← AGREGAR ESTE BLOQUE
+            denuncia.tipo_resolucion = input.tipo_resolucion
         
         denuncia.save()
         return ActualizarDenuncia(denuncia=denuncia)

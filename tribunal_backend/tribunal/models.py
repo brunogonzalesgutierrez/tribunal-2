@@ -555,6 +555,13 @@ class Denuncia(models.Model):
     estado = models.CharField(max_length=30, choices=ESTADOS, default='REGISTRADA')
     resolucion = models.TextField(blank=True, null=True, help_text="Resolución del caso")
     fecha_resolucion = models.DateField(blank=True, null=True)
+    tipo_resolucion = models.CharField(
+        max_length=20,
+        choices=[('SANCIONATORIA', 'Sancionatoria'), ('ABSOLUTORIA', 'Absolutoria')],
+        blank=True,
+        null=True,
+        help_text="Tipo de resolución final"
+    )
     expediente = models.ForeignKey('Expediente', on_delete=models.SET_NULL, null=True, blank=True, related_name='denuncias')
     
     class Meta:

@@ -97,6 +97,7 @@ export default function DenunciaDetailPage() {
         if (datosAdicionales.resolucion) input.resolucion = datosAdicionales.resolucion;
         if (datosAdicionales.fechaResolucion) input.fechaResolucion = datosAdicionales.fechaResolucion;
         if (datosAdicionales.descripcion) input.descripcion = datosAdicionales.descripcion;
+        if (datosAdicionales.tipoResolucion) input.tipoResolucion = datosAdicionales.tipoResolucion;  // ← AGREGAR
       }
       await actualizarDenuncia({
         variables: { id: Number(id), input },
@@ -244,12 +245,25 @@ export default function DenunciaDetailPage() {
                     <Scale className="w-4 h-4 text-purple-500" />
                     Resolución
                   </h3>
+                  {/* ← AGREGAR ESTE BLOQUE */}
+                  {denuncia.tipoResolucion && (
+                    <span className={`inline-flex mb-3 text-xs px-2.5 py-1 rounded-full font-medium ${
+                      denuncia.tipoResolucion === "SANCIONATORIA"
+                        ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                        : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                    }`}>
+                      {denuncia.tipoResolucion === "SANCIONATORIA" ? "Sancionatoria" : "Absolutoria"}
+                    </span>
+                  )}
+                  {/* FIN BLOQUE NUEVO */}
                   <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{denuncia.resolucion}</p>
                   {denuncia.fechaResolucion && (
                     <p className="text-xs text-gray-400 mt-2">Fecha: {fmtFecha(denuncia.fechaResolucion)}</p>
                   )}
                 </div>
               )}
+
+              {/* dsa */}
             </div>
           )}
 
@@ -303,7 +317,7 @@ export default function DenunciaDetailPage() {
                 <EtapaResolucion
                   denuncia={denuncia}
                   onEmitirResolucion={(resolucion, fecha, tipo) => 
-                    avanzarEtapa("RESUELTA", { resolucion, fechaResolucion: fecha })
+                    avanzarEtapa("RESUELTA", { resolucion, fechaResolucion: fecha, tipoResolucion: tipo })
                   }
                   saving={saving}
                 />
@@ -321,7 +335,7 @@ export default function DenunciaDetailPage() {
               {denuncia.estado === "APELADA" && (
                 <EtapaApelacion
                   denuncia={denuncia}
-                  onResolverApelacion={(resolucion) => avanzarEtapa("RESUELTA", { resolucion })}
+                  onResolverApelacion={(resolucion) => avanzarEtapa("EJECUTADA", { resolucion })}
                   saving={saving}
                 />
               )}

@@ -11,27 +11,15 @@ export const GET_DENUNCIAS = gql`
       id
       numeroDenuncia
       fechaDenuncia
-      denunciante {
-        idPersona
-        nombre
-        primerApellido
-        numeroDocumento
-      }
-      denunciado {
-        idPersona
-        nombre
-        primerApellido
-        numeroDocumento
-      }
+      denunciante { idPersona nombre primerApellido numeroDocumento }
+      denunciado  { idPersona nombre primerApellido numeroDocumento }
       tipoDenunciado
       descripcion
       estado
       resolucion
       fechaResolucion
-      expediente {
-        idExpediente
-        numeroExpediente
-      }
+      tipoResolucion
+      expediente { idExpediente numeroExpediente }
     }
   }
 `;
@@ -42,27 +30,15 @@ export const GET_DENUNCIA_BY_ID = gql`
       id
       numeroDenuncia
       fechaDenuncia
-      denunciante {
-        idPersona
-        nombre
-        primerApellido
-        numeroDocumento
-      }
-      denunciado {
-        idPersona
-        nombre
-        primerApellido
-        numeroDocumento
-      }
+      denunciante { idPersona nombre primerApellido numeroDocumento }
+      denunciado  { idPersona nombre primerApellido numeroDocumento }
       tipoDenunciado
       descripcion
       estado
       resolucion
       fechaResolucion
-      expediente {
-        idExpediente
-        numeroExpediente
-      }
+      tipoResolucion
+      expediente { idExpediente numeroExpediente }
     }
   }
 `;
@@ -101,6 +77,7 @@ export const ACTUALIZAR_DENUNCIA = gql`
         estado
         resolucion
         fechaResolucion
+        tipoResolucion
       }
     }
   }
@@ -130,3 +107,4 @@ export const GET_PERSONAS = gql`
     }
   }
 `;
+

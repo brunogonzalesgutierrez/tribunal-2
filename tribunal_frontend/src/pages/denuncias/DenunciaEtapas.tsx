@@ -19,6 +19,7 @@ interface Denuncia {
   tipoDenunciado?: string;
   resolucion?: string;
   fechaResolucion?: string;
+  tipoResolucion?: string;   // ← AGREGAR
   expediente?: { idExpediente: number; numeroExpediente: string };
 }
 
