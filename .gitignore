@@ -1,8 +1,0 @@
-__pycache__/
-*.pyc
-.env
-.gitignore
-048-2018.pdf
-iniciar.bat
-poblar.bat
-reiniciar.bat
