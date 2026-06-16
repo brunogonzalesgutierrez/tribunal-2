@@ -130,8 +130,8 @@ estados_data = [
     {"nombre_estado": "Clausura Probatoria",        "es_terminal": False, "nivel": 5},
     {"nombre_estado": "Para Resolución Final",      "es_terminal": False, "nivel": 6},
     {"nombre_estado": "Resuelto Primera Instancia", "es_terminal": False, "nivel": 7},
-    {"nombre_estado": "En Apelación",               "es_terminal": False, "nivel": 8},
-    {"nombre_estado": "Resuelto Segunda Instancia", "es_terminal": False, "nivel": 9},
+    {"nombre_estado": "Remitido en Apelación",  "es_terminal": False, "nivel": 8},
+    {"nombre_estado": "Fallo de Segunda Instancia Recibido", "es_terminal": False, "nivel": 9},
 
     # Nivel 10 — terminales
     {"nombre_estado": "Ejecutoriado",               "es_terminal": True,  "nivel": 10},
@@ -169,9 +169,7 @@ tipos_audiencia_data = [
     {"nombre": "Audiencia de Prueba Testifical", "duracion_estimada": 90},
     {"nombre": "Audiencia de Conciliación",      "duracion_estimada": 60},
     {"nombre": "Audiencia de Ratificación",      "duracion_estimada": 30},
-    {"nombre": "Audiencia de Apelación",         "duracion_estimada": 60},
     {"nombre": "Audiencia Cautelar",             "duracion_estimada": 45},
-    {"nombre": "Audiencia de Alegatos",          "duracion_estimada": 90},
     {"nombre": "Audiencia de Sentencia",         "duracion_estimada": 60},
 ]
 print()
@@ -232,7 +230,7 @@ tipos_resolucion_data = [
     {"codigo": "AUT", "nombre": "Auto Interlocutorio",             "nivel_jerarquico": 2},
     {"codigo": "DEC", "nombre": "Decreto",                         "nivel_jerarquico": 3},
     {"codigo": "PRO", "nombre": "Providencia",                     "nivel_jerarquico": 4},
-    {"codigo": "RCA", "nombre": "Resolución de Segunda Instancia", "nivel_jerarquico": 1},
+
     {"codigo": "RAD", "nombre": "Resolución Administrativa",       "nivel_jerarquico": 1},
 ]
 print()
@@ -300,8 +298,7 @@ tipos_actuacion_data = [
     {"codigo": "TRA", "nombre": "Traslado a la Otra Parte"},           # Art. 82 par. III
     {"codigo": "CON", "nombre": "Contestación al Recurso"},
     {"codigo": "REM", "nombre": "Remisión al Tribunal Superior"},      # Art. 86
-    {"codigo": "SOR", "nombre": "Sorteo y Radicatoria"},               # Art. 86
-    {"codigo": "RSI", "nombre": "Resolución de Segunda Instancia"},    # Art. 86 par. III
+
     # Ejecución
     {"codigo": "EFA", "nombre": "Ejecución de Fallo"},                 # Art. 90
     {"codigo": "RES", "nombre": "Resolución Administrativa del Rector"},# Art. 90 par. II

@@ -711,7 +711,7 @@ export function EtapaApelacion({ denuncia, onApelar, onEjecutar, onRemitirSuperi
                 {denuncia.fechaRemisionSuperior ? "Paso 2 —" : ""} Resolución del Tribunal Superior (Art. 86)
               </p>
               <p className="text-xs text-gray-500 mb-3">
-                El Superior tiene 15 días hábiles para resolver desde el decreto de radicatoria.
+                  Registre aquí el fallo recibido del Tribunal Superior (Art. 86). El Superior tiene 15 días hábiles para resolver desde el decreto de radicatoria.
               </p>
               <div className="mb-3">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -726,8 +726,8 @@ export function EtapaApelacion({ denuncia, onApelar, onEjecutar, onRemitirSuperi
                 onClick={() => onResolverApelacion({ resolucionApelacion })}
                 disabled={saving || !resolucionApelacion.trim()}
                 className="px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold transition-colors flex items-center gap-2">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gavel className="w-4 h-4" />}
-                Registrar Resolución y Ejecutar
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileCheck className="w-4 h-4" />}
+                Registrar Fallo Recibido y Ejecutar
               </button>
             </div>
           )}

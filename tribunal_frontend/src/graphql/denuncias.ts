@@ -57,6 +57,7 @@ export const CREAR_DENUNCIA = gql`
         id
         numeroDenuncia
         fechaDenuncia
+        fechaHecho
         denunciante { idPersona nombre primerApellido }
         denunciado  { idPersona nombre primerApellido }
         estado
@@ -128,3 +129,4 @@ export const ADMITIR_DENUNCIA = gql`
     }
   }
 `;
+

@@ -30,16 +30,16 @@ const ESTADOS = [
   { value: "ADMITIDA",               label: "Admitida",               etapa: 3,  color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",        icon: CheckCircle },
   { value: "DECLARACION_INFORMATIVA",label: "Declaración Informativa",etapa: 4,  color: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400",icon: MessageSquare },
   { value: "PRUEBAS",                label: "Período Probatorio",     etapa: 5,  color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",icon: ClipboardList },
-  { value: "CONCLUSION",             label: "Conclusión",             etapa: 6,  color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300",        icon: Clock },
+  { value: "CONCLUSION",             label: "Clausura Probatoria",    etapa: 6,  color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300",        icon: Clock },
   { value: "RESUELTA",               label: "Resuelta",               etapa: 7,  color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400", icon: Gavel },
-  { value: "APELADA",                label: "Apelada",                etapa: 8,  color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",icon: Send },
-  { value: "EJECUTADA",              label: "Ejecutada",              etapa: 9,  color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",    icon: FileCheck },
+  { value: "APELADA",                label: "Remitida en Apelación",  etapa: 8,  color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",icon: Send },
 ];
 
 const ESTADOS_TERMINALES: Record<string, { color: string; icon: any; label: string }> = {
-  ARCHIVADA:   { label: "Archivada",   color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",         icon: XCircle },
+  ARCHIVADA:   { label: "Archivada",   color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",             icon: XCircle },
   RETIRADA:    { label: "Retirada",    color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400", icon: XCircle },
-  CONCILIADA:  { label: "Conciliada",  color: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400",     icon: CheckCircle },
+  CONCILIADA:  { label: "Conciliada",  color: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400",         icon: CheckCircle },
+  EJECUTADA:   { label: "Ejecutada",   color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",     icon: FileCheck },
 };
 
 const TIPOS_DENUNCIADO = [
@@ -184,7 +184,7 @@ export default function DenunciaDetailPage() {
 
   const estadoActual = getEstadoInfo(denuncia.estado);
   const EstadoIcon = estadoActual.icon;
-  const esTerminal = ["ARCHIVADA", "RETIRADA", "CONCILIADA", "EJECUTADA"].includes(denuncia.estado);
+  const esTerminal = Object.keys(ESTADOS_TERMINALES).includes(denuncia.estado);
 
   return (
     <div className="space-y-6 animate-fade-in">

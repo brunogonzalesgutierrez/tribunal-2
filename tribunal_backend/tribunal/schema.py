@@ -441,11 +441,12 @@ class ReporteUsuarioType(graphene.ObjectType):
 
 class CrearDenunciaInput(graphene.InputObjectType):
     numero_denuncia = graphene.String(required=True)
-    id_denunciante = graphene.Int(required=True)
-    id_denunciado = graphene.Int(required=True)
-    tipo_denunciado = graphene.String(required=True)  
-    descripcion = graphene.String(required=True)
-    id_expediente = graphene.Int()  
+    id_denunciante  = graphene.Int(required=True)
+    id_denunciado   = graphene.Int(required=True)
+    tipo_denunciado = graphene.String(required=True)
+    descripcion     = graphene.String(required=True)
+    fecha_hecho     = graphene.String()   # Art. 8 — prescripción a los 2 años
+    id_expediente   = graphene.Int()
 
 
 class ActualizarDenunciaInput(graphene.InputObjectType):
@@ -3937,12 +3938,14 @@ class CrearDenuncia(graphene.Mutation):
     denuncia = graphene.Field(DenunciaType)
     
     def mutate(root, info, input):
+        from datetime import datetime
         denuncia = Denuncia(
             numero_denuncia=input.numero_denuncia,
             denunciante_id=input.id_denunciante,
             denunciado_id=input.id_denunciado,
             tipo_denunciado=input.tipo_denunciado,
             descripcion=input.descripcion,
+            fecha_hecho=datetime.strptime(input.fecha_hecho, '%Y-%m-%d').date() if input.get('fecha_hecho') else None,
             expediente_id=input.get('id_expediente', None)
         )
         denuncia.save()
