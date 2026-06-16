@@ -18,7 +18,7 @@ export const GET_DETALLE_EXPEDIENTE = gql`
         idTribunal { idTribunal nombreTribunal instancia }
       }
       idTipoProceso { idTipoProceso nombre codigo }
-      idEstadoExpediente { idEstado nombreEstado esTerminal }
+      idEstadoExpediente { idEstado nombreEstado esTerminal nivel }
     }
 
     # ── Solo los datos de ESTE expediente ─────────────────
@@ -124,8 +124,8 @@ export const GET_DETALLE_EXPEDIENTE = gql`
       idHistorial
       fechaCambio
       motivo
-      idEstadoAnterior { idEstado nombreEstado }
-      idEstadoNuevo { idEstado nombreEstado }
+      idEstadoAnterior { idEstado nombreEstado nivel }
+      idEstadoNuevo { idEstado nombreEstado nivel }
       usuario { idUsuario nombres paterno }
     }
   }

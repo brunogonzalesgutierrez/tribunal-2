@@ -2,8 +2,8 @@
 import { useState } from "react";
 import {
   Loader2, CheckCircle, AlertCircle, XCircle, MessageSquare,
-  ClipboardList, Scale, Gavel, Send, FileCheck, Calendar, User,
-  Clock, AlertTriangle, FileText, Plus, X, Search, Eye
+  ClipboardList, Scale, Gavel, Send, FileCheck,
+  Clock, AlertTriangle, FileText, Plus, X, Handshake
 } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────
@@ -19,9 +19,29 @@ interface Denuncia {
   tipoDenunciado?: string;
   resolucion?: string;
   fechaResolucion?: string;
-  tipoResolucion?: string;   // ← AGREGAR
+  tipoResolucion?: string;
+  tipoSancion?: string;
+  detalleSancion?: string;
+  fechaHecho?: string;
+  motivoRetiro?: string;
+  fechaRetiro?: string;
+  actaConciliacion?: string;
+  fechaConciliacion?: string;
+  fechaApelacion?: string;
+  resolucionApelacion?: string;
+  fechaRemisionSuperior?: string;
   expediente?: { idExpediente: number; numeroExpediente: string };
 }
+
+const TIPOS_SANCION_OPTIONS = [
+  { value: "MULTA",                label: "Multa hasta 20% haber mensual" },
+  { value: "SUSPENSION_TEMPORAL",  label: "Suspensión temporal (1 mes - 1 año)" },
+  { value: "REMOCION",             label: "Remoción del cargo" },
+  { value: "RETIRO",               label: "Retiro de la Universidad" },
+  { value: "AMONESTACION",         label: "Amonestación por escrito" },
+  { value: "SUSPENSION_ESTUDIANTE",label: "Suspensión temporal (6 meses - 3 años)" },
+  { value: "EXPULSION",            label: "Expulsión de la Universidad" },
+];
 
 // ─────────────────────────────────────────────────────────────
 // 1. ETAPA ADMISIÓN
@@ -31,6 +51,7 @@ interface EtapaAdmisionProps {
   onAvanzar: (nuevoEstado: string) => void;
   onRechazar: () => void;
   onSolicitarSubsanacion: () => void;
+  onRetirar: () => void;
   saving: boolean;
 }
 
@@ -43,7 +64,8 @@ export function EtapaAdmision({ onAvanzar, onRechazar, onSolicitarSubsanacion, s
       </h3>
       <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4 mb-4">
         <p className="text-sm text-gray-600 dark:text-gray-300">
-          El Tribunal debe emitir auto de admisión en el término de <span className="font-bold text-blue-600">5 días hábiles</span>.
+          El Tribunal debe emitir auto de admisión en el término de{" "}
+          <span className="font-bold text-blue-600">5 días hábiles</span>.
         </p>
         <p className="text-xs text-gray-400 mt-1">Art. 58 del Reglamento de Justicia Universitaria</p>
       </div>
@@ -87,7 +109,8 @@ export function EtapaSubsanacion({ denuncia, onSubsanar, onRechazar, saving }: E
       </h3>
       <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4 mb-4">
         <p className="text-sm text-gray-600 dark:text-gray-300">
-          La denuncia presenta defectos. Tiene <span className="font-bold text-amber-600">3 días hábiles</span> para subsanar.
+          La denuncia presenta defectos. Tiene{" "}
+          <span className="font-bold text-amber-600">3 días hábiles</span> para subsanar.
         </p>
         <p className="text-xs text-gray-400 mt-1">Plazo improrrogable según Art. 56 del Reglamento</p>
       </div>
@@ -113,7 +136,161 @@ export function EtapaSubsanacion({ denuncia, onSubsanar, onRechazar, saving }: E
 }
 
 // ─────────────────────────────────────────────────────────────
-// 3. ETAPA DECLARACIÓN INFORMATIVA
+// 3. ETAPA RETIRO DE DENUNCIA (Art. 22)
+// ─────────────────────────────────────────────────────────────
+interface EtapaRetiroProps {
+  denuncia: Denuncia;
+  onRetirar: (datos: { motivoRetiro: string; fechaRetiro: string }) => void;
+  saving: boolean;
+}
+
+export function EtapaRetiro({ onRetirar, saving }: EtapaRetiroProps) {
+  const [motivo, setMotivo] = useState("");
+  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [confirmando, setConfirmando] = useState(false);
+
+  if (!confirmando) {
+    return (
+      <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-2xl border border-yellow-200 dark:border-yellow-800 p-6">
+        <h3 className="text-lg font-semibold text-yellow-700 dark:text-yellow-400 mb-4 flex items-center gap-2">
+          <XCircle className="w-5 h-5" />
+          Retiro de Denuncia (Art. 22)
+        </h3>
+        <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4 mb-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            Antes de la citación al denunciado, el denunciante puede retirar la denuncia.
+            La misma se tendrá por <span className="font-bold text-yellow-600">no presentada</span>.
+          </p>
+          <p className="text-xs text-gray-400 mt-1">Art. 22 del Reglamento</p>
+        </div>
+        <div className="flex justify-end">
+          <button onClick={() => setConfirmando(true)} disabled={saving}
+            className="px-4 py-2.5 rounded-xl bg-yellow-500 hover:bg-yellow-600 text-white font-semibold transition-colors flex items-center gap-2">
+            <XCircle className="w-4 h-4" /> Retirar Denuncia
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-2xl border border-yellow-200 dark:border-yellow-800 p-6">
+      <h3 className="text-lg font-semibold text-yellow-700 dark:text-yellow-400 mb-4 flex items-center gap-2">
+        <XCircle className="w-5 h-5" />
+        Confirmar Retiro de Denuncia (Art. 22)
+      </h3>
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Fecha de retiro
+        </label>
+        <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)}
+          className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-yellow-500 outline-none"
+          disabled={saving} />
+      </div>
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Motivo del retiro
+        </label>
+        <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={4}
+          className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-yellow-500 focus:border-transparent transition-all outline-none"
+          placeholder="Indique el motivo por el cual el denunciante retira la denuncia..."
+          disabled={saving} />
+      </div>
+      <div className="flex gap-3 justify-end">
+        <button onClick={() => setConfirmando(false)} disabled={saving}
+          className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+          Cancelar
+        </button>
+        <button onClick={() => onRetirar({ motivoRetiro: motivo, fechaRetiro: fecha })}
+          disabled={saving || !motivo.trim()}
+          className="px-4 py-2.5 rounded-xl bg-yellow-500 hover:bg-yellow-600 text-white font-semibold transition-colors flex items-center gap-2">
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+          Confirmar Retiro
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// 4. ETAPA CONCILIACIÓN (Art. 59)
+// ─────────────────────────────────────────────────────────────
+interface EtapaConciliacionProps {
+  denuncia: Denuncia;
+  onConciliar: (datos: { actaConciliacion: string; fechaConciliacion: string }) => void;
+  saving: boolean;
+}
+
+export function EtapaConciliacion({ onConciliar, saving }: EtapaConciliacionProps) {
+  const [acta, setActa] = useState("");
+  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [confirmando, setConfirmando] = useState(false);
+
+  if (!confirmando) {
+    return (
+      <div className="bg-teal-50 dark:bg-teal-900/20 rounded-2xl border border-teal-200 dark:border-teal-800 p-6">
+        <h3 className="text-lg font-semibold text-teal-700 dark:text-teal-400 mb-4 flex items-center gap-2">
+          <Handshake className="w-5 h-5" />
+          Conciliación (Art. 59)
+        </h3>
+        <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4 mb-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            La conciliación procede en denuncias recíprocas entre funcionarios, estudiantes y docentes,
+            siempre que los hechos <span className="font-bold text-teal-600">no afecten el orden público</span>.
+          </p>
+          <p className="text-xs text-gray-400 mt-1">Art. 59 del Reglamento</p>
+        </div>
+        <div className="flex justify-end">
+          <button onClick={() => setConfirmando(true)} disabled={saving}
+            className="px-4 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-600 text-white font-semibold transition-colors flex items-center gap-2">
+            <Handshake className="w-4 h-4" /> Registrar Conciliación
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-teal-50 dark:bg-teal-900/20 rounded-2xl border border-teal-200 dark:border-teal-800 p-6">
+      <h3 className="text-lg font-semibold text-teal-700 dark:text-teal-400 mb-4 flex items-center gap-2">
+        <Handshake className="w-5 h-5" />
+        Registrar Acta de Conciliación (Art. 59)
+      </h3>
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Fecha de conciliación
+        </label>
+        <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)}
+          className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+          disabled={saving} />
+      </div>
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Puntos acordados (Acta de Conciliación)
+        </label>
+        <textarea value={acta} onChange={(e) => setActa(e.target.value)} rows={6}
+          className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all outline-none"
+          placeholder="Registre los puntos acordados entre las partes..."
+          disabled={saving} />
+      </div>
+      <div className="flex gap-3 justify-end">
+        <button onClick={() => setConfirmando(false)} disabled={saving}
+          className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+          Cancelar
+        </button>
+        <button onClick={() => onConciliar({ actaConciliacion: acta, fechaConciliacion: fecha })}
+          disabled={saving || !acta.trim()}
+          className="px-4 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-600 text-white font-semibold transition-colors flex items-center gap-2">
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+          Confirmar Conciliación
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// 5. ETAPA DECLARACIÓN INFORMATIVA
 // ─────────────────────────────────────────────────────────────
 interface EtapaDeclaracionInformativaProps {
   denuncia: Denuncia;
@@ -121,7 +298,7 @@ interface EtapaDeclaracionInformativaProps {
   saving: boolean;
 }
 
-export function EtapaDeclaracionInformativa({ denuncia, onRegistrarDeclaracion, saving }: EtapaDeclaracionInformativaProps) {
+export function EtapaDeclaracionInformativa({ onRegistrarDeclaracion, saving }: EtapaDeclaracionInformativaProps) {
   const [declaracion, setDeclaracion] = useState("");
   const [fechaDeclaracion, setFechaDeclaracion] = useState(new Date().toISOString().slice(0, 16));
 
@@ -150,7 +327,8 @@ export function EtapaDeclaracionInformativa({ denuncia, onRegistrarDeclaracion, 
           placeholder="Registre la declaración del denunciado..." disabled={saving} />
       </div>
       <div className="flex justify-end">
-        <button onClick={() => onRegistrarDeclaracion({ declaracion, fechaDeclaracion })} disabled={saving || !declaracion.trim()}
+        <button onClick={() => onRegistrarDeclaracion({ declaracion, fechaDeclaracion })}
+          disabled={saving || !declaracion.trim()}
           className="px-4 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white font-semibold transition-colors flex items-center gap-2">
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
           Registrar y continuar
@@ -161,7 +339,7 @@ export function EtapaDeclaracionInformativa({ denuncia, onRegistrarDeclaracion, 
 }
 
 // ─────────────────────────────────────────────────────────────
-// 4. ETAPA PRUEBAS
+// 6. ETAPA PRUEBAS
 // ─────────────────────────────────────────────────────────────
 interface EtapaPruebasProps {
   denuncia: Denuncia;
@@ -179,10 +357,6 @@ export function EtapaPruebas({ denuncia, onAbrirPruebas, onCerrarPruebas, saving
       setPruebas([...pruebas, { ...nuevaPrueba }]);
       setNuevaPrueba({ nombre: "", descripcion: "" });
     }
-  };
-
-  const eliminarPrueba = (index: number) => {
-    setPruebas(pruebas.filter((_, i) => i !== index));
   };
 
   const esEtapaPruebas = denuncia.estado === "PRUEBAS";
@@ -219,7 +393,6 @@ export function EtapaPruebas({ denuncia, onAbrirPruebas, onCerrarPruebas, saving
               <Plus className="w-3.5 h-3.5" /> Agregar prueba
             </button>
           </div>
-
           {pruebas.length > 0 && (
             <div className="space-y-2">
               <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Pruebas presentadas:</p>
@@ -229,7 +402,8 @@ export function EtapaPruebas({ denuncia, onAbrirPruebas, onCerrarPruebas, saving
                     <p className="text-sm font-medium">{p.nombre}</p>
                     {p.descripcion && <p className="text-xs text-gray-500">{p.descripcion}</p>}
                   </div>
-                  <button onClick={() => eliminarPrueba(i)} className="p-1 text-red-500 hover:bg-red-50 rounded-lg">
+                  <button onClick={() => setPruebas(pruebas.filter((_, idx) => idx !== i))}
+                    className="p-1 text-red-500 hover:bg-red-50 rounded-lg">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -260,11 +434,17 @@ export function EtapaPruebas({ denuncia, onAbrirPruebas, onCerrarPruebas, saving
 }
 
 // ─────────────────────────────────────────────────────────────
-// 5. ETAPA RESOLUCIÓN
+// 7. ETAPA RESOLUCIÓN
 // ─────────────────────────────────────────────────────────────
 interface EtapaResolucionProps {
   denuncia: Denuncia;
-  onEmitirResolucion: (resolucion: string, fecha: string, tipo: string) => void;
+  onEmitirResolucion: (
+    resolucion: string,
+    fecha: string,
+    tipo: string,
+    tipoSancion?: string,
+    detalleSancion?: string
+  ) => void;
   saving: boolean;
 }
 
@@ -272,6 +452,8 @@ export function EtapaResolucion({ onEmitirResolucion, saving }: EtapaResolucionP
   const [resolucion, setResolucion] = useState("");
   const [fechaResolucion, setFechaResolucion] = useState(new Date().toISOString().slice(0, 10));
   const [tipoResolucion, setTipoResolucion] = useState("SANCIONATORIA");
+  const [tipoSancion, setTipoSancion] = useState("");
+  const [detalleSancion, setDetalleSancion] = useState("");
 
   return (
     <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl border border-emerald-200 dark:border-emerald-800 p-6">
@@ -288,13 +470,41 @@ export function EtapaResolucion({ onEmitirResolucion, saving }: EtapaResolucionP
 
       <div className="mb-4">
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tipo de resolución</label>
-        <select value={tipoResolucion} onChange={(e) => setTipoResolucion(e.target.value)}
+        <select value={tipoResolucion} onChange={(e) => { setTipoResolucion(e.target.value); setTipoSancion(""); }}
           className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-emerald-500"
           disabled={saving}>
           <option value="SANCIONATORIA">Sancionatoria</option>
           <option value="ABSOLUTORIA">Absolutoria</option>
         </select>
       </div>
+
+      {/* Sanción específica — solo si es Sancionatoria */}
+      {tipoResolucion === "SANCIONATORIA" && (
+        <>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Tipo de sanción (Art. 42)
+            </label>
+            <select value={tipoSancion} onChange={(e) => setTipoSancion(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-emerald-500"
+              disabled={saving}>
+              <option value="">— Seleccione la sanción —</option>
+              {TIPOS_SANCION_OPTIONS.map(s => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Detalle de la sanción
+            </label>
+            <input type="text" value={detalleSancion} onChange={(e) => setDetalleSancion(e.target.value)}
+              placeholder="Ej: Suspensión 3 meses sin goce de haberes, Multa equivalente al 15%..."
+              className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+              disabled={saving} />
+          </div>
+        </>
+      )}
 
       <div className="mb-4">
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Fecha de resolución</label>
@@ -307,12 +517,14 @@ export function EtapaResolucion({ onEmitirResolucion, saving }: EtapaResolucionP
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Parte dispositiva / Resolución</label>
         <textarea value={resolucion} onChange={(e) => setResolucion(e.target.value)} rows={6}
           className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all outline-none"
-          placeholder="Describa la resolución..." disabled={saving} />
+          placeholder="Describa la resolución motivada..." disabled={saving} />
       </div>
 
       <div className="flex justify-end">
-        <button onClick={() => onEmitirResolucion(resolucion, fechaResolucion, tipoResolucion)} disabled={saving || !resolucion.trim()}
-          className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition-colors flex items-center gap-2">
+        <button
+          onClick={() => onEmitirResolucion(resolucion, fechaResolucion, tipoResolucion, tipoSancion || undefined, detalleSancion || undefined)}
+          disabled={saving || !resolucion.trim() || (tipoResolucion === "SANCIONATORIA" && !tipoSancion)}
+          className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition-colors flex items-center gap-2 disabled:opacity-50">
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gavel className="w-4 h-4" />}
           Emitir Resolución
         </button>
@@ -322,17 +534,20 @@ export function EtapaResolucion({ onEmitirResolucion, saving }: EtapaResolucionP
 }
 
 // ─────────────────────────────────────────────────────────────
-// 6. ETAPA APELACIÓN
+// 8. ETAPA APELACIÓN
 // ─────────────────────────────────────────────────────────────
 interface EtapaApelacionProps {
   denuncia: Denuncia;
-  onApelar?: () => void;
+  onApelar?: (datos: { fechaApelacion: string }) => void;
   onEjecutar?: () => void;
-  onResolverApelacion?: (resolucion: string) => void;
+  onRemitirSuperior?: (datos: { fechaRemisionSuperior: string }) => void;
+  onResolverApelacion?: (datos: { resolucionApelacion: string }) => void;
   saving: boolean;
 }
 
-export function EtapaApelacion({ denuncia, onApelar, onEjecutar, onResolverApelacion, saving }: EtapaApelacionProps) {
+export function EtapaApelacion({ denuncia, onApelar, onEjecutar, onRemitirSuperior, onResolverApelacion, saving }: EtapaApelacionProps) {
+  const [fechaApelacion, setFechaApelacion] = useState(new Date().toISOString().slice(0, 10));
+  const [fechaRemision, setFechaRemision] = useState(new Date().toISOString().slice(0, 10));
   const [resolucionApelacion, setResolucionApelacion] = useState("");
   const esApelada = denuncia.estado === "APELADA";
 
@@ -346,47 +561,97 @@ export function EtapaApelacion({ denuncia, onApelar, onEjecutar, onResolverApela
       <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4 mb-4">
         <p className="text-sm text-gray-600 dark:text-gray-300">
           Plazo perentorio de <span className="font-bold text-orange-600">5 días hábiles</span> para interponer apelación.
+          Una vez admitida, se remite al Tribunal Superior en <span className="font-bold text-orange-600">3 días hábiles</span>.
         </p>
-        <p className="text-xs text-gray-400 mt-1">Art. 82 del Reglamento</p>
+        <p className="text-xs text-gray-400 mt-1">Arts. 82 y 86 del Reglamento</p>
       </div>
 
+      {/* Estado RESUELTA — decidir si apelar o ejecutar */}
       {!esApelada && onApelar && onEjecutar && (
-        <div className="flex gap-3 justify-end">
-          <button onClick={onEjecutar} disabled={saving}
-            className="px-4 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white font-semibold transition-colors flex items-center gap-2">
-            <FileCheck className="w-4 h-4" /> Ejecutar fallo
-          </button>
-          <button onClick={onApelar} disabled={saving}
-            className="px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold transition-colors flex items-center gap-2">
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            Interponer Apelación
-          </button>
+        <div className="space-y-4">
+          <div className="mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Fecha de interposición de apelación
+            </label>
+            <input type="date" value={fechaApelacion} onChange={(e) => setFechaApelacion(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-orange-500 outline-none"
+              disabled={saving} />
+          </div>
+          <div className="flex gap-3 justify-end">
+            <button onClick={onEjecutar} disabled={saving}
+              className="px-4 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white font-semibold transition-colors flex items-center gap-2">
+              <FileCheck className="w-4 h-4" /> Ejecutar fallo (sin apelación)
+            </button>
+            <button onClick={() => onApelar({ fechaApelacion })} disabled={saving}
+              className="px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold transition-colors flex items-center gap-2">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              Interponer Apelación
+            </button>
+          </div>
         </div>
       )}
 
-      {esApelada && onResolverApelacion && (
-        <>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Resolución de Segunda Instancia</label>
-            <textarea value={resolucionApelacion} onChange={(e) => setResolucionApelacion(e.target.value)} rows={5}
-              className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all outline-none"
-              placeholder="Describa la resolución de segunda instancia..." disabled={saving} />
-          </div>
-          <div className="flex justify-end">
-            <button onClick={() => onResolverApelacion(resolucionApelacion)} disabled={saving || !resolucionApelacion.trim()}
-              className="px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold transition-colors flex items-center gap-2">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gavel className="w-4 h-4" />}
-              Resolver Apelación
-            </button>
-          </div>
-        </>
+      {/* Estado APELADA — registrar remisión y resolución del superior */}
+      {esApelada && (
+        <div className="space-y-4">
+          {/* Remisión al Superior — solo si no se registró aún */}
+          {!denuncia.fechaRemisionSuperior && onRemitirSuperior && (
+            <div className="border border-orange-200 dark:border-orange-700 rounded-xl p-4">
+              <p className="text-sm font-medium text-orange-700 dark:text-orange-400 mb-3">
+                Paso 1 — Remitir expediente al Tribunal Superior (Art. 86)
+              </p>
+              <p className="text-xs text-gray-500 mb-3">Plazo: 3 días hábiles desde la admisión del recurso.</p>
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Fecha de remisión
+                </label>
+                <input type="date" value={fechaRemision} onChange={(e) => setFechaRemision(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-orange-500 outline-none"
+                  disabled={saving} />
+              </div>
+              <button onClick={() => onRemitirSuperior({ fechaRemisionSuperior: fechaRemision })} disabled={saving}
+                className="px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold transition-colors flex items-center gap-2">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                Registrar Remisión al Superior
+              </button>
+            </div>
+          )}
+
+          {/* Resolución del Superior */}
+          {onResolverApelacion && (
+            <div className="border border-orange-200 dark:border-orange-700 rounded-xl p-4">
+              <p className="text-sm font-medium text-orange-700 dark:text-orange-400 mb-3">
+                {denuncia.fechaRemisionSuperior ? "Paso 2 —" : ""} Resolución del Tribunal Superior (Art. 86)
+              </p>
+              <p className="text-xs text-gray-500 mb-3">
+                El Superior tiene 15 días hábiles para resolver desde el decreto de radicatoria.
+              </p>
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Resolución de segunda instancia
+                </label>
+                <textarea value={resolucionApelacion} onChange={(e) => setResolucionApelacion(e.target.value)} rows={5}
+                  className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all outline-none"
+                  placeholder="Confirma, revoca o anula la resolución de primera instancia..."
+                  disabled={saving} />
+              </div>
+              <button
+                onClick={() => onResolverApelacion({ resolucionApelacion })}
+                disabled={saving || !resolucionApelacion.trim()}
+                className="px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold transition-colors flex items-center gap-2">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gavel className="w-4 h-4" />}
+                Registrar Resolución y Ejecutar
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────
-// 7. TIMELINE / PROGRESO
+// 9. TIMELINE / PROGRESO
 // ─────────────────────────────────────────────────────────────
 interface TimelineDenunciaProps {
   estadoActual: string;
@@ -404,18 +669,15 @@ export function TimelineDenuncia({ estadoActual, estados }: TimelineDenunciaProp
           const isCompleted = estado.etapa <= etapaActual;
           const isCurrent = estado.value === estadoActual;
           const Icon = estado.icon;
-
           return (
             <div key={estado.value} className="flex-1 relative">
               {idx < estadosOrdenados.length - 1 && (
                 <div className={`absolute top-5 left-1/2 w-full h-0.5 ${isCompleted ? 'bg-blue-500' : 'bg-gray-200 dark:bg-slate-700'}`} />
               )}
               <div className="relative flex flex-col items-center">
-                <div className={`
-                  w-10 h-10 rounded-full flex items-center justify-center z-10 transition-all
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center z-10 transition-all
                   ${isCompleted ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-slate-700 text-gray-500'}
-                  ${isCurrent ? 'ring-4 ring-blue-300 dark:ring-blue-800' : ''}
-                `}>
+                  ${isCurrent ? 'ring-4 ring-blue-300 dark:ring-blue-800' : ''}`}>
                   {isCompleted ? <CheckCircle className="w-5 h-5" /> : <Icon className="w-4 h-4" />}
                 </div>
                 <span className={`text-xs mt-2 text-center font-medium hidden md:block ${isCompleted ? 'text-gray-800 dark:text-gray-200' : 'text-gray-400'}`}>

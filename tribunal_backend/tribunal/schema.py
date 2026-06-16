@@ -449,12 +449,26 @@ class CrearDenunciaInput(graphene.InputObjectType):
 
 
 class ActualizarDenunciaInput(graphene.InputObjectType):
-    estado = graphene.String()
-    resolucion = graphene.String()
+    estado           = graphene.String()
+    descripcion      = graphene.String()
+    tipo_denunciado  = graphene.String()
+    fecha_hecho      = graphene.String()
+    # Resolución
+    resolucion       = graphene.String()
+    tipo_resolucion  = graphene.String()
     fecha_resolucion = graphene.String()
-    tipo_denunciado = graphene.String()
-    descripcion = graphene.String()
-    tipo_resolucion = graphene.String()   # ← AGREGAR ESTA LÍNEA
+    tipo_sancion     = graphene.String()
+    detalle_sancion  = graphene.String()
+    # Retiro
+    fecha_retiro     = graphene.String()
+    motivo_retiro    = graphene.String()
+    # Conciliación
+    fecha_conciliacion  = graphene.String()
+    acta_conciliacion   = graphene.String()
+    # Apelación
+    fecha_apelacion          = graphene.String()
+    resolucion_apelacion     = graphene.String()
+    fecha_remision_superior  = graphene.String()
 
 # DESPUÉS
 class CrearResolucionAntiguaInput(graphene.InputObjectType):
@@ -3947,21 +3961,33 @@ class ActualizarDenuncia(graphene.Mutation):
             denuncia = Denuncia.objects.get(id=id)
         except Denuncia.DoesNotExist:
             raise Exception("Denuncia no encontrada")
-        
-        if input.get('estado'):
-            denuncia.estado = input.estado
-        if input.get('resolucion'):
-            denuncia.resolucion = input.resolucion
-        if input.get('fecha_resolucion'):
-            from datetime import datetime
-            denuncia.fecha_resolucion = datetime.strptime(input.fecha_resolucion, '%Y-%m-%d').date()
-        if input.get('descripcion'):
-            denuncia.descripcion = input.descripcion
-        if input.get('tipo_denunciado'):
-            denuncia.tipo_denunciado = input.tipo_denunciado
-        if input.get('tipo_resolucion'):          # ← AGREGAR ESTE BLOQUE
-            denuncia.tipo_resolucion = input.tipo_resolucion
-        
+
+        from datetime import datetime
+
+        def parse_fecha(valor):
+            return datetime.strptime(valor, '%Y-%m-%d').date()
+
+        if input.get('estado'):            denuncia.estado = input.estado
+        if input.get('descripcion'):       denuncia.descripcion = input.descripcion
+        if input.get('tipo_denunciado'):   denuncia.tipo_denunciado = input.tipo_denunciado
+        if input.get('fecha_hecho'):       denuncia.fecha_hecho = parse_fecha(input.fecha_hecho)
+        # Resolución
+        if input.get('resolucion'):        denuncia.resolucion = input.resolucion
+        if input.get('tipo_resolucion'):   denuncia.tipo_resolucion = input.tipo_resolucion
+        if input.get('fecha_resolucion'):  denuncia.fecha_resolucion = parse_fecha(input.fecha_resolucion)
+        if input.get('tipo_sancion'):      denuncia.tipo_sancion = input.tipo_sancion
+        if input.get('detalle_sancion'):   denuncia.detalle_sancion = input.detalle_sancion
+        # Retiro
+        if input.get('fecha_retiro'):      denuncia.fecha_retiro = parse_fecha(input.fecha_retiro)
+        if input.get('motivo_retiro'):     denuncia.motivo_retiro = input.motivo_retiro
+        # Conciliación
+        if input.get('fecha_conciliacion'):  denuncia.fecha_conciliacion = parse_fecha(input.fecha_conciliacion)
+        if input.get('acta_conciliacion'):   denuncia.acta_conciliacion = input.acta_conciliacion
+        # Apelación
+        if input.get('fecha_apelacion'):         denuncia.fecha_apelacion = parse_fecha(input.fecha_apelacion)
+        if input.get('resolucion_apelacion'):    denuncia.resolucion_apelacion = input.resolucion_apelacion
+        if input.get('fecha_remision_superior'): denuncia.fecha_remision_superior = parse_fecha(input.fecha_remision_superior)
+
         denuncia.save()
         return ActualizarDenuncia(denuncia=denuncia)
 

@@ -23,6 +23,7 @@ export const PERMISOS = {
   EXPEDIENTES_VER: "EXPEDIENTES_VER",
   HISTORIAL_ESTADOS_VER: "HISTORIAL_ESTADOS_VER",
   ACTUACIONES_VER: "ACTUACIONES_VER",
+  ESTADOS_EXPEDIENTE_VER: "ESTADOS_EXPEDIENTE_VER",
   
   // ============================================================
   // AUDIENCIAS
@@ -61,12 +62,17 @@ export const PERMISOS = {
   TIPOS_RECURSO_VER: "TIPOS_RECURSO_VER",
   TIPOS_DOCUMENTO_VER: "TIPOS_DOCUMENTO_VER",
   TIPOS_ACTUACION_VER: "TIPOS_ACTUACION_VER",
-  ESTADOS_EXPEDIENTE_VER: "ESTADOS_EXPEDIENTE_VER",
+
   
   // ============================================================
   // REPORTES
   // ============================================================
   REPORTES_VER: "REPORTES_VER",
+  // ============================================================
+  // DENUNCIAS
+  // ============================================================
+  DENUNCIAS_VER: "DENUNCIAS_VER",
+  DENUNCIAS_GESTIONAR: "DENUNCIAS_GESTIONAR",
 };
 
 // Permisos por ruta
@@ -108,7 +114,7 @@ export const RUTAS_PERMISOS: Record<string, string[]> = {
   // Personas
   '/personas': [PERMISOS.PERSONAS_VER],
   '/contactos': [PERMISOS.CONTACTOS_VER],
-  '/roles-procesales': [PERMISOS.ROLES_PROCESALES_VER],
+
   '/partes': [PERMISOS.PARTES_PROCESALES_VER],
   
   // Catálogos
@@ -119,9 +125,14 @@ export const RUTAS_PERMISOS: Record<string, string[]> = {
   '/tipos-doc': [PERMISOS.TIPOS_DOCUMENTO_VER],
   '/tipos-actuacion': [PERMISOS.TIPOS_ACTUACION_VER],
   '/estados-expediente': [PERMISOS.ESTADOS_EXPEDIENTE_VER],
+  '/roles-procesales': [PERMISOS.ROLES_PROCESALES_VER],
+  
   
   // Reportes
   '/reportes': [PERMISOS.REPORTES_VER],
+  // Denuncias
+  '/denuncias': [PERMISOS.DENUNCIAS_VER],
+  '/denuncias/etapas': [PERMISOS.DENUNCIAS_VER],
 };
 
 // Helper

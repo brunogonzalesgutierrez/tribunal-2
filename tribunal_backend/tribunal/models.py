@@ -530,7 +530,9 @@ class Denuncia(models.Model):
     ESTADOS = [
         ('REGISTRADA', 'Registrada'),
         ('SUBSANACION', 'Subsanación'),
+        ('RETIRADA', 'Retirada'),          # ← NUEVO Art. 22
         ('ADMITIDA', 'Admitida'),
+        ('CONCILIADA', 'Conciliada'),       # ← NUEVO Art. 59
         ('DECLARACION_INFORMATIVA', 'Declaración Informativa'),
         ('PRUEBAS', 'Período Probatorio'),
         ('CONCLUSION', 'Conclusión'),
@@ -539,37 +541,117 @@ class Denuncia(models.Model):
         ('EJECUTADA', 'Ejecutada'),
         ('ARCHIVADA', 'Archivada'),
     ]
-    
+
     TIPOS_DENUNCIADO = [
         ('ESTUDIANTE', 'Estudiante'),
         ('DOCENTE', 'Docente'),
         ('ADMINISTRATIVO', 'Administrativo'),
+        ('AUTORIDAD', 'Autoridad'),         # ← NUEVO Art. 38
+    ]
+
+    TIPOS_SANCION = [
+        ('MULTA', 'Multa hasta 20% haber mensual'),
+        ('SUSPENSION_TEMPORAL', 'Suspensión temporal (1 mes - 1 año)'),
+        ('REMOCION', 'Remoción del cargo'),
+        ('RETIRO', 'Retiro de la Universidad'),
+        ('AMONESTACION', 'Amonestación por escrito'),
+        ('SUSPENSION_ESTUDIANTE', 'Suspensión temporal (6 meses - 3 años)'),
+        ('EXPULSION', 'Expulsión de la Universidad'),
     ]
 
     numero_denuncia = models.CharField(max_length=50, unique=True)
     fecha_denuncia = models.DateField(auto_now_add=True)
-    denunciante = models.ForeignKey('Persona', on_delete=models.PROTECT, related_name='denuncias_hechas')
-    denunciado = models.ForeignKey('Persona', on_delete=models.PROTECT, related_name='denuncias_recibidas')
+
+    # ── NUEVO: fecha en que ocurrió el hecho (para prescripción Art. 8)
+    fecha_hecho = models.DateField(
+        null=True, blank=True,
+        help_text="Fecha en que se cometió la falta. Prescribe a los 2 años (Art. 8)"
+    )
+
+    denunciante = models.ForeignKey(
+        'Persona', on_delete=models.PROTECT, related_name='denuncias_hechas'
+    )
+    denunciado = models.ForeignKey(
+        'Persona', on_delete=models.PROTECT, related_name='denuncias_recibidas'
+    )
     tipo_denunciado = models.CharField(max_length=20, choices=TIPOS_DENUNCIADO)
     descripcion = models.TextField()
     estado = models.CharField(max_length=30, choices=ESTADOS, default='REGISTRADA')
-    resolucion = models.TextField(blank=True, null=True, help_text="Resolución del caso")
-    fecha_resolucion = models.DateField(blank=True, null=True)
+
+    # ── Resolución
+    resolucion = models.TextField(
+        blank=True, null=True,
+        help_text="Parte dispositiva de la resolución final"
+    )
     tipo_resolucion = models.CharField(
         max_length=20,
         choices=[('SANCIONATORIA', 'Sancionatoria'), ('ABSOLUTORIA', 'Absolutoria')],
-        blank=True,
-        null=True,
-        help_text="Tipo de resolución final"
+        blank=True, null=True
     )
-    expediente = models.ForeignKey('Expediente', on_delete=models.SET_NULL, null=True, blank=True, related_name='denuncias')
-    
+    fecha_resolucion = models.DateField(blank=True, null=True)
+
+    # ── NUEVO: sanción específica (Art. 42)
+    tipo_sancion = models.CharField(
+        max_length=30, choices=TIPOS_SANCION,
+        blank=True, null=True,
+        help_text="Sanción específica impuesta (solo si resolución es Sancionatoria)"
+    )
+    detalle_sancion = models.CharField(
+        max_length=200, blank=True, null=True,
+        help_text="Ej: Suspensión 3 meses, Multa 15%, etc."
+    )
+
+    # ── NUEVO: retiro de denuncia (Art. 22)
+    fecha_retiro = models.DateField(
+        blank=True, null=True,
+        help_text="Fecha en que el denunciante retiró la denuncia (Art. 22)"
+    )
+    motivo_retiro = models.TextField(
+        blank=True, null=True
+    )
+
+    # ── NUEVO: conciliación (Art. 59)
+    fecha_conciliacion = models.DateField(
+        blank=True, null=True
+    )
+    acta_conciliacion = models.TextField(
+        blank=True, null=True,
+        help_text="Puntos acordados en la conciliación (Art. 59)"
+    )
+
+    # ── NUEVO: apelación (Art. 82)
+    fecha_apelacion = models.DateField(
+        blank=True, null=True,
+        help_text="Fecha en que se interpuso el recurso de apelación"
+    )
+    resolucion_apelacion = models.TextField(
+        blank=True, null=True,
+        help_text="Resolución de segunda instancia recibida"
+    )
+    fecha_remision_superior = models.DateField(
+        blank=True, null=True,
+        help_text="Fecha en que se remitió al Tribunal Superior (Art. 86)"
+    )
+
+    expediente = models.ForeignKey(
+        'Expediente', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='denuncias'
+    )
+
     class Meta:
         db_table = 'denuncia'
-    
+
     def __str__(self):
         return f"Denuncia {self.numero_denuncia} - {self.denunciado}"
 
+    def esta_prescrita(self):
+        """Verifica si la denuncia prescribió (Art. 8 — 2 años desde fecha_hecho)"""
+        if not self.fecha_hecho:
+            return False
+        from django.utils import timezone
+        from datetime import timedelta
+        limite = self.fecha_hecho + timedelta(days=730)
+        return timezone.now().date() > limite
 
 class ResolucionAntigua(models.Model):
     """Resoluciones de casos antiguos (solo para registro histórico)"""

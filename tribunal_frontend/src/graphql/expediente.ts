@@ -340,3 +340,27 @@ export const GET_PARTES_PROCESALES_LISTA = gql`
     }
   }
 `;
+
+export const CAMBIAR_ESTADO_EXPEDIENTE = gql`
+  mutation CambiarEstadoExpediente(
+    $idExpediente: Int!
+    $idEstadoNuevo: Int!
+    $idUsuario: Int!
+    $motivo: String!
+  ) {
+    crearHistorialEstado(
+      idExpediente: $idExpediente
+      idEstadoNuevo: $idEstadoNuevo
+      idUsuario: $idUsuario
+      motivo: $motivo
+    ) {
+      historial {
+        idHistorial
+        fechaCambio
+        motivo
+        idEstadoAnterior { idEstado nombreEstado }
+        idEstadoNuevo { idEstado nombreEstado }
+      }
+    }
+  }
+`;

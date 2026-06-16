@@ -7,7 +7,7 @@ import { GET_DETALLE_EXPEDIENTE } from "../../graphql/expedienteDetalle";
 import {
   CREAR_AUDIENCIA, ACTUALIZAR_AUDIENCIA, ELIMINAR_AUDIENCIA,
   GET_TIPOS_AUDIENCIA, GET_SALAS_AUDIENCIA, ENVIAR_CITACIONES_AUDIENCIA, GET_ASISTENCIAS_AUDIENCIA,
-    REGISTRAR_ASISTENCIA_BATCH
+  REGISTRAR_ASISTENCIA_BATCH
 } from "../../graphql/audiencias";
 import { useCrudNotifications } from "../../hooks/useCrudNotifications";
 import { generarPdfResolucion } from "../../utils/generarPdfResolucion";
@@ -19,6 +19,32 @@ const GET_VOCALES    = gql`query { allVocales { idVocal cargo activo idPersona {
 const GET_TIPOS_DOC  = gql`query { allTiposDoc { idTipoDoc codigo nombre requiereFirma esPublico } }`;
 const GET_TIPOS_RES  = gql`query { allTiposResolucion { idTipoRes codigo nombre nivelJerarquico } }`;
 const GET_TIPOS_ACT  = gql`query { allTiposActuacion { idTipoActuacion codigo nombre } }`;
+
+// ─── GraphQL para cambio de estado ────────────────────────────────────────
+const GET_ESTADOS_TODOS = gql`
+  query { allEstadosExpediente { idEstado nombreEstado esTerminal nivel } }
+`;
+const CAMBIAR_ESTADO = gql`
+  mutation CambiarEstado(
+    $idExpediente: Int!
+    $idEstadoNuevo: Int!
+    $idUsuario: Int!
+    $motivo: String!
+  ) {
+    crearHistorialEstado(
+      idExpediente: $idExpediente
+      idEstadoNuevo: $idEstadoNuevo
+      idUsuario: $idUsuario
+      motivo: $motivo
+    ) {
+      historial {
+        idHistorial
+        fechaCambio
+        idEstadoNuevo { idEstado nombreEstado nivel }
+      }
+    }
+  }
+`;
 
 const CREAR_PARTE        = gql`mutation CrearParteProcesal($idExpediente: Int!, $idPersona: Int!, $idRol: Int!) { crearParteProcesal(idExpediente: $idExpediente, idPersona: $idPersona, idRol: $idRol) { parte { idParte activo idPersona { nombre primerApellido } idRol { nombreRol } } } }`;
 const ELIMINAR_PARTE     = gql`mutation EliminarParteProcesal($id: Int!) { eliminarParteProcesal(id: $id) { ok mensaje } }`;
@@ -35,7 +61,8 @@ import {
   X, FolderOpen, Users, Calendar, Scale, FileText,
   ClipboardList, History, Building2, CheckCircle, AlertCircle,
   Clock, Gavel, UserCheck, ArrowRight, Loader2, GitBranch,
-  Plus, Edit2, Trash2, Save, XCircle, Video, ChevronLeft, Search, FileDown, Send } from "lucide-react";
+  Plus, Edit2, Trash2, Save, XCircle, Video, ChevronLeft, Search, FileDown, Send
+} from "lucide-react";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 const fmtFecha = (iso?: string | null) => {
@@ -72,15 +99,15 @@ const estadoAudienciaColor: Record<string, string> = {
 };
 const audBg: Record<string, string> = {
   PROGRAMADA: "bg-blue-100 dark:bg-blue-900/30",
-  REALIZADA: "bg-emerald-100 dark:bg-emerald-900/30",
+  REALIZADA:  "bg-emerald-100 dark:bg-emerald-900/30",
   SUSPENDIDA: "bg-amber-100 dark:bg-amber-900/30",
-  EN_CURSO: "bg-indigo-100 dark:bg-indigo-900/30",
+  EN_CURSO:   "bg-indigo-100 dark:bg-indigo-900/30",
 };
 const audIc: Record<string, string> = {
   PROGRAMADA: "text-blue-600 dark:text-blue-400",
-  REALIZADA: "text-emerald-600 dark:text-emerald-400",
+  REALIZADA:  "text-emerald-600 dark:text-emerald-400",
   SUSPENDIDA: "text-amber-600 dark:text-amber-400",
-  EN_CURSO: "text-indigo-600 dark:text-indigo-400",
+  EN_CURSO:   "text-indigo-600 dark:text-indigo-400",
 };
 const estadoRecursoColor: Record<string, string> = {
   PENDIENTE: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400",
@@ -100,7 +127,7 @@ const getNodeStyle = (n?: string) =>
   TIMELINE_NODE[n ?? ""] ?? { dot: "bg-gray-400 dark:bg-slate-500", ring: "ring-gray-200 dark:ring-slate-700", icon: "📋" };
 
 const RESUMEN_STYLES: Record<string, { bg: string; border: string; text: string }> = {
-  blue:    { bg: "bg-blue-50 dark:bg-blue-900/10",    border: "border-blue-100 dark:border-blue-900/30",    text: "text-blue-600 dark:text-blue-400"    },
+  blue:    { bg: "bg-blue-50 dark:bg-blue-900/10",     border: "border-blue-100 dark:border-blue-900/30",    text: "text-blue-600 dark:text-blue-400"    },
   indigo:  { bg: "bg-indigo-50 dark:bg-indigo-900/10", border: "border-indigo-100 dark:border-indigo-900/30", text: "text-indigo-600 dark:text-indigo-400" },
   purple:  { bg: "bg-purple-50 dark:bg-purple-900/10", border: "border-purple-100 dark:border-purple-900/30", text: "text-purple-600 dark:text-purple-400" },
   emerald: { bg: "bg-emerald-50 dark:bg-emerald-900/10", border: "border-emerald-100 dark:border-emerald-900/30", text: "text-emerald-600 dark:text-emerald-400" },
@@ -191,8 +218,10 @@ function ChipSeleccionado({ label, onClear, color = "blue" }: {
     purple:  "bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-800",
   };
   const btnColores = {
-    blue: "hover:bg-blue-200 dark:hover:bg-blue-800", indigo: "hover:bg-indigo-200 dark:hover:bg-indigo-800",
-    emerald: "hover:bg-emerald-200 dark:hover:bg-emerald-800", purple: "hover:bg-purple-200 dark:hover:bg-purple-800",
+    blue:    "hover:bg-blue-200 dark:hover:bg-blue-800",
+    indigo:  "hover:bg-indigo-200 dark:hover:bg-indigo-800",
+    emerald: "hover:bg-emerald-200 dark:hover:bg-emerald-800",
+    purple:  "hover:bg-purple-200 dark:hover:bg-purple-800",
   };
   return (
     <div className={`flex items-center gap-2 p-2.5 rounded-xl border ${colores[color]}`}>
@@ -317,21 +346,192 @@ const BtnEliminar = ({ onClick, disabled }: { onClick: () => void; disabled?: bo
 
 const TABS = [
   { id: "general",      label: "General",      icon: FolderOpen    },
-  { id: "vocales",      label: "Conformación", icon: Building2     },
   { id: "partes",       label: "Partes",       icon: Users         },
+  { id: "vocales",      label: "Conformación", icon: Building2     },
+  { id: "actuaciones",  label: "Actuaciones",  icon: ClipboardList },
   { id: "audiencias",   label: "Audiencias",   icon: Calendar      },
+  { id: "documentos",   label: "Documentos",   icon: FileText      },
   { id: "resoluciones", label: "Resoluciones", icon: Scale         },
   { id: "recursos",     label: "Recursos",     icon: Gavel         },
-  { id: "documentos",   label: "Documentos",   icon: FileText      },
-  { id: "actuaciones",  label: "Actuaciones",  icon: ClipboardList },
   { id: "historial",    label: "Historial",    icon: History       },
 ] as const;
 type TabId = typeof TABS[number]["id"];
 
 // ══════════════════════════════════════════════════════════════════════════
+// MODAL CAMBIO DE ESTADO (Art. 7 — registro obligatorio con motivo)
+// ══════════════════════════════════════════════════════════════════════════
+function ModalCambioEstado({ expediente, onClose, onCambiado }: {
+  expediente: any;
+  onClose: () => void;
+  onCambiado: () => void;
+}) {
+  const { usuario } = useAuth();
+  const { data, loading } = useQuery(GET_ESTADOS_TODOS);
+  const [cambiarEstado] = useMutation(CAMBIAR_ESTADO);
+
+  const [estadoId, setEstadoId] = useState(0);
+  const [motivo, setMotivo]     = useState("");
+  const [saving, setSaving]     = useState(false);
+  const [err, setErr]           = useState("");
+
+  const nivelActual = expediente.idEstadoExpediente?.nivel ?? 0;
+  const todos: any[] = data?.allEstadosExpediente ?? [];
+
+  // Mostrar estados de nivel mayor al actual + terminales (excluir el estado actual)
+  const opciones = todos.filter(e =>
+    e.idEstado !== expediente.idEstadoExpediente?.idEstado &&
+    (e.esTerminal || e.nivel > nivelActual)
+  );
+
+  const guardar = async () => {
+    if (!estadoId) { setErr("Seleccioná un estado de destino."); return; }
+    if (!motivo.trim()) { setErr("El motivo es obligatorio (Art. 7 del Reglamento)."); return; }
+    if (!usuario?.idUsuario) { setErr("No se pudo identificar al usuario."); return; }
+    setSaving(true); setErr("");
+    try {
+      await cambiarEstado({
+        variables: {
+          idExpediente: Number(expediente.idExpediente),
+          idEstadoNuevo: Number(estadoId),
+          idUsuario: Number(usuario.idUsuario),
+          motivo: motivo.trim(),
+        },
+      });
+      onCambiado();
+    } catch (e: any) {
+      setErr(e.message ?? "Error al cambiar el estado.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      onClick={!saving ? onClose : undefined}
+    >
+      <div
+        className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-md flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-700">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center">
+              <ArrowRight className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-gray-800 dark:text-white">Cambiar estado del expediente</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Actual: <span className="font-semibold text-gray-700 dark:text-gray-300">{expediente.idEstadoExpediente?.nombreEstado ?? "Sin estado"}</span>
+              </p>
+            </div>
+          </div>
+          {!saving && (
+            <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-5 space-y-4">
+
+          {/* Selector de estado destino */}
+          <div>
+            <label className={labelCls}>
+              Nuevo estado <span className="text-red-500">*</span>
+            </label>
+            {loading ? (
+              <div className="flex justify-center py-6">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
+              </div>
+            ) : opciones.length === 0 ? (
+              <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">
+                No hay estados disponibles para avanzar
+              </p>
+            ) : (
+              <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                {opciones.map(e => (
+                  <button
+                    key={e.idEstado}
+                    onClick={() => setEstadoId(e.idEstado)}
+                    className={`w-full text-left px-4 py-3 rounded-xl border text-sm font-medium transition-all ${
+                      estadoId === e.idEstado
+                        ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400"
+                        : "border-gray-200 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-gray-50 dark:hover:bg-slate-700/50"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span>{e.nombreEstado}</span>
+                      {e.esTerminal
+                        ? <Pill className="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400">Terminal</Pill>
+                        : <Pill className="bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-gray-400">Nivel {e.nivel}</Pill>
+                      }
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Motivo — obligatorio por Art. 7 */}
+          <div>
+            <label className={labelCls}>
+              Motivo <span className="text-red-500">*</span>
+              <span className="ml-1 normal-case font-normal text-gray-400">(requerido — Art. 7)</span>
+            </label>
+            <textarea
+              rows={3}
+              value={motivo}
+              onChange={e => setMotivo(e.target.value)}
+              disabled={saving}
+              placeholder="Describí el motivo del cambio de estado..."
+              className={`${inputCls} resize-none`}
+            />
+          </div>
+
+          {/* Error */}
+          {err && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 text-red-600 dark:text-red-400 text-sm">
+              <AlertCircle className="w-4 h-4 shrink-0" />{err}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-3 px-6 py-4 border-t border-gray-200 dark:border-slate-700">
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 text-sm font-medium transition-colors disabled:opacity-40"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={guardar}
+            disabled={saving || !estadoId || !motivo.trim()}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
+          >
+            {saving
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
+              : <><Save className="w-4 h-4" /> Confirmar cambio</>
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // FORM AUDIENCIA
 // ══════════════════════════════════════════════════════════════════════════
-const INIT_AUD = { idTipoAudiencia: 0, tipoLabel: "", idSalaAud: 0, salaLabel: "", fechaHoraProgramada: "", linkVideoconferencia: "", estadoAudiencia: "PROGRAMADA", motivoSuspension: "", fechaHoraInicio: "", fechaHoraFin: "" };
+const INIT_AUD = {
+  idTipoAudiencia: 0, tipoLabel: "", idSalaAud: 0, salaLabel: "",
+  fechaHoraProgramada: "", linkVideoconferencia: "", estadoAudiencia: "PROGRAMADA",
+  motivoSuspension: "", fechaHoraInicio: "", fechaHoraFin: "",
+};
 
 function FormAudiencia({ idExpediente, editando, onSaved, onCancel }: {
   idExpediente: number; editando: any | null; onSaved: () => void; onCancel: () => void;
@@ -382,7 +582,13 @@ function FormAudiencia({ idExpediente, editando, onSaved, onCancel }: {
           fechaHoraFin: form.fechaHoraFin || undefined,
         } } });
       } else {
-        await crear({ variables: { input: { idExpediente: Number(idExpediente), idTipoAudiencia: Number(form.idTipoAudiencia), fechaHoraProgramada: form.fechaHoraProgramada, idSalaAud: Number(form.idSalaAud) || undefined, linkVideoconferencia: form.linkVideoconferencia || undefined } } });
+        await crear({ variables: { input: {
+          idExpediente: Number(idExpediente),
+          idTipoAudiencia: Number(form.idTipoAudiencia),
+          fechaHoraProgramada: form.fechaHoraProgramada,
+          idSalaAud: Number(form.idSalaAud) || undefined,
+          linkVideoconferencia: form.linkVideoconferencia || undefined,
+        } } });
       }
       onSaved();
     } catch (e: any) { setErr(e.message ?? "Error al guardar."); } finally { setSaving(false); }
@@ -434,7 +640,6 @@ function FormAudiencia({ idExpediente, editando, onSaved, onCancel }: {
           )}
         </div>
       </FormInline>
-
       {modal === "tipo" && (
         <BuscadorModal titulo="Seleccionar tipo de audiencia" placeholder="Buscar por nombre..." opciones={opcionesTipo} loading={lTipo}
           onSelect={(id, label) => setForm(p => ({ ...p, idTipoAudiencia: id, tipoLabel: label }))} onClose={() => setModal(null)} />
@@ -465,8 +670,13 @@ function FormParte({ idExpediente, onSaved, onCancel }: { idExpediente: number; 
 
   const personas: any[] = dP?.allPersonas ?? [];
   const roles: any[]    = dR?.allRolesProcesal ?? [];
-  const opcionesPersona: OpcionModal[] = personas.map((p: any) => ({ id: p.idPersona, titulo: `${p.nombre} ${p.primerApellido} ${p.segundoApellido ?? ""}`.trim(), extra: p.numeroDocumento, subtitulo: p.esAbogado ? "Abogado" : undefined }));
-  const opcionesRol: OpcionModal[]     = roles.map((r: any) => ({ id: r.idRol, titulo: r.nombreRol }));
+  const opcionesPersona: OpcionModal[] = personas.map((p: any) => ({
+    id: p.idPersona,
+    titulo: `${p.nombre} ${p.primerApellido} ${p.segundoApellido ?? ""}`.trim(),
+    extra: p.numeroDocumento,
+    subtitulo: p.esAbogado ? "Abogado" : undefined,
+  }));
+  const opcionesRol: OpcionModal[] = roles.map((r: any) => ({ id: r.idRol, titulo: r.nombreRol }));
 
   const guardar = async () => {
     if (!form.idPersona || !form.idRol) { setErr("Persona y rol son obligatorios."); return; }
@@ -486,7 +696,7 @@ function FormParte({ idExpediente, onSaved, onCancel }: { idExpediente: number; 
         </div>
       </FormInline>
       {modal === "persona" && <BuscadorModal titulo="Seleccionar persona" placeholder="Buscar por nombre o documento..." opciones={opcionesPersona} loading={lP} onSelect={(id, label) => setForm(p => ({ ...p, idPersona: id, personaLabel: label }))} onClose={() => setModal(null)} />}
-      {modal === "rol" && <BuscadorModal titulo="Seleccionar rol procesal" placeholder="Buscar por nombre..." opciones={opcionesRol} loading={lR} onSelect={(id, label) => setForm(p => ({ ...p, idRol: id, rolLabel: label }))} onClose={() => setModal(null)} />}
+      {modal === "rol"     && <BuscadorModal titulo="Seleccionar rol procesal" placeholder="Buscar por nombre..." opciones={opcionesRol} loading={lR} onSelect={(id, label) => setForm(p => ({ ...p, idRol: id, rolLabel: label }))} onClose={() => setModal(null)} />}
     </>
   );
 }
@@ -507,10 +717,19 @@ function FormResolucion({ idExpediente, onSaved, onCancel }: { idExpediente: num
   const set = (k: string) => (e: React.ChangeEvent<any>) => setForm(p => ({ ...p, [k]: e.target.value }));
 
   const guardar = async () => {
-    if (!form.idTipoRes || !form.numeroResolucion || !form.fechaResolucion || !form.parteDispositiva) { setErr("Tipo, número, fecha y parte dispositiva son obligatorios."); return; }
+    if (!form.idTipoRes || !form.numeroResolucion || !form.fechaResolucion || !form.parteDispositiva) {
+      setErr("Tipo, número, fecha y parte dispositiva son obligatorios."); return;
+    }
     setSaving(true); setErr("");
     try {
-      await crear({ variables: { input: { idExpediente: Number(idExpediente), idTipoRes: Number(form.idTipoRes), numeroResolucion: form.numeroResolucion, fechaResolucion: form.fechaResolucion, parteDispositiva: form.parteDispositiva, fundamentacion: form.fundamentacion || undefined } } });
+      await crear({ variables: { input: {
+        idExpediente: Number(idExpediente),
+        idTipoRes: Number(form.idTipoRes),
+        numeroResolucion: form.numeroResolucion,
+        fechaResolucion: form.fechaResolucion,
+        parteDispositiva: form.parteDispositiva,
+        fundamentacion: form.fundamentacion || undefined,
+      } } });
       onSaved();
     } catch (e: any) { setErr(e.message ?? "Error al guardar."); } finally { setSaving(false); }
   };
@@ -544,7 +763,7 @@ function FormResolucion({ idExpediente, onSaved, onCancel }: { idExpediente: num
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// FORM DOCUMENTO — sube PDF + crea el registro en un solo paso
+// FORM DOCUMENTO
 // ══════════════════════════════════════════════════════════════════════════
 const DJANGO_BASE = "http://localhost:8000";
 
@@ -577,7 +796,6 @@ function FormDocumento({ idExpediente, onSaved, onCancel }: { idExpediente: numb
       formData.append("idTipoDoc", String(form.idTipoDoc));
       if (form.numeroFolio) formData.append("numeroFolio", form.numeroFolio);
       if (archivo) formData.append("archivo", archivo);
-
       const resp = await fetch(`${DJANGO_BASE}/api/subir-documento/`, { method: "POST", body: formData });
       const json = await resp.json();
       if (!json.ok) { setErr(json.mensaje ?? "Error al guardar."); return; }
@@ -602,8 +820,14 @@ function FormDocumento({ idExpediente, onSaved, onCancel }: { idExpediente: numb
           </div>
           <div>
             <label className={labelCls}>Archivo PDF (opcional)</label>
-            <div onClick={() => !saving && inputFileRef.current?.click()}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${archivo ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20" : "border-dashed border-gray-300 dark:border-slate-600 hover:border-emerald-400 dark:hover:border-emerald-500 bg-white dark:bg-slate-900"} ${saving ? "opacity-50 cursor-not-allowed" : ""}`}>
+            <div
+              onClick={() => !saving && inputFileRef.current?.click()}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${
+                archivo
+                  ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20"
+                  : "border-dashed border-gray-300 dark:border-slate-600 hover:border-emerald-400 dark:hover:border-emerald-500 bg-white dark:bg-slate-900"
+              } ${saving ? "opacity-50 cursor-not-allowed" : ""}`}
+            >
               {archivo ? (
                 <>
                   <FileText className="w-4 h-4 text-emerald-500 shrink-0" />
@@ -651,7 +875,14 @@ function FormActuacion({ idExpediente, onSaved, onCancel }: { idExpediente: numb
     if (!usuario?.idUsuario) { setErr("No se pudo identificar al usuario."); return; }
     setSaving(true); setErr("");
     try {
-      await crear({ variables: { idExpediente: Number(idExpediente), idTipoActuacion: Number(form.idTipoActuacion), idUsuario: Number(usuario.idUsuario), folioInicio: Number(form.folioInicio), folioFin: Number(form.folioFin), descripcion: form.descripcion || undefined } });
+      await crear({ variables: {
+        idExpediente: Number(idExpediente),
+        idTipoActuacion: Number(form.idTipoActuacion),
+        idUsuario: Number(usuario.idUsuario),
+        folioInicio: Number(form.folioInicio),
+        folioFin: Number(form.folioFin),
+        descripcion: form.descripcion || undefined,
+      } });
       onSaved();
     } catch (e: any) { setErr(e.message ?? "Error al guardar."); } finally { setSaving(false); }
   };
@@ -695,7 +926,12 @@ function FormConformacion({ idExpediente, onSaved, onCancel }: { idExpediente: n
   const [modalAbierto, setModalAbierto] = useState(false);
 
   const vocales: any[] = (dV?.allVocales ?? []).filter((v: any) => v.activo);
-  const opciones: OpcionModal[] = vocales.map((v: any) => ({ id: v.idVocal, titulo: `${v.idPersona?.nombre} ${v.idPersona?.primerApellido}`, subtitulo: v.cargo, extra: v.idSala?.nombreSala }));
+  const opciones: OpcionModal[] = vocales.map((v: any) => ({
+    id: v.idVocal,
+    titulo: `${v.idPersona?.nombre} ${v.idPersona?.primerApellido}`,
+    subtitulo: v.cargo,
+    extra: v.idSala?.nombreSala,
+  }));
   const set = (k: string) => (e: React.ChangeEvent<any>) => setForm(p => ({ ...p, [k]: e.target.value }));
 
   const guardar = async () => {
@@ -766,7 +1002,12 @@ function TimelineHistorial({ historial }: { historial: any[] }) {
                     <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{fmtFechaHora(h.fechaCambio)}</span>
                     <span className="text-gray-300 dark:text-slate-600">·</span>
                     <span>{tiempoRelativo(h.fechaCambio)}</span>
-                    {(h.usuario?.paterno || h.usuario?.nombres) && (<><span className="text-gray-300 dark:text-slate-600">·</span><span className="flex items-center gap-1 font-medium text-gray-500 dark:text-gray-400"><UserCheck className="w-3 h-3" />{h.usuario.paterno} {h.usuario.nombres}</span></>)}
+                    {(h.usuario?.paterno || h.usuario?.nombres) && (
+                      <><span className="text-gray-300 dark:text-slate-600">·</span>
+                      <span className="flex items-center gap-1 font-medium text-gray-500 dark:text-gray-400">
+                        <UserCheck className="w-3 h-3" />{h.usuario.paterno} {h.usuario.nombres}
+                      </span></>
+                    )}
                   </div>
                 </div>
               </div>
@@ -780,7 +1021,10 @@ function TimelineHistorial({ historial }: { historial: any[] }) {
             <span className="text-xs text-gray-400 dark:text-gray-500">Trayectoria:</span>
             {ordenado.map((h: any, idx: number) => (
               <div key={h.idHistorial} className="flex items-center gap-1">
-                {idx === 0 && h.idEstadoAnterior && (<><span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-gray-400">{h.idEstadoAnterior.nombreEstado}</span><ArrowRight className="w-3 h-3 text-gray-300 dark:text-slate-600" /></>)}
+                {idx === 0 && h.idEstadoAnterior && (
+                  <><span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-gray-400">{h.idEstadoAnterior.nombreEstado}</span>
+                  <ArrowRight className="w-3 h-3 text-gray-300 dark:text-slate-600" /></>
+                )}
                 <span className={`text-xs px-2 py-0.5 rounded-full ${idx === ordenado.length - 1 ? "bg-blue-500 text-white font-semibold" : "bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-gray-400"}`}>{h.idEstadoNuevo?.nombreEstado}</span>
                 {idx < ordenado.length - 1 && <ArrowRight className="w-3 h-3 text-gray-300 dark:text-slate-600" />}
               </div>
@@ -808,13 +1052,16 @@ interface RegistroLocal {
 // MODAL ASISTENCIA
 // ══════════════════════════════════════════════════════════════════════════
 function ModalAsistencia({ audiencia, partes, onClose }: { audiencia: any; partes: any[]; onClose: () => void }) {
-  const { data: dataExistente, loading: loadingExistente } = useQuery(GET_ASISTENCIAS_AUDIENCIA, { variables: { idAudiencia: Number(audiencia.idAudiencia) }, fetchPolicy: "network-only" });
+  const { data: dataExistente, loading: loadingExistente } = useQuery(GET_ASISTENCIAS_AUDIENCIA, {
+    variables: { idAudiencia: Number(audiencia.idAudiencia) },
+    fetchPolicy: "network-only",
+  });
   const [registrarBatch] = useMutation(REGISTRAR_ASISTENCIA_BATCH);
-  const [guardando, setGuardando]   = useState(false);
+  const [guardando, setGuardando]     = useState(false);
   const [modoEdicion, setModoEdicion] = useState(false);
-  const [yaGuardado, setYaGuardado] = useState(false);
-  const [mensajeOk, setMensajeOk]   = useState("");
-  const [registros, setRegistros]   = useState<RegistroLocal[]>([]);
+  const [yaGuardado, setYaGuardado]   = useState(false);
+  const [mensajeOk, setMensajeOk]     = useState("");
+  const [registros, setRegistros]     = useState<RegistroLocal[]>([]);
 
   useEffect(() => {
     if (!loadingExistente) {
@@ -830,22 +1077,42 @@ function ModalAsistencia({ audiencia, partes, onClose }: { audiencia: any; parte
           else if (guardado.motivoInasistencia?.toLowerCase().includes("justif")) estado = "JUSTIFICADO";
           else estado = "AUSENTE";
         }
-        return { idPersona: Number(p.idPersona?.idPersona), nombre: `${p.idPersona?.nombre} ${p.idPersona?.primerApellido}`, rolEnAudiencia: p.idRol?.nombreRol ?? "Parte procesal", estado, motivoInasistencia: guardado?.motivoInasistencia ?? "" };
+        return {
+          idPersona: Number(p.idPersona?.idPersona),
+          nombre: `${p.idPersona?.nombre} ${p.idPersona?.primerApellido}`,
+          rolEnAudiencia: p.idRol?.nombreRol ?? "Parte procesal",
+          estado,
+          motivoInasistencia: guardado?.motivoInasistencia ?? "",
+        };
       });
       setRegistros(iniciales);
     }
   }, [loadingExistente, dataExistente]);
 
-  const setEstado = (idPersona: number, estado: EstadoAsistencia) => setRegistros(prev => prev.map(r => r.idPersona === idPersona ? { ...r, estado } : r));
-  const setMotivo = (idPersona: number, motivo: string) => setRegistros(prev => prev.map(r => r.idPersona === idPersona ? { ...r, motivoInasistencia: motivo } : r));
+  const setEstado = (idPersona: number, estado: EstadoAsistencia) =>
+    setRegistros(prev => prev.map(r => r.idPersona === idPersona ? { ...r, estado } : r));
+  const setMotivo = (idPersona: number, motivo: string) =>
+    setRegistros(prev => prev.map(r => r.idPersona === idPersona ? { ...r, motivoInasistencia: motivo } : r));
   const todosMarcados = registros.every(r => r.estado !== null);
 
   const guardar = async () => {
     if (!todosMarcados) return;
     setGuardando(true);
     try {
-      const { data } = await registrarBatch({ variables: { idAudiencia: Number(audiencia.idAudiencia), registros: registros.map(r => ({ idPersona: Number(r.idPersona), rolEnAudiencia: r.rolEnAudiencia, estado: r.estado, motivoInasistencia: r.motivoInasistencia || null })) } });
-      if (data?.registrarAsistenciaBatch?.ok) { setYaGuardado(true); setModoEdicion(false); setMensajeOk(data.registrarAsistenciaBatch.mensaje); }
+      const { data } = await registrarBatch({
+        variables: {
+          idAudiencia: Number(audiencia.idAudiencia),
+          registros: registros.map(r => ({
+            idPersona: Number(r.idPersona),
+            rolEnAudiencia: r.rolEnAudiencia,
+            estado: r.estado,
+            motivoInasistencia: r.motivoInasistencia || null,
+          })),
+        },
+      });
+      if (data?.registrarAsistenciaBatch?.ok) {
+        setYaGuardado(true); setModoEdicion(false); setMensajeOk(data.registrarAsistenciaBatch.mensaje);
+      }
     } catch (e: any) { console.error(e); } finally { setGuardando(false); }
   };
 
@@ -872,7 +1139,6 @@ function ModalAsistencia({ audiencia, partes, onClose }: { audiencia: any; parte
           </div>
           {!guardando && <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"><X className="w-5 h-5" /></button>}
         </div>
-
         {registros.some(r => r.estado !== null) && (
           <div className="flex-shrink-0 px-6 py-3 border-b border-gray-200 dark:border-slate-700 flex gap-4">
             <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-emerald-500" /><span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{presentes} presentes</span></div>
@@ -880,7 +1146,6 @@ function ModalAsistencia({ audiencia, partes, onClose }: { audiencia: any; parte
             <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-amber-500" /><span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{justificados} justificados</span></div>
           </div>
         )}
-
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
           {loadingExistente ? (
             <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500" /></div>
@@ -911,7 +1176,10 @@ function ModalAsistencia({ audiencia, partes, onClose }: { audiencia: any; parte
                   </div>
                 )}
                 {modoEdicion && (r.estado === "AUSENTE" || r.estado === "JUSTIFICADO") && (
-                  <input type="text" placeholder={r.estado === "JUSTIFICADO" ? "Motivo de justificación (opcional)..." : "Motivo de inasistencia (opcional)..."} value={r.motivoInasistencia} onChange={e => setMotivo(r.idPersona, e.target.value)}
+                  <input type="text"
+                    placeholder={r.estado === "JUSTIFICADO" ? "Motivo de justificación (opcional)..." : "Motivo de inasistencia (opcional)..."}
+                    value={r.motivoInasistencia}
+                    onChange={e => setMotivo(r.idPersona, e.target.value)}
                     className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-600 text-gray-800 dark:text-gray-200 text-xs focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all" />
                 )}
               </div>
@@ -923,7 +1191,6 @@ function ModalAsistencia({ audiencia, partes, onClose }: { audiencia: any; parte
             </div>
           )}
         </div>
-
         <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-slate-700 flex gap-2">
           {modoEdicion ? (
             <>
@@ -951,8 +1218,8 @@ function ModalAsistencia({ audiencia, partes, onClose }: { audiencia: any; parte
 // ══════════════════════════════════════════════════════════════════════════
 function ModalCitaciones({ audiencia, partes, onClose }: { audiencia: any; partes: any[]; onClose: () => void }) {
   const [enviarCitaciones] = useMutation(ENVIAR_CITACIONES_AUDIENCIA);
-  const [enviando, setEnviando]     = useState(false);
-  const [resultado, setResultado]   = useState<any | null>(null);
+  const [enviando, setEnviando]   = useState(false);
+  const [resultado, setResultado] = useState<any | null>(null);
 
   const partesConEmail = partes.filter((p: any) => p.idPersona?.contactos?.some((c: any) => c.tipoContacto?.toLowerCase() === "email"));
   const partesSinEmail = partes.filter((p: any) => !p.idPersona?.contactos?.some((c: any) => c.tipoContacto?.toLowerCase() === "email"));
@@ -962,7 +1229,8 @@ function ModalCitaciones({ audiencia, partes, onClose }: { audiencia: any; parte
     try {
       const { data } = await enviarCitaciones({ variables: { idAudiencia: Number(audiencia.idAudiencia) } });
       setResultado(data?.enviarCitacionesAudiencia);
-    } catch (e: any) { setResultado({ ok: false, mensaje: e.message ?? "Error al enviar." }); } finally { setEnviando(false); }
+    } catch (e: any) { setResultado({ ok: false, mensaje: e.message ?? "Error al enviar." }); }
+    finally { setEnviando(false); }
   };
 
   return (
@@ -978,7 +1246,6 @@ function ModalCitaciones({ audiencia, partes, onClose }: { audiencia: any; parte
           </div>
           {!enviando && <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"><X className="w-5 h-5" /></button>}
         </div>
-
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {!resultado ? (
             <>
@@ -1044,7 +1311,6 @@ function ModalCitaciones({ audiencia, partes, onClose }: { audiencia: any; parte
             </div>
           )}
         </div>
-
         <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-slate-700 flex gap-2">
           {!resultado ? (
             <>
@@ -1063,31 +1329,27 @@ function ModalCitaciones({ audiencia, partes, onClose }: { audiencia: any; parte
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// TARJETA DOCUMENTO — muestra el archivo, permite ver, descargar y reemplazar
+// TARJETA DOCUMENTO
 // ══════════════════════════════════════════════════════════════════════════
 function TarjetaDocumento({ doc, eliminandoId, onEliminar, onArchivoSubido }: {
   doc: any; eliminandoId: number | null; onEliminar: () => void; onArchivoSubido: () => void;
 }) {
-  const [subiendo, setSubiendo]         = useState(false);
-  const [errorSubida, setErrorSubida]   = useState("");
-  const [rutaLocal, setRutaLocal]       = useState<string | null>(doc.rutaArchivo || null);
-  const [tamanoLocal, setTamanoLocal]   = useState<number>(doc.tamanoKb ?? 0);
-  const inputRef                        = useRef<HTMLInputElement>(null);
-
-  const DJANGO_BASE = "http://localhost:8000";
+  const [subiendo, setSubiendo]       = useState(false);
+  const [errorSubida, setErrorSubida] = useState("");
+  const [rutaLocal, setRutaLocal]     = useState<string | null>(doc.rutaArchivo || null);
+  const [tamanoLocal, setTamanoLocal] = useState<number>(doc.tamanoKb ?? 0);
+  const inputRef                      = useRef<HTMLInputElement>(null);
 
   const manejarReemplazo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const archivo = e.target.files?.[0];
     if (!archivo) return;
     if (!archivo.name.toLowerCase().endsWith(".pdf")) { setErrorSubida("Solo se permiten archivos PDF."); return; }
-
     setSubiendo(true); setErrorSubida("");
     const formData = new FormData();
     formData.append("titulo", doc.titulo);
     formData.append("idExpediente", String(doc.idExpediente?.idExpediente ?? doc.idExpediente));
     formData.append("idTipoDoc", String(doc.idTipoDoc?.idTipoDoc ?? doc.idTipoDoc));
     formData.append("archivo", archivo);
-
     try {
       const resp = await fetch(`${DJANGO_BASE}/api/subir-documento/`, { method: "POST", body: formData });
       const json = await resp.json();
@@ -1102,8 +1364,6 @@ function TarjetaDocumento({ doc, eliminandoId, onEliminar, onArchivoSubido }: {
 
   return (
     <div className="p-4 bg-gray-50 dark:bg-slate-800/60 rounded-xl border border-gray-200 dark:border-slate-700 space-y-3">
-
-      {/* Fila superior */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-gray-800 dark:text-white truncate">{doc.titulo}</p>
@@ -1117,56 +1377,30 @@ function TarjetaDocumento({ doc, eliminandoId, onEliminar, onArchivoSubido }: {
         </div>
         <BtnEliminar disabled={eliminandoId === doc.idDocumento} onClick={onEliminar} />
       </div>
-
-      {/* Metadatos */}
       <div className="grid grid-cols-3 gap-3">
         <InfoCell label="Folio"              value={doc.numeroFolio ?? "—"} />
         <InfoCell label="Fecha presentación" value={fmtFecha(doc.fechaPresentacion)} />
         <InfoCell label="Tamaño"             value={tamanoLocal > 0 ? `${tamanoLocal} KB` : "—"} />
       </div>
-
-      {/* Zona de archivo */}
       {urlArchivo ? (
         <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800/40">
-          {/* Icono PDF */}
           <div className="w-9 h-9 rounded-lg bg-red-500 flex items-center justify-center shrink-0">
             <FileText className="w-4 h-4 text-white" />
           </div>
-
-          {/* Nombre + tamaño */}
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-red-700 dark:text-red-400 truncate">{nombreArchivo}</p>
-            <p className="text-[10px] text-red-400 dark:text-red-500 mt-0.5">
-              {tamanoLocal > 0 ? `${tamanoLocal} KB` : "PDF"} · subido el {fmtFecha(doc.fechaPresentacion)}
-            </p>
+            <p className="text-[10px] text-red-400 dark:text-red-500 mt-0.5">{tamanoLocal > 0 ? `${tamanoLocal} KB` : "PDF"} · subido el {fmtFecha(doc.fechaPresentacion)}</p>
           </div>
-
-          {/* Ver en nueva pestaña */}
-          <a
-            href={urlArchivo}
-            target="_blank"
-            rel="noreferrer"
-            title="Ver PDF"
-            className="p-1.5 rounded-lg text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-          >
+          <a href={urlArchivo} target="_blank" rel="noreferrer" title="Ver PDF" className="p-1.5 rounded-lg text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
             </svg>
           </a>
-
-          {/* Descargar */}
-          <a
-            href={urlArchivo}
-            download={nombreArchivo}
-            title="Descargar PDF"
-            className="p-1.5 rounded-lg text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-          >
+          <a href={urlArchivo} download={nombreArchivo} title="Descargar PDF" className="p-1.5 rounded-lg text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
             </svg>
           </a>
-
-          {/* Reemplazar */}
           <button onClick={() => inputRef.current?.click()} title="Reemplazar archivo" disabled={subiendo}
             className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors disabled:opacity-40">
             {subiendo ? <Loader2 className="w-4 h-4 animate-spin" /> : (
@@ -1177,7 +1411,6 @@ function TarjetaDocumento({ doc, eliminandoId, onEliminar, onArchivoSubido }: {
           </button>
         </div>
       ) : (
-        /* Sin archivo */
         <button onClick={() => inputRef.current?.click()} disabled={subiendo}
           className="w-full flex flex-col items-center gap-2 py-4 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-400 dark:text-gray-500 hover:border-red-400 dark:hover:border-red-500 hover:text-red-500 dark:hover:text-red-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
           {subiendo ? (
@@ -1192,15 +1425,11 @@ function TarjetaDocumento({ doc, eliminandoId, onEliminar, onArchivoSubido }: {
           )}
         </button>
       )}
-
-      {/* Error subida */}
       {errorSubida && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 text-red-600 dark:text-red-400 text-xs">
           <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {errorSubida}
         </div>
       )}
-
-      {/* Input oculto */}
       <input ref={inputRef} type="file" accept="application/pdf" className="hidden" onChange={manejarReemplazo} />
     </div>
   );
@@ -1214,13 +1443,15 @@ export default function ExpedienteDetallePage() {
   const navigate     = useNavigate();
   const idExpediente = Number(id);
 
-  const [tabActiva, setTabActiva]     = useState<TabId>("general");
-  const [showForm, setShowForm]       = useState<Partial<Record<TabId, boolean>>>({});
-  const [editandoAud, setEditandoAud] = useState<any | null>(null);
-  const [eliminandoId, setEliminandoId] = useState<number | null>(null);
-  const [generandoPdf, setGenerandoPdf] = useState<number | null>(null);
-  const [citacionAud, setCitacionAud] = useState<any | null>(null);
+  const [tabActiva, setTabActiva]         = useState<TabId>("general");
+  const [showForm, setShowForm]           = useState<Partial<Record<TabId, boolean>>>({});
+  const [editandoAud, setEditandoAud]     = useState<any | null>(null);
+  const [eliminandoId, setEliminandoId]   = useState<number | null>(null);
+  const [generandoPdf, setGenerandoPdf]   = useState<number | null>(null);
+  const [citacionAud, setCitacionAud]     = useState<any | null>(null);
   const [asistenciaAud, setAsistenciaAud] = useState<any | null>(null);
+  // ── Nuevo: modal cambio de estado ─────────────────────────────────────
+  const [showCambioEstado, setShowCambioEstado] = useState(false);
 
   const [enviarCitaciones]   = useMutation(ENVIAR_CITACIONES_AUDIENCIA);
   const { executeCreate, executeDelete } = useCrudNotifications("Expediente");
@@ -1238,14 +1469,14 @@ export default function ExpedienteDetallePage() {
   });
 
   const exp          = data?.expedienteById;
-  const partes       = data?.partesPorExpediente        ?? [];
+  const partes       = data?.partesPorExpediente         ?? [];
   const vocales      = data?.conformacionesPorExpediente ?? [];
-  const audiencias   = data?.audienciasPorExpediente    ?? [];
-  const resoluciones = data?.resolucionesPorExpediente  ?? [];
-  const recursos     = data?.recursosPorExpediente      ?? [];
-  const documentos   = data?.documentosPorExpediente    ?? [];
-  const actuaciones  = data?.actuacionesPorExpediente   ?? [];
-  const historial    = data?.historialPorExpediente     ?? [];
+  const audiencias   = data?.audienciasPorExpediente     ?? [];
+  const resoluciones = data?.resolucionesPorExpediente   ?? [];
+  const recursos     = data?.recursosPorExpediente       ?? [];
+  const documentos   = data?.documentosPorExpediente     ?? [];
+  const actuaciones  = data?.actuacionesPorExpediente    ?? [];
+  const historial    = data?.historialPorExpediente      ?? [];
 
   const counts: Record<TabId, number | null> = {
     general: null, vocales: vocales.length, partes: partes.length,
@@ -1298,7 +1529,9 @@ export default function ExpedienteDetallePage() {
                 <FolderOpen className="w-5 h-5 text-blue-500 shrink-0" />
                 Expediente <span className="font-mono text-blue-600 dark:text-blue-400">{exp.numeroExpediente}</span>
               </h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{exp.idTipoProceso?.nombre} · {exp.idSala?.nombreSala} · {exp.idSala?.idTribunal?.nombreTribunal}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                {exp.idTipoProceso?.nombre} · {exp.idSala?.nombreSala} · {exp.idSala?.idTribunal?.nombreTribunal}
+              </p>
             </div>
           ) : null}
         </div>
@@ -1310,8 +1543,8 @@ export default function ExpedienteDetallePage() {
         {/* SIDEBAR */}
         <nav className="w-44 shrink-0 bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
           {TABS.map(tab => {
-            const Icon  = tab.icon;
-            const count = counts[tab.id];
+            const Icon   = tab.icon;
+            const count  = counts[tab.id];
             const activa = tabActiva === tab.id;
             return (
               <button key={tab.id} onClick={() => { setTabActiva(tab.id); setShowForm({}); setEditandoAud(null); }}
@@ -1326,7 +1559,7 @@ export default function ExpedienteDetallePage() {
           })}
         </nav>
 
-        {/* PANEL */}
+        {/* PANEL PRINCIPAL */}
         <div className="flex-1 min-w-0 bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm p-6">
           {loading && (
             <div className="flex flex-col items-center justify-center h-64 gap-3 text-gray-400">
@@ -1352,11 +1585,26 @@ export default function ExpedienteDetallePage() {
                       <InfoCell label="Fecha de Ingreso" value={fmtFecha(exp.fechaIngreso)} />
                       <InfoCell label="Tipo de Proceso" value={<Pill className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 mt-0.5">{exp.idTipoProceso?.codigo} · {exp.idTipoProceso?.nombre}</Pill>} />
                       <InfoCell label="Estado" value={exp.idEstadoExpediente ? (
-                        <Pill className={exp.idEstadoExpediente.esTerminal ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 mt-0.5" : "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 mt-0.5"}>
+                        <Pill className={exp.idEstadoExpediente.esTerminal
+                          ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 mt-0.5"
+                          : "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 mt-0.5"}>
                           {exp.idEstadoExpediente.esTerminal ? <Scale className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
                           {exp.idEstadoExpediente.nombreEstado}
                         </Pill>) : "—"} />
                       <InfoCell label="Fecha de Conclusión" value={fmtFecha(exp.fechaConclusion)} />
+
+                      {/* Botón cambiar estado — solo si el expediente no está en estado terminal */}
+                      {!exp.idEstadoExpediente?.esTerminal && (
+                        <div className="col-span-full mt-1">
+                          <button
+                            onClick={() => setShowCambioEstado(true)}
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 text-sm font-semibold hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                          >
+                            <ArrowRight className="w-4 h-4" />
+                            Cambiar estado
+                          </button>
+                        </div>
+                      )}
                     </div>
                     {exp.descripcion && (
                       <div className="mt-4 pt-4 border-t border-gray-200 dark:border-slate-700">
@@ -1365,21 +1613,28 @@ export default function ExpedienteDetallePage() {
                       </div>
                     )}
                   </div>
+
                   <div className="bg-gray-50 dark:bg-slate-800/60 rounded-2xl p-5">
                     <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-4">Sala y Tribunal</h3>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-5">
                       <InfoCell label="Sala" value={exp.idSala?.nombreSala} />
                       <InfoCell label="Tribunal" value={exp.idSala?.idTribunal?.nombreTribunal} />
                       <InfoCell label="Instancia" value={exp.idSala?.idTribunal?.instancia} />
-                      <InfoCell label="Estado de Sala" value={<Pill className={exp.idSala?.activa ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 mt-0.5" : "bg-gray-100 dark:bg-slate-700 text-gray-500 mt-0.5"}>{exp.idSala?.activa ? "Activa" : "Inactiva"}</Pill>} />
+                      <InfoCell label="Estado de Sala" value={
+                        <Pill className={exp.idSala?.activa
+                          ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 mt-0.5"
+                          : "bg-gray-100 dark:bg-slate-700 text-gray-500 mt-0.5"}>
+                          {exp.idSala?.activa ? "Activa" : "Inactiva"}
+                        </Pill>} />
                     </div>
                   </div>
+
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {[
                       { label: "Partes procesales", count: partes.length,       color: "blue",    tab: "partes"       as TabId },
-                      { label: "Audiencias",         count: audiencias.length,   color: "indigo",  tab: "audiencias"   as TabId },
-                      { label: "Resoluciones",       count: resoluciones.length, color: "purple",  tab: "resoluciones" as TabId },
-                      { label: "Documentos",         count: documentos.length,   color: "emerald", tab: "documentos"   as TabId },
+                      { label: "Actuaciones",        count: actuaciones.length,  color: "indigo",  tab: "actuaciones"  as TabId },
+                      { label: "Audiencias",         count: audiencias.length,   color: "purple",  tab: "audiencias"   as TabId },
+                      { label: "Resoluciones",       count: resoluciones.length, color: "emerald", tab: "resoluciones" as TabId },
                     ].map(({ label, count, color, tab }) => {
                       const s = RESUMEN_STYLES[color];
                       return (
@@ -1413,7 +1668,10 @@ export default function ExpedienteDetallePage() {
                           </div>
                           <div className="flex items-center gap-2">
                             <Pill className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400">{c.rolEnCaso}</Pill>
-                            <BtnEliminar disabled={eliminandoId === c.idConformacion} onClick={() => eliminar(c.idConformacion, () => eliminarConformacion({ variables: { id: Number(c.idConformacion) } }) as any, `¿Quitar al vocal ${c.idVocal?.idPersona?.nombre} de este expediente?`, { loading: "Quitando vocal...", success: "Vocal quitado del expediente", error: "Error al quitar el vocal" })} />
+                            <BtnEliminar disabled={eliminandoId === c.idConformacion}
+                              onClick={() => eliminar(c.idConformacion, () => eliminarConformacion({ variables: { id: Number(c.idConformacion) } }) as any,
+                                `¿Quitar al vocal ${c.idVocal?.idPersona?.nombre} de este expediente?`,
+                                { loading: "Quitando vocal...", success: "Vocal quitado del expediente", error: "Error al quitar el vocal" })} />
                           </div>
                         </div>
                       ))}
@@ -1433,7 +1691,9 @@ export default function ExpedienteDetallePage() {
                     <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-slate-700">
                       <table className="w-full">
                         <thead className="bg-gray-50 dark:bg-slate-800/80">
-                          <tr>{["Persona", "Documento", "Rol Procesal", "Abogado", "Estado", ""].map(h => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>)}</tr>
+                          <tr>{["Persona", "Documento", "Rol Procesal", "Abogado", "Estado", ""].map(h => (
+                            <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>
+                          ))}</tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                           {partes.map((p: any) => (
@@ -1444,7 +1704,49 @@ export default function ExpedienteDetallePage() {
                               <td className="px-4 py-3">{p.idPersona?.esAbogado ? <Pill className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400">Sí</Pill> : <span className="text-xs text-gray-400">No</span>}</td>
                               <td className="px-4 py-3"><Pill className={p.activo ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"}>{p.activo ? "Activo" : "Excluido"}</Pill></td>
                               <td className="px-4 py-3 text-right">
-                                <BtnEliminar disabled={eliminandoId === p.idParte} onClick={() => eliminar(p.idParte, () => eliminarParte({ variables: { id: Number(p.idParte) } }) as any, `¿Eliminar a ${p.idPersona?.nombre} ${p.idPersona?.primerApellido} como parte procesal?`, { loading: "Eliminando parte...", success: "Parte procesal eliminada", error: "Error al eliminar la parte" })} />
+                                <BtnEliminar disabled={eliminandoId === p.idParte}
+                                  onClick={() => eliminar(p.idParte, () => eliminarParte({ variables: { id: Number(p.idParte) } }) as any,
+                                    `¿Eliminar a ${p.idPersona?.nombre} ${p.idPersona?.primerApellido} como parte procesal?`,
+                                    { loading: "Eliminando parte...", success: "Parte procesal eliminada", error: "Error al eliminar la parte" })} />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ══ ACTUACIONES ══ */}
+              {tabActiva === "actuaciones" && (
+                <div className="space-y-4">
+                  <SeccionHeader count={actuaciones.length} singular="actuación" plural="actuaciones" onAgregar={() => abrirForm("actuaciones")} mostrarBoton={!showForm["actuaciones"]} />
+                  {showForm["actuaciones"] && <FormActuacion idExpediente={idExpediente} onSaved={() => onSaved("actuaciones")} onCancel={() => cerrarForm("actuaciones")} />}
+                  {actuaciones.length === 0 && !showForm["actuaciones"] ? (
+                    <TablaVacia icono={ClipboardList} mensaje="Sin actuaciones procesales registradas" onAgregar={() => abrirForm("actuaciones")} labelAgregar="Registrar actuación" />
+                  ) : (
+                    <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-slate-700">
+                      <table className="w-full">
+                        <thead className="bg-gray-50 dark:bg-slate-800/80">
+                          <tr>{["Tipo", "Fecha", "Folios", "Usuario", "Pública", "Descripción", ""].map(h => (
+                            <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>
+                          ))}</tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                          {actuaciones.map((a: any) => (
+                            <tr key={a.idActuacion} className="hover:bg-gray-50 dark:hover:bg-slate-800/40">
+                              <td className="px-4 py-3"><Pill className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400">{a.idTipoActuacion?.codigo}</Pill><p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{a.idTipoActuacion?.nombre}</p></td>
+                              <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{fmtFecha(a.fechaActuacion)}</td>
+                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 font-mono">{a.folioInicio} – {a.folioFin}</td>
+                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{a.usuario?.paterno} {a.usuario?.nombres}</td>
+                              <td className="px-4 py-3">{a.esPublica ? <Pill className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">Sí</Pill> : <span className="text-xs text-gray-400">No</span>}</td>
+                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 max-w-xs truncate">{a.descripcion ?? "—"}</td>
+                              <td className="px-4 py-3 text-right">
+                                <BtnEliminar disabled={eliminandoId === a.idActuacion}
+                                  onClick={() => eliminar(a.idActuacion, () => eliminarActuacion({ variables: { id: Number(a.idActuacion) } }) as any,
+                                    `¿Eliminar esta actuación procesal?`,
+                                    { loading: "Eliminando actuación...", success: "Actuación eliminada", error: "Error al eliminar la actuación" })} />
                               </td>
                             </tr>
                           ))}
@@ -1483,7 +1785,10 @@ export default function ExpedienteDetallePage() {
                                   <button onClick={() => setCitacionAud(a)} title="Enviar citaciones por email" className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"><Send className="w-3.5 h-3.5" /></button>
                                   <button onClick={() => setAsistenciaAud(a)} title="Tomar asistencia" className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"><ClipboardList className="w-3.5 h-3.5" /></button>
                                   <button onClick={() => { setEditandoAud(a); abrirForm("audiencias"); }} className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
-                                  <BtnEliminar disabled={eliminandoId === a.idAudiencia} onClick={() => eliminar(a.idAudiencia, () => eliminarAudiencia({ variables: { id: Number(a.idAudiencia) } }) as any, `¿Eliminar la audiencia del ${fmtFechaHora(a.fechaHoraProgramada)}?`, { loading: "Eliminando audiencia...", success: "Audiencia eliminada", error: "Error al eliminar la audiencia" })} />
+                                  <BtnEliminar disabled={eliminandoId === a.idAudiencia}
+                                    onClick={() => eliminar(a.idAudiencia, () => eliminarAudiencia({ variables: { id: Number(a.idAudiencia) } }) as any,
+                                      `¿Eliminar la audiencia del ${fmtFechaHora(a.fechaHoraProgramada)}?`,
+                                      { loading: "Eliminando audiencia...", success: "Audiencia eliminada", error: "Error al eliminar la audiencia" })} />
                                 </div>
                               )}
                             </div>
@@ -1493,14 +1798,46 @@ export default function ExpedienteDetallePage() {
                             <InfoCell label="Inicio" value={fmtFechaHora(a.fechaHoraInicio)} />
                             <InfoCell label="Fin" value={fmtFechaHora(a.fechaHoraFin)} />
                             {a.motivoSuspension && <div className="col-span-full"><InfoCell label="Motivo suspensión" value={<span className="text-amber-600 dark:text-amber-400">{a.motivoSuspension}</span>} /></div>}
-                            {a.linkVideoconferencia && <div className="col-span-full"><p className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider mb-0.5">Enlace</p><a href={a.linkVideoconferencia} target="_blank" rel="noreferrer" className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"><Video className="w-3.5 h-3.5" /> Videoconferencia</a></div>}
+                            {a.linkVideoconferencia && (
+                              <div className="col-span-full">
+                                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider mb-0.5">Enlace</p>
+                                <a href={a.linkVideoconferencia} target="_blank" rel="noreferrer" className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+                                  <Video className="w-3.5 h-3.5" /> Videoconferencia
+                                </a>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}
                     </div>
                   )}
-                  {citacionAud && <ModalCitaciones audiencia={citacionAud} partes={partes.filter((p: any) => p.activo)} onClose={() => setCitacionAud(null)} />}
+                  {citacionAud  && <ModalCitaciones  audiencia={citacionAud}  partes={partes.filter((p: any) => p.activo)} onClose={() => setCitacionAud(null)} />}
                   {asistenciaAud && <ModalAsistencia audiencia={asistenciaAud} partes={partes.filter((p: any) => p.activo)} onClose={() => setAsistenciaAud(null)} />}
+                </div>
+              )}
+
+              {/* ══ DOCUMENTOS ══ */}
+              {tabActiva === "documentos" && (
+                <div className="space-y-4">
+                  <SeccionHeader count={documentos.length} singular="documento" plural="documentos" onAgregar={() => abrirForm("documentos")} mostrarBoton={!showForm["documentos"]} />
+                  {showForm["documentos"] && <FormDocumento idExpediente={idExpediente} onSaved={() => onSaved("documentos")} onCancel={() => cerrarForm("documentos")} />}
+                  {documentos.length === 0 && !showForm["documentos"] ? (
+                    <TablaVacia icono={FileText} mensaje="Sin documentos registrados" onAgregar={() => abrirForm("documentos")} labelAgregar="Registrar documento" />
+                  ) : (
+                    <div className="space-y-3">
+                      {documentos.map((d: any) => (
+                        <TarjetaDocumento
+                          key={d.idDocumento}
+                          doc={d}
+                          eliminandoId={eliminandoId}
+                          onEliminar={() => eliminar(d.idDocumento, () => eliminarDocumento({ variables: { id: Number(d.idDocumento) } }) as any,
+                            `¿Eliminar el documento "${d.titulo}"?`,
+                            { loading: "Eliminando documento...", success: `"${d.titulo}" eliminado`, error: "Error al eliminar el documento" })}
+                          onArchivoSubido={() => refetch()}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1515,7 +1852,10 @@ export default function ExpedienteDetallePage() {
                     resoluciones.map((r: any) => (
                       <div key={r.idResolucion} className="p-4 bg-gray-50 dark:bg-slate-800/60 rounded-xl border border-gray-200 dark:border-slate-700 space-y-3">
                         <div className="flex items-start justify-between gap-2">
-                          <div><p className="text-sm font-bold text-gray-800 dark:text-white font-mono">{r.numeroResolucion}</p><p className="text-xs text-gray-500 dark:text-gray-400">{r.idTipoRes?.codigo} · {r.idTipoRes?.nombre}</p></div>
+                          <div>
+                            <p className="text-sm font-bold text-gray-800 dark:text-white font-mono">{r.numeroResolucion}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{r.idTipoRes?.codigo} · {r.idTipoRes?.nombre}</p>
+                          </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <Pill className={r.estado === "VIGENTE" ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" : "bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300"}>{r.estado}</Pill>
                             {r.esRecurrible && <Pill className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">Recurrible · {r.plazoRecursoDias}d</Pill>}
@@ -1523,7 +1863,10 @@ export default function ExpedienteDetallePage() {
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 text-xs font-semibold border border-red-200 dark:border-red-800/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                               {generandoPdf === r.idResolucion ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generando...</> : <><FileDown className="w-3.5 h-3.5" /> PDF</>}
                             </button>
-                            <BtnEliminar disabled={eliminandoId === r.idResolucion} onClick={() => eliminar(r.idResolucion, () => eliminarResolucion({ variables: { id: Number(r.idResolucion) } }) as any, `¿Eliminar la resolución ${r.numeroResolucion}?`, { loading: "Eliminando resolución...", success: `Resolución ${r.numeroResolucion} eliminada`, error: "Error al eliminar la resolución" })} />
+                            <BtnEliminar disabled={eliminandoId === r.idResolucion}
+                              onClick={() => eliminar(r.idResolucion, () => eliminarResolucion({ variables: { id: Number(r.idResolucion) } }) as any,
+                                `¿Eliminar la resolución ${r.numeroResolucion}?`,
+                                { loading: "Eliminando resolución...", success: `Resolución ${r.numeroResolucion} eliminada`, error: "Error al eliminar la resolución" })} />
                           </div>
                         </div>
                         <InfoCell label="Fecha de Resolución" value={fmtFecha(r.fechaResolucion)} />
@@ -1550,7 +1893,10 @@ export default function ExpedienteDetallePage() {
                     recursos.map((r: any) => (
                       <div key={r.idRecurso} className="p-4 bg-gray-50 dark:bg-slate-800/60 rounded-xl border border-gray-200 dark:border-slate-700 space-y-3">
                         <div className="flex items-start justify-between gap-2">
-                          <div><p className="text-sm font-semibold text-gray-800 dark:text-white">{r.idTipoRecurso?.nombre}</p><p className="text-xs text-gray-500 dark:text-gray-400">Resolución: <span className="font-mono">{r.idResolucionImpugnada?.numeroResolucion}</span></p></div>
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800 dark:text-white">{r.idTipoRecurso?.nombre}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Resolución: <span className="font-mono">{r.idResolucionImpugnada?.numeroResolucion}</span></p>
+                          </div>
                           <Pill className={estadoRecursoColor[r.estadoRecurso] ?? "bg-gray-100 text-gray-600"}>{r.estadoRecurso}</Pill>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
@@ -1565,69 +1911,21 @@ export default function ExpedienteDetallePage() {
                 </div>
               )}
 
-              {/* ══ DOCUMENTOS ══ */}
-              {tabActiva === "documentos" && (
-                <div className="space-y-4">
-                  <SeccionHeader count={documentos.length} singular="documento" plural="documentos" onAgregar={() => abrirForm("documentos")} mostrarBoton={!showForm["documentos"]} />
-                  {showForm["documentos"] && <FormDocumento idExpediente={idExpediente} onSaved={() => onSaved("documentos")} onCancel={() => cerrarForm("documentos")} />}
-                  {documentos.length === 0 && !showForm["documentos"] ? (
-                    <TablaVacia icono={FileText} mensaje="Sin documentos registrados" onAgregar={() => abrirForm("documentos")} labelAgregar="Registrar documento" />
-                  ) : (
-                    <div className="space-y-3">
-                      {documentos.map((d: any) => (
-                        <TarjetaDocumento
-                          key={d.idDocumento}
-                          doc={d}
-                          eliminandoId={eliminandoId}
-                          onEliminar={() => eliminar(d.idDocumento, () => eliminarDocumento({ variables: { id: Number(d.idDocumento) } }) as any, `¿Eliminar el documento "${d.titulo}"?`, { loading: "Eliminando documento...", success: `"${d.titulo}" eliminado`, error: "Error al eliminar el documento" })}
-                          onArchivoSubido={() => refetch()}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* ══ ACTUACIONES ══ */}
-              {tabActiva === "actuaciones" && (
-                <div className="space-y-4">
-                  <SeccionHeader count={actuaciones.length} singular="actuación" plural="actuaciones" onAgregar={() => abrirForm("actuaciones")} mostrarBoton={!showForm["actuaciones"]} />
-                  {showForm["actuaciones"] && <FormActuacion idExpediente={idExpediente} onSaved={() => onSaved("actuaciones")} onCancel={() => cerrarForm("actuaciones")} />}
-                  {actuaciones.length === 0 && !showForm["actuaciones"] ? (
-                    <TablaVacia icono={ClipboardList} mensaje="Sin actuaciones procesales registradas" onAgregar={() => abrirForm("actuaciones")} labelAgregar="Registrar actuación" />
-                  ) : (
-                    <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-slate-700">
-                      <table className="w-full">
-                        <thead className="bg-gray-50 dark:bg-slate-800/80">
-                          <tr>{["Tipo", "Fecha", "Folios", "Usuario", "Pública", "Descripción", ""].map(h => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>)}</tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-                          {actuaciones.map((a: any) => (
-                            <tr key={a.idActuacion} className="hover:bg-gray-50 dark:hover:bg-slate-800/40">
-                              <td className="px-4 py-3"><Pill className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400">{a.idTipoActuacion?.codigo}</Pill><p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{a.idTipoActuacion?.nombre}</p></td>
-                              <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{fmtFecha(a.fechaActuacion)}</td>
-                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 font-mono">{a.folioInicio} – {a.folioFin}</td>
-                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{a.usuario?.paterno} {a.usuario?.nombres}</td>
-                              <td className="px-4 py-3">{a.esPublica ? <Pill className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">Sí</Pill> : <span className="text-xs text-gray-400">No</span>}</td>
-                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 max-w-xs truncate">{a.descripcion ?? "—"}</td>
-                              <td className="px-4 py-3 text-right">
-                                <BtnEliminar disabled={eliminandoId === a.idActuacion} onClick={() => eliminar(a.idActuacion, () => eliminarActuacion({ variables: { id: Number(a.idActuacion) } }) as any, `¿Eliminar esta actuación procesal?`, { loading: "Eliminando actuación...", success: "Actuación eliminada", error: "Error al eliminar la actuación" })} />
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
-
               {/* ══ HISTORIAL ══ */}
               {tabActiva === "historial" && <TimelineHistorial historial={historial} />}
             </>
           )}
         </div>
       </div>
+
+      {/* ══ MODAL CAMBIO DE ESTADO ══ */}
+      {showCambioEstado && exp && (
+        <ModalCambioEstado
+          expediente={exp}
+          onClose={() => setShowCambioEstado(false)}
+          onCambiado={() => { setShowCambioEstado(false); refetch(); }}
+        />
+      )}
     </div>
   );
 }

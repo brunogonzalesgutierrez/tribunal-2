@@ -115,9 +115,16 @@ print("✅ Roles: Administrador, AdminSala1, AdminSala2, SecretarioSala1, Secret
 # ══════════════════════════════════════════════════════════════
 # Basados en el flujo real del Reglamento ICU 048-2018
 estados_data = [
-    {"nombre_estado": "Denuncia Presentada",       "es_terminal": False, "nivel": 1},
+    # Nivel 0 — entrada (lo que el secretario registra al recibir el papel)
+    {"nombre_estado": "Denuncia Presentada",       "es_terminal": False, "nivel": 0},
+
+    # Nivel 1 — primera decisión del tribunal (Art. 56-57)
     {"nombre_estado": "Denuncia Defectuosa",        "es_terminal": False, "nivel": 1},
+
+    # Nivel 2 — admisión (Art. 58)
     {"nombre_estado": "Auto de Admisión",           "es_terminal": False, "nivel": 2},
+
+    # Nivel 3-9 — flujo principal
     {"nombre_estado": "Etapa Investigativa",        "es_terminal": False, "nivel": 3},
     {"nombre_estado": "Término Probatorio",         "es_terminal": False, "nivel": 4},
     {"nombre_estado": "Clausura Probatoria",        "es_terminal": False, "nivel": 5},
@@ -125,10 +132,14 @@ estados_data = [
     {"nombre_estado": "Resuelto Primera Instancia", "es_terminal": False, "nivel": 7},
     {"nombre_estado": "En Apelación",               "es_terminal": False, "nivel": 8},
     {"nombre_estado": "Resuelto Segunda Instancia", "es_terminal": False, "nivel": 9},
+
+    # Nivel 10 — terminales
     {"nombre_estado": "Ejecutoriado",               "es_terminal": True,  "nivel": 10},
     {"nombre_estado": "Archivado",                  "es_terminal": True,  "nivel": 10},
     {"nombre_estado": "Rechazado",                  "es_terminal": True,  "nivel": 10},
     {"nombre_estado": "Desistido",                  "es_terminal": True,  "nivel": 10},
+    {"nombre_estado": "Prescrito",                  "es_terminal": True,  "nivel": 10},
+    {"nombre_estado": "Conciliado",                 "es_terminal": True,  "nivel": 10},
 ]
 print()
 for e in estados_data:
@@ -259,10 +270,15 @@ for r in tipos_recurso_data:
 # Basados en el flujo real del Reglamento ICU 048-2018
 tipos_actuacion_data = [
     # Etapa inicial
+    # Etapa inicial
     {"codigo": "PRE", "nombre": "Presentación de Denuncia"},
     {"codigo": "SUB", "nombre": "Subsanación de Defectos"},
     {"codigo": "ADA", "nombre": "Auto de Admisión de Denuncia"},       # Art. 58
     {"codigo": "REC", "nombre": "Rechazo de Denuncia"},                # Art. 57
+    {"codigo": "RDE", "nombre": "Retiro de Denuncia"},                 # Art. 22
+    {"codigo": "DDO", "nombre": "Designación Defensor de Oficio"},     # Art. 58 inc. b
+    {"codigo": "PRS", "nombre": "Prescripción"},                       # Art. 8
+    {"codigo": "CNA", "nombre": "Conciliación — Acuerdo"},             # Art. 59            
     # Etapa investigativa
     {"codigo": "CIP", "nombre": "Citación Personal al Denunciado"},    # Art. 44
     {"codigo": "DIN", "nombre": "Declaración Informativa"},            # Art. 58 inc. a
@@ -367,7 +383,11 @@ permisos_data = [
     {"codigo": "TIPOS_AUDIENCIA_VER",   "nombre": "Ver tipos de audiencia",    "modulo": "Catalogos"},
     {"codigo": "TIPOS_ACTUACION_VER",   "nombre": "Ver tipos de actuación",    "modulo": "Catalogos"},
     # Reportes
+
     {"codigo": "REPORTES_VER",          "nombre": "Ver reportes",              "modulo": "Reportes"},
+    # Denuncias
+    {"codigo": "DENUNCIAS_VER",         "nombre": "Ver denuncias",             "modulo": "Denuncias"},
+    {"codigo": "DENUNCIAS_GESTIONAR",   "nombre": "Gestionar denuncias",       "modulo": "Denuncias"},
 ]
 
 print()
@@ -402,7 +422,7 @@ permisos_adminsala = [
     "DOCUMENTOS_VER", "TIPOS_DOCUMENTO_VER", "NOTIFICACIONES_VER", "SOLICITUDES_VER",
     "PERSONAS_VER", "CONTACTOS_VER", "ROLES_PROCESALES_VER", "PARTES_PROCESALES_VER",
     "TIPOS_PROCESO_VER", "TIPOS_AUDIENCIA_VER", "TIPOS_ACTUACION_VER",
-    "REPORTES_VER",
+    "REPORTES_VER", "DENUNCIAS_VER", "DENUNCIAS_GESTIONAR",
 ]
 for nombre_rol, rol_obj in [("AdminSala1", rol_adminsala1), ("AdminSala2", rol_adminsala2)]:
     print(f"\n🔐 Asignando permisos a {nombre_rol}...")
@@ -421,7 +441,7 @@ permisos_secretario = [
     "DOCUMENTOS_VER", "NOTIFICACIONES_VER", "SOLICITUDES_VER", "TIPOS_DOCUMENTO_VER",
     "PERSONAS_VER", "CONTACTOS_VER", "ROLES_PROCESALES_VER", "PARTES_PROCESALES_VER",
     "TIPOS_PROCESO_VER", "TIPOS_AUDIENCIA_VER", "TIPOS_ACTUACION_VER",
-    "SALAS_AUDIENCIA_VER",
+    "SALAS_AUDIENCIA_VER", "DENUNCIAS_VER", "DENUNCIAS_GESTIONAR",
 ]
 for nombre_rol, rol_obj in [("SecretarioSala1", rol_secretariosala1), ("SecretarioSala2", rol_secretariosala2)]:
     print(f"\n🔐 Asignando permisos a {nombre_rol}...")
@@ -440,6 +460,7 @@ permisos_vocal = [
     "RESOLUCIONES_VER", "RECURSOS_VER", "TIPOS_RESOLUCION_VER", "TIPOS_RECURSO_VER",
     "DOCUMENTOS_VER",
     "PERSONAS_VER", "PARTES_PROCESALES_VER", "ROLES_PROCESALES_VER",
+    "DENUNCIAS_VER",
 ]
 for nombre_rol, rol_obj in [("VocalSala1", rol_vocalsala1), ("VocalSala2", rol_vocalsala2)]:
     print(f"\n🔐 Asignando permisos a {nombre_rol}...")
