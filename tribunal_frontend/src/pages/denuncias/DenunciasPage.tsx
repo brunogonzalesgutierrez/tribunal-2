@@ -7,6 +7,7 @@ import {
   CREAR_DENUNCIA,
   ACTUALIZAR_DENUNCIA,
   ELIMINAR_DENUNCIA,
+  GET_PROXIMO_NUMERO_DENUNCIA,  // ← agregar
 } from "../../graphql/denuncias";
 import { CREAR_PERSONA } from "../../graphql/personas";
 import { useCrudNotifications } from "../../hooks/useCrudNotifications";
@@ -130,6 +131,8 @@ function BuscadorPersona({
     `${p.nombre} ${p.primerApellido} ${p.segundoApellido || ""} ${p.numeroDocumento}`
       .toLowerCase().includes(busqueda.toLowerCase())
   );
+
+
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -291,6 +294,12 @@ export default function DenunciasPage() {
     setBuscadorDenunciadoAbierto(false);
   };
 
+
+  const { data: dataProximo, refetch: refetchProximo } = useQuery(
+    GET_PROXIMO_NUMERO_DENUNCIA,
+    { fetchPolicy: "network-only" } // siempre fresco, nunca del caché
+  );
+
   const handleCrearPersona = async () => {
     if (!formPersona.nombre || !formPersona.primerApellido || !formPersona.registroUniversitario) {
       toast.error("Nombre, primer apellido y N° Registro son obligatorios.");
@@ -330,9 +339,15 @@ export default function DenunciasPage() {
 
   const abrirCrear = () => {
     setEditando(null);
-    setForm(initialForm);
+    setForm({
+      ...initialForm,
+      // Pre-llena con el próximo número, editable por el secretario
+      numeroDenuncia: dataProximo?.proximoNumeroDenuncia ?? "",
+    });
     setDenuncianteSeleccionado("");
     setDenunciadoSeleccionado("");
+    // Refresca el número cada vez que abre el modal (por si crearon otra mientras tanto)
+    refetchProximo();
     setModalAbierto(true);
   };
 
@@ -686,9 +701,13 @@ export default function DenunciasPage() {
           <div className="space-y-4">
 
             {/* Número de denuncia */}
+            {/* Número de denuncia */}
             <div>
               <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
                 Número de denuncia <span className="text-red-500">*</span>
+                <span className="ml-2 text-xs font-normal text-blue-500 dark:text-blue-400">
+                  (generado automáticamente — podés editarlo)
+                </span>
               </label>
               <input
                 type="text"
@@ -696,7 +715,7 @@ export default function DenunciasPage() {
                 onChange={e => f("numeroDenuncia")(e.target.value)}
                 disabled={saving || !!editando}
                 placeholder="Ej: DEN-001/2025"
-                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none disabled:opacity-60 disabled:cursor-not-allowed font-mono"
               />
             </div>
 

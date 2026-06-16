@@ -22,6 +22,8 @@ import {
   GitBranch, History, XCircle, User, HandshakeIcon,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+// Agregá junto a los otros imports de graphql
+import { GET_HISTORIAL_POR_EXPEDIENTE } from "../../graphql/denuncias";
 
 // ─── HELPERS ─────────────────────────────────────────────
 const ESTADOS = [
@@ -80,16 +82,29 @@ export default function DenunciaDetailPage() {
   const [tabActiva, setTabActiva] = useState<TabId>("general");
   const [saving, setSaving] = useState(false);
 
-
   const { usuario } = useAuth();
   const { data, loading, refetch } = useQuery(GET_DENUNCIA_BY_ID, {
     variables: { id: Number(id) },
   });
   const [actualizarDenuncia] = useMutation(ACTUALIZAR_DENUNCIA);
-  const [admitirDenuncia]  = useMutation(ADMITIR_DENUNCIA);
-  const { data: dataSalas } = useQuery(GET_SALAS_TRIBUNAL);
-  const salas = (dataSalas?.allSalasTribunal ?? []).filter((s: any) => s.activa);
+  const [admitirDenuncia]    = useMutation(ADMITIR_DENUNCIA);
+  const { data: dataSalas }  = useQuery(GET_SALAS_TRIBUNAL);
+
+  // ✅ Siempre desde data, nunca desde denuncia (que aún no está definida)
+  const { data: dataHistorial, loading: loadingHistorial } = useQuery(
+    GET_HISTORIAL_POR_EXPEDIENTE,
+    {
+      variables: {
+        idExpediente: Number(data?.denunciaById?.expediente?.idExpediente ?? 0),
+      },
+      skip: !data?.denunciaById?.expediente?.idExpediente,
+    }
+  );
+
+  const historial = dataHistorial?.historialPorExpediente ?? [];
+  const salas     = (dataSalas?.allSalasTribunal ?? []).filter((s: any) => s.activa);
   const { toast } = useCrudNotifications("Denuncia");
+
 
   const denuncia = data?.denunciaById;
 
@@ -106,21 +121,29 @@ export default function DenunciaDetailPage() {
     try {
       const input: any = { estado: nuevoEstado };
       if (datosAdicionales) {
-        if (datosAdicionales.resolucion)             input.resolucion = datosAdicionales.resolucion;
-        if (datosAdicionales.fechaResolucion)        input.fechaResolucion = datosAdicionales.fechaResolucion;
-        if (datosAdicionales.tipoResolucion)         input.tipoResolucion = datosAdicionales.tipoResolucion;
-        if (datosAdicionales.tipoSancion)            input.tipoSancion = datosAdicionales.tipoSancion;
-        if (datosAdicionales.detalleSancion)         input.detalleSancion = datosAdicionales.detalleSancion;
-        if (datosAdicionales.descripcion)            input.descripcion = datosAdicionales.descripcion;
-        if (datosAdicionales.motivoRetiro)           input.motivoRetiro = datosAdicionales.motivoRetiro;
-        if (datosAdicionales.fechaRetiro)            input.fechaRetiro = datosAdicionales.fechaRetiro;
-        if (datosAdicionales.actaConciliacion)       input.actaConciliacion = datosAdicionales.actaConciliacion;
-        if (datosAdicionales.fechaConciliacion)      input.fechaConciliacion = datosAdicionales.fechaConciliacion;
-        if (datosAdicionales.fechaApelacion)         input.fechaApelacion = datosAdicionales.fechaApelacion;
-        if (datosAdicionales.resolucionApelacion)    input.resolucionApelacion = datosAdicionales.resolucionApelacion;
-        if (datosAdicionales.fechaRemisionSuperior)  input.fechaRemisionSuperior = datosAdicionales.fechaRemisionSuperior;
+        if (datosAdicionales.resolucion)            input.resolucion = datosAdicionales.resolucion;
+        if (datosAdicionales.fechaResolucion)       input.fechaResolucion = datosAdicionales.fechaResolucion;
+        if (datosAdicionales.tipoResolucion)        input.tipoResolucion = datosAdicionales.tipoResolucion;
+        if (datosAdicionales.tipoSancion)           input.tipoSancion = datosAdicionales.tipoSancion;
+        if (datosAdicionales.detalleSancion)        input.detalleSancion = datosAdicionales.detalleSancion;
+        if (datosAdicionales.descripcion)           input.descripcion = datosAdicionales.descripcion;
+        if (datosAdicionales.motivoRetiro)          input.motivoRetiro = datosAdicionales.motivoRetiro;
+        if (datosAdicionales.fechaRetiro)           input.fechaRetiro = datosAdicionales.fechaRetiro;
+        if (datosAdicionales.actaConciliacion)      input.actaConciliacion = datosAdicionales.actaConciliacion;
+        if (datosAdicionales.fechaConciliacion)     input.fechaConciliacion = datosAdicionales.fechaConciliacion;
+        if (datosAdicionales.fechaApelacion)        input.fechaApelacion = datosAdicionales.fechaApelacion;
+        if (datosAdicionales.resolucionApelacion)   input.resolucionApelacion = datosAdicionales.resolucionApelacion;
+        if (datosAdicionales.fechaRemisionSuperior) input.fechaRemisionSuperior = datosAdicionales.fechaRemisionSuperior;
       }
-      await actualizarDenuncia({ variables: { id: Number(id), input } });
+
+      await actualizarDenuncia({
+        variables: {
+          id: Number(id),
+          input,
+          idUsuario: usuario?.idUsuario ? Number(usuario.idUsuario) : null,
+        },
+      });
+
       await refetch();
       toast.success(`Denuncia movida a ${getEstadoInfo(nuevoEstado).label}`);
     } catch (error: any) {
@@ -130,9 +153,9 @@ export default function DenunciaDetailPage() {
     }
   };
 
-  const handleAdmitir = async (datos: { idSala: number; numeroExpediente: string }) => {
-    if (!datos.idSala || !datos.numeroExpediente.trim()) {
-      toast.error("Sala y número de expediente son obligatorios.");
+  const handleAdmitir = async (datos: { idSala: number }) => {
+    if (!datos.idSala) {
+      toast.error("Seleccioná una sala.");
       return;
     }
     if (!usuario?.idUsuario) {
@@ -143,14 +166,15 @@ export default function DenunciaDetailPage() {
     try {
       const { data: res } = await admitirDenuncia({
         variables: {
-          idDenuncia:       Number(id),
-          idSala:           Number(datos.idSala),
-          idUsuario:        Number(usuario.idUsuario),
-          numeroExpediente: datos.numeroExpediente.trim(),
+          idDenuncia: Number(id),
+          idSala:     Number(datos.idSala),
+          idUsuario:  Number(usuario.idUsuario),
         },
       });
       if (res?.admitirDenuncia?.ok) {
-        toast.success(res.admitirDenuncia.mensaje);
+        toast.success(
+          `${res.admitirDenuncia.mensaje} — N° ${res.admitirDenuncia.numeroExpediente}`
+        );
         await refetch();
       } else {
         toast.error(res?.admitirDenuncia?.mensaje ?? "Error al admitir la denuncia.");
@@ -161,7 +185,7 @@ export default function DenunciaDetailPage() {
       setSaving(false);
     }
   };
-
+  
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -562,10 +586,129 @@ export default function DenunciaDetailPage() {
           )}
 
           {/* ── TAB HISTORIAL ── */}
+          {/* ── TAB HISTORIAL ── */}
           {tabActiva === "historial" && (
-            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-              <History className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
-              <p>No hay cambios de estado registrados</p>
+            <div className="space-y-3">
+
+              {/* Sin expediente todavía */}
+              {!denuncia.expediente && (
+                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                  <History className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+                  <p className="text-sm">El historial estará disponible una vez que la denuncia sea admitida y se genere un expediente.</p>
+                </div>
+              )}
+
+              {/* Cargando */}
+              {denuncia.expediente && loadingHistorial && (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                </div>
+              )}
+
+              {/* Sin entradas */}
+              {denuncia.expediente && !loadingHistorial && historial.length === 0 && (
+                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                  <History className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+                  <p className="text-sm">No hay cambios de estado registrados aún.</p>
+                </div>
+              )}
+
+              {/* Lista de entradas */}
+              {historial.length > 0 && (
+                <>
+                  {/* Cabecera con número de expediente */}
+                  <div className="flex items-center gap-2 mb-4">
+                    <FolderOpen className="w-4 h-4 text-blue-500" />
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      Historial del expediente{" "}
+                      <span className="font-mono font-medium text-blue-600 dark:text-blue-400">
+                        {denuncia.expediente.numeroExpediente}
+                      </span>
+                    </span>
+                  </div>
+
+                  {/* Línea de tiempo */}
+                  <div className="relative">
+                    {/* Línea vertical */}
+                    <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-gray-200 dark:bg-slate-700" />
+
+                    <div className="space-y-4">
+                      {[...historial]
+                        .sort((a: any, b: any) =>
+                          new Date(b.fechaCambio).getTime() - new Date(a.fechaCambio).getTime()
+                        )
+                        .map((entrada: any, i: number) => (
+                          <div key={entrada.idHistorial} className="relative flex gap-4 pl-2">
+                            {/* Dot en la línea */}
+                            <div className={`relative z-10 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center mt-0.5 ${
+                              i === 0
+                                ? "bg-blue-500 shadow-md shadow-blue-200 dark:shadow-blue-900"
+                                : "bg-white dark:bg-slate-800 border-2 border-gray-300 dark:border-slate-600"
+                            }`}>
+                              {i === 0
+                                ? <CheckCircle className="w-3.5 h-3.5 text-white" />
+                                : <Clock className="w-3 h-3 text-gray-400" />
+                              }
+                            </div>
+
+                            {/* Contenido */}
+                            <div className={`flex-1 rounded-xl p-4 border ${
+                              i === 0
+                                ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
+                                : "bg-gray-50 dark:bg-slate-800/60 border-gray-200 dark:border-slate-700"
+                            }`}>
+
+                              {/* Transición de estados */}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {entrada.idEstadoAnterior ? (
+                                  <>
+                                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-gray-400">
+                                      {entrada.idEstadoAnterior.nombreEstado}
+                                    </span>
+                                    <span className="text-gray-400 dark:text-gray-500 text-xs">→</span>
+                                  </>
+                                ) : null}
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                  i === 0
+                                    ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                                    : "bg-gray-300 dark:bg-slate-600 text-gray-700 dark:text-gray-300"
+                                }`}>
+                                  {entrada.idEstadoNuevo?.nombreEstado ?? "—"}
+                                </span>
+                              </div>
+
+                              {/* Motivo */}
+                              {entrada.motivo && (
+                                <p className="text-sm text-gray-700 dark:text-gray-300 mt-2 leading-relaxed">
+                                  {entrada.motivo}
+                                </p>
+                              )}
+
+                              {/* Metadata */}
+                              <div className="flex items-center gap-3 mt-2 flex-wrap">
+                                <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">
+                                  {new Date(entrada.fechaCambio).toLocaleString("es-BO", {
+                                    day: "2-digit", month: "short", year: "numeric",
+                                    hour: "2-digit", minute: "2-digit",
+                                  })}
+                                </span>
+                                {entrada.usuario && (
+                                  <>
+                                    <span className="text-gray-300 dark:text-gray-600">·</span>
+                                    <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1">
+                                      <User className="w-3 h-3" />
+                                      {entrada.usuario.nombres} {entrada.usuario.paterno}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>

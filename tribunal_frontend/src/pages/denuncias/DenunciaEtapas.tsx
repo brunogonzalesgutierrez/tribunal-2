@@ -55,7 +55,7 @@ interface EtapaAdmisionProps {
   onRechazar: () => void;
   onSolicitarSubsanacion: () => void;
   onRetirar: () => void;
-  onAdmitir: (datos: { idSala: number; numeroExpediente: string }) => void;
+  onAdmitir: (datos: { idSala: number }) => void;
   salas: { idSala: number; nombreSala: string }[];
   saving: boolean;
 }
@@ -64,10 +64,7 @@ export function EtapaAdmision({
   onRechazar, onSolicitarSubsanacion, onAdmitir, salas, saving
 }: EtapaAdmisionProps) {
   const [confirmando, setConfirmando] = useState(false);
-  const [idSala, setIdSala]                       = useState(0);
-  const [numeroExpediente, setNumeroExpediente]   = useState(
-    `EXP-${new Date().getFullYear()}-`
-  );
+  const [idSala, setIdSala] = useState(0);
 
   if (!confirmando) {
     return (
@@ -80,8 +77,8 @@ export function EtapaAdmision({
           <p className="text-sm text-gray-600 dark:text-gray-300">
             El Tribunal debe emitir auto de admisión en el término de{" "}
             <span className="font-bold text-blue-600">5 días hábiles</span>.
-            Al admitir se creará automáticamente el expediente judicial y se
-            vincularán las partes procesales.
+            Al admitir se creará automáticamente el expediente judicial con número
+            correlativo y se vincularán las partes procesales.
           </p>
           <p className="text-xs text-gray-400 mt-1">Art. 58 del Reglamento de Justicia Universitaria</p>
         </div>
@@ -89,7 +86,7 @@ export function EtapaAdmision({
           <button onClick={() => setConfirmando(true)} disabled={saving}
             className="px-4 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-semibold transition-colors flex items-center gap-2">
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-            Admitir Denuncia → Crear Expediente
+            Admitir Denuncia
           </button>
           <button onClick={onSolicitarSubsanacion} disabled={saving}
             className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold transition-colors flex items-center gap-2">
@@ -113,25 +110,11 @@ export function EtapaAdmision({
 
       <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-3 mb-4">
         <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
-          ⚠ Esta acción creará un expediente judicial. Los datos no podrán modificarse después.
+          ⚠ Esta acción creará un expediente judicial. El número se generará automáticamente.
         </p>
       </div>
 
       <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            N° Expediente <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={numeroExpediente}
-            onChange={e => setNumeroExpediente(e.target.value)}
-            placeholder="Ej: EXP-2025-001"
-            disabled={saving}
-            className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-          />
-        </div>
-
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Sala del Tribunal <span className="text-red-500">*</span>
@@ -151,6 +134,7 @@ export function EtapaAdmision({
 
         <div className="bg-blue-100 dark:bg-blue-900/30 rounded-xl p-3 text-xs text-blue-700 dark:text-blue-300 space-y-1">
           <p className="font-semibold">Se creará automáticamente:</p>
+          <p>✓ Número de expediente (EXP-S{idSala > 0 ? salas.find(s => s.idSala === idSala)?.nombreSala.replace(/\D/g,'') : '?'}-{new Date().getFullYear()}-XXX)</p>
           <p>✓ Expediente con estado "Auto de Admisión"</p>
           <p>✓ Historial de estado inicial (Art. 7)</p>
           <p>✓ Parte procesal: Denunciante</p>
@@ -164,8 +148,8 @@ export function EtapaAdmision({
           Cancelar
         </button>
         <button
-          onClick={() => onAdmitir({ idSala, numeroExpediente })}
-          disabled={saving || !idSala || !numeroExpediente.trim()}
+          onClick={() => onAdmitir({ idSala })}
+          disabled={saving || !idSala}
           className="px-4 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-semibold transition-colors flex items-center gap-2 disabled:opacity-50">
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
           Confirmar Auto de Admisión

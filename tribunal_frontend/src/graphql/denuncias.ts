@@ -67,8 +67,12 @@ export const CREAR_DENUNCIA = gql`
 `;
 
 export const ACTUALIZAR_DENUNCIA = gql`
-  mutation ActualizarDenuncia($id: Int!, $input: ActualizarDenunciaInput!) {
-    actualizarDenuncia(id: $id, input: $input) {
+  mutation ActualizarDenuncia(
+    $id: Int!
+    $input: ActualizarDenunciaInput!
+    $idUsuario: Int
+  ) {
+    actualizarDenuncia(id: $id, input: $input, idUsuario: $idUsuario) {
       denuncia {
         ${DENUNCIA_FIELDS}
       }
@@ -106,16 +110,15 @@ export const ADMITIR_DENUNCIA = gql`
     $idDenuncia: Int!
     $idSala: Int!
     $idUsuario: Int!
-    $numeroExpediente: String!
   ) {
     admitirDenuncia(
       idDenuncia: $idDenuncia
       idSala: $idSala
       idUsuario: $idUsuario
-      numeroExpediente: $numeroExpediente
     ) {
       ok
       mensaje
+      numeroExpediente
       denuncia {
         id
         estado
@@ -130,3 +133,26 @@ export const ADMITIR_DENUNCIA = gql`
   }
 `;
 
+
+
+// Agregá esto al final de denuncias.ts
+
+export const GET_HISTORIAL_POR_EXPEDIENTE = gql`
+  query GetHistorialPorExpediente($idExpediente: Int!) {
+    historialPorExpediente(idExpediente: $idExpediente) {
+      idHistorial
+      fechaCambio
+      motivo
+      idEstadoAnterior { nombreEstado }
+      idEstadoNuevo    { nombreEstado }
+      usuario          { idUsuario nombres paterno }
+    }
+  }
+`;
+
+
+export const GET_PROXIMO_NUMERO_DENUNCIA = gql`
+  query GetProximoNumeroDenuncia {
+    proximoNumeroDenuncia
+  }
+`;
