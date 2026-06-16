@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.env
+048-2018.pdf
+iniciar.bat
+poblar.bat
+reiniciar.bat
+ejecutar.txt
+justicia.png
+venv/
+node_modules/
+dist/
+build/
