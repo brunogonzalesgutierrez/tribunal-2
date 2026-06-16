@@ -99,3 +99,32 @@ export const GET_PERSONAS = gql`
     }
   }
 `;
+
+export const ADMITIR_DENUNCIA = gql`
+  mutation AdmitirDenuncia(
+    $idDenuncia: Int!
+    $idSala: Int!
+    $idUsuario: Int!
+    $numeroExpediente: String!
+  ) {
+    admitirDenuncia(
+      idDenuncia: $idDenuncia
+      idSala: $idSala
+      idUsuario: $idUsuario
+      numeroExpediente: $numeroExpediente
+    ) {
+      ok
+      mensaje
+      denuncia {
+        id
+        estado
+        expediente { idExpediente numeroExpediente }
+      }
+      expediente {
+        idExpediente
+        numeroExpediente
+        idEstadoExpediente { nombreEstado }
+      }
+    }
+  }
+`;

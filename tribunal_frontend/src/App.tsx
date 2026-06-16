@@ -144,8 +144,10 @@ function App() {
           <Route element={<ProtectedRoute requiredPermissions={[PERMISOS.RECURSOS_VER]} />}>
             <Route path="/recursos" element={<RecursosPage />} />
           </Route>
-          <Route path="/resoluciones-antiguas" element={<ResolucionesAntiguasPage />} />
-          <Route path="/resoluciones-antiguas/:id" element={<ResolucionAntiguaDetailPage />} />
+          <Route element={<ProtectedRoute requiredPermissions={[PERMISOS.RESOLUCIONES_VER]} />}>
+            <Route path="/resoluciones-antiguas" element={<ResolucionesAntiguasPage />} />
+            <Route path="/resoluciones-antiguas/:id" element={<ResolucionAntiguaDetailPage />} />
+          </Route>
 
           {/* ============================================================ */}
           {/* DOCUMENTOS */}

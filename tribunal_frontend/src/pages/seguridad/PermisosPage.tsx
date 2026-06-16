@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@apollo/client";
 import {
   GET_PERMISOS,
-} from "../../graphql/usuarios/queries";
+} from "../../graphql/usuarios";
 import { 
   Key, Search, Shield, Lock, 
   AlertCircle

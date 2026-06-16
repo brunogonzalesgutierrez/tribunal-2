@@ -7,7 +7,7 @@ import {
   CREAR_USUARIO,
   ACTUALIZAR_USUARIO,
   ELIMINAR_USUARIO,
-} from "../../graphql/usuarios/queries";
+} from "../../graphql/usuarios";
 import { 
   Users, Plus, Search, Edit, Trash2, Power, Mail, 
   User, Briefcase, Shield, X, CheckCircle, Circle,

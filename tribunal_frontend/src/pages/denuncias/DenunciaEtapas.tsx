@@ -46,42 +46,129 @@ const TIPOS_SANCION_OPTIONS = [
 // ─────────────────────────────────────────────────────────────
 // 1. ETAPA ADMISIÓN
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// 1. ETAPA ADMISIÓN — con modal para número de expediente y sala
+// ─────────────────────────────────────────────────────────────
 interface EtapaAdmisionProps {
   denuncia: Denuncia;
   onAvanzar: (nuevoEstado: string) => void;
   onRechazar: () => void;
   onSolicitarSubsanacion: () => void;
   onRetirar: () => void;
+  onAdmitir: (datos: { idSala: number; numeroExpediente: string }) => void;
+  salas: { idSala: number; nombreSala: string }[];
   saving: boolean;
 }
 
-export function EtapaAdmision({ onAvanzar, onRechazar, onSolicitarSubsanacion, saving }: EtapaAdmisionProps) {
+export function EtapaAdmision({
+  onRechazar, onSolicitarSubsanacion, onAdmitir, salas, saving
+}: EtapaAdmisionProps) {
+  const [confirmando, setConfirmando] = useState(false);
+  const [idSala, setIdSala]                       = useState(0);
+  const [numeroExpediente, setNumeroExpediente]   = useState(
+    `EXP-${new Date().getFullYear()}-`
+  );
+
+  if (!confirmando) {
+    return (
+      <div className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-200 dark:border-blue-800 p-6">
+        <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-400 mb-4 flex items-center gap-2">
+          <CheckCircle className="w-5 h-5" />
+          Auto de Admisión (Art. 58)
+        </h3>
+        <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4 mb-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            El Tribunal debe emitir auto de admisión en el término de{" "}
+            <span className="font-bold text-blue-600">5 días hábiles</span>.
+            Al admitir se creará automáticamente el expediente judicial y se
+            vincularán las partes procesales.
+          </p>
+          <p className="text-xs text-gray-400 mt-1">Art. 58 del Reglamento de Justicia Universitaria</p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <button onClick={() => setConfirmando(true)} disabled={saving}
+            className="px-4 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-semibold transition-colors flex items-center gap-2">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+            Admitir Denuncia → Crear Expediente
+          </button>
+          <button onClick={onSolicitarSubsanacion} disabled={saving}
+            className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold transition-colors flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" /> Solicitar Subsanación (Art. 56)
+          </button>
+          <button onClick={onRechazar} disabled={saving}
+            className="px-4 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-semibold transition-colors flex items-center gap-2">
+            <XCircle className="w-4 h-4" /> Rechazar Denuncia (Art. 57)
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-200 dark:border-blue-800 p-6">
       <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-400 mb-4 flex items-center gap-2">
         <CheckCircle className="w-5 h-5" />
-        Auto de Admisión (Art. 58)
+        Confirmar Auto de Admisión (Art. 58)
       </h3>
-      <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4 mb-4">
-        <p className="text-sm text-gray-600 dark:text-gray-300">
-          El Tribunal debe emitir auto de admisión en el término de{" "}
-          <span className="font-bold text-blue-600">5 días hábiles</span>.
+
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-3 mb-4">
+        <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
+          ⚠ Esta acción creará un expediente judicial. Los datos no podrán modificarse después.
         </p>
-        <p className="text-xs text-gray-400 mt-1">Art. 58 del Reglamento de Justicia Universitaria</p>
       </div>
-      <div className="flex flex-wrap gap-3">
-        <button onClick={() => onAvanzar("ADMITIDA")} disabled={saving}
-          className="px-4 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-semibold transition-colors flex items-center gap-2">
+
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            N° Expediente <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            value={numeroExpediente}
+            onChange={e => setNumeroExpediente(e.target.value)}
+            placeholder="Ej: EXP-2025-001"
+            disabled={saving}
+            className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Sala del Tribunal <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={idSala}
+            onChange={e => setIdSala(Number(e.target.value))}
+            disabled={saving}
+            className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+          >
+            <option value={0}>— Seleccionar sala —</option>
+            {salas.map(s => (
+              <option key={s.idSala} value={s.idSala}>{s.nombreSala}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="bg-blue-100 dark:bg-blue-900/30 rounded-xl p-3 text-xs text-blue-700 dark:text-blue-300 space-y-1">
+          <p className="font-semibold">Se creará automáticamente:</p>
+          <p>✓ Expediente con estado "Auto de Admisión"</p>
+          <p>✓ Historial de estado inicial (Art. 7)</p>
+          <p>✓ Parte procesal: Denunciante</p>
+          <p>✓ Parte procesal: Denunciado</p>
+        </div>
+      </div>
+
+      <div className="flex gap-3 justify-end mt-4">
+        <button onClick={() => setConfirmando(false)} disabled={saving}
+          className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+          Cancelar
+        </button>
+        <button
+          onClick={() => onAdmitir({ idSala, numeroExpediente })}
+          disabled={saving || !idSala || !numeroExpediente.trim()}
+          className="px-4 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-semibold transition-colors flex items-center gap-2 disabled:opacity-50">
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-          Admitir Denuncia
-        </button>
-        <button onClick={onSolicitarSubsanacion} disabled={saving}
-          className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold transition-colors flex items-center gap-2">
-          <AlertCircle className="w-4 h-4" /> Solicitar Subsanación (Art. 56)
-        </button>
-        <button onClick={onRechazar} disabled={saving}
-          className="px-4 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-semibold transition-colors flex items-center gap-2">
-          <XCircle className="w-4 h-4" /> Rechazar Denuncia (Art. 57)
+          Confirmar Auto de Admisión
         </button>
       </div>
     </div>

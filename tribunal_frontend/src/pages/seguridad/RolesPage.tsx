@@ -9,7 +9,7 @@ import {
   ELIMINAR_ROL,
   ASIGNAR_PERMISO_ROL,
   REMOVER_PERMISO_ROL,
-} from "../../graphql/usuarios/queries";
+} from "../../graphql/usuarios";
 import { GET_SALAS_TRIBUNAL } from "../../graphql/expediente";
 import { 
   Shield, Plus, Search, Edit, Trash2, Key, 

@@ -3949,6 +3949,115 @@ class CrearDenuncia(graphene.Mutation):
         return CrearDenuncia(denuncia=denuncia)
 
 
+class AdmitirDenuncia(graphene.Mutation):
+    class Arguments:
+        id_denuncia       = graphene.Int(required=True)
+        id_sala           = graphene.Int(required=True)
+        id_usuario        = graphene.Int(required=True)
+        numero_expediente = graphene.String(required=True)
+
+    denuncia   = graphene.Field(DenunciaType)
+    expediente = graphene.Field(ExpedienteType)
+    ok         = graphene.Boolean()
+    mensaje    = graphene.String()
+
+    def mutate(root, info, id_denuncia, id_sala, id_usuario, numero_expediente):
+        from datetime import date
+        try:
+            with transaction.atomic():
+                # 1. Obtener la denuncia
+                try:
+                    denuncia = Denuncia.objects.get(id=id_denuncia)
+                except Denuncia.DoesNotExist:
+                    return AdmitirDenuncia(ok=False, mensaje="Denuncia no encontrada.")
+
+                # Validar que esté en estado admisible
+                if denuncia.estado not in ["REGISTRADA", "SUBSANACION"]:
+                    return AdmitirDenuncia(
+                        ok=False,
+                        mensaje=f"No se puede admitir una denuncia en estado '{denuncia.estado}'."
+                    )
+
+                # 2. Obtener dependencias
+                sala         = SalaTribunal.objects.get(id_sala=id_sala)
+                tipo_proceso = TipoProceso.objects.get(codigo="PDS")
+                usuario      = Usuario.objects.get(id_usuario=id_usuario)
+
+                estado_admision = EstadoExpediente.objects.get(
+                    nombre_estado="Auto de Admisión"
+                )
+
+                # 3. Crear el expediente
+                expediente = Expediente.objects.create(
+                    numero_expediente=numero_expediente,
+                    ano=date.today().year,
+                    id_sala=sala,
+                    id_tipo_proceso=tipo_proceso,
+                    id_estado_expediente=estado_admision,
+                    descripcion=(
+                        f"Originado por denuncia {denuncia.numero_denuncia}. "
+                        f"Denunciado: {denuncia.denunciado.nombre} "
+                        f"{denuncia.denunciado.primer_apellido}."
+                    )
+                )
+
+                # 4. Registrar historial del expediente
+                HistorialEstado.objects.create(
+                    id_expediente=expediente,
+                    id_estado_anterior=None,
+                    id_estado_nuevo=estado_admision,
+                    usuario=usuario,
+                    motivo=(
+                        f"Auto de Admisión — Denuncia {denuncia.numero_denuncia} (Art. 58). "
+                        f"Inicio de etapa investigativa."
+                    )
+                )
+
+                # 5. Agregar partes procesales automáticamente
+                rol_denunciante = RolProcesal.objects.get(nombre_rol="Denunciante")
+                rol_denunciado  = RolProcesal.objects.get(nombre_rol="Denunciado")
+
+                ParteProcesal.objects.create(
+                    id_expediente=expediente,
+                    id_persona=denuncia.denunciante,
+                    id_rol=rol_denunciante,
+                    activo=True
+                )
+                ParteProcesal.objects.create(
+                    id_expediente=expediente,
+                    id_persona=denuncia.denunciado,
+                    id_rol=rol_denunciado,
+                    activo=True
+                )
+
+                # 6. Vincular denuncia al expediente y cambiar estado
+                denuncia.expediente = expediente
+                denuncia.estado     = "ADMITIDA"
+                denuncia.save()
+
+                return AdmitirDenuncia(
+                    ok=True,
+                    mensaje=(
+                        f"Denuncia admitida. Expediente {numero_expediente} creado "
+                        f"con {denuncia.denunciante.nombre} (Denunciante) y "
+                        f"{denuncia.denunciado.nombre} (Denunciado) como partes."
+                    ),
+                    denuncia=denuncia,
+                    expediente=expediente
+                )
+
+        except SalaTribunal.DoesNotExist:
+            return AdmitirDenuncia(ok=False, mensaje="Sala no encontrada.")
+        except TipoProceso.DoesNotExist:
+            return AdmitirDenuncia(ok=False, mensaje="Tipo de proceso PDS no encontrado. Verificá la pobladа.")
+        except EstadoExpediente.DoesNotExist:
+            return AdmitirDenuncia(ok=False, mensaje="Estado 'Auto de Admisión' no encontrado. Verificá la pobladа.")
+        except RolProcesal.DoesNotExist as e:
+            return AdmitirDenuncia(ok=False, mensaje=f"Rol procesal no encontrado: {str(e)}")
+        except Exception as e:
+            return AdmitirDenuncia(ok=False, mensaje=f"Error inesperado: {str(e)}")
+
+
 class ActualizarDenuncia(graphene.Mutation):
     class Arguments:
         id = graphene.Int(required=True)
@@ -4217,7 +4326,9 @@ class Mutation(graphene.ObjectType):
     registrar_asistencia_batch = RegistrarAsistenciaBatch.Field()
 
     # DENUNCIAS
-    crear_denuncia = CrearDenuncia.Field()
+    crear_denuncia    = CrearDenuncia.Field()
+    admitir_denuncia  = AdmitirDenuncia.Field()
+    
     actualizar_denuncia = ActualizarDenuncia.Field()
     eliminar_denuncia = EliminarDenuncia.Field()
     

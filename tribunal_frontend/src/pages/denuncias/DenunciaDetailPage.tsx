@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@apollo/client";
-import { GET_DENUNCIA_BY_ID, ACTUALIZAR_DENUNCIA } from "../../graphql/denuncias";
+import { GET_DENUNCIA_BY_ID, ACTUALIZAR_DENUNCIA, ADMITIR_DENUNCIA } from "../../graphql/denuncias";
+import { GET_SALAS_TRIBUNAL } from "../../graphql/tribunal";
 import { useCrudNotifications } from "../../hooks/useCrudNotifications";
 import {
   EtapaAdmision,
@@ -20,6 +21,7 @@ import {
   Gavel, FileCheck, ClipboardList, MessageSquare,
   GitBranch, History, XCircle, User, HandshakeIcon,
 } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
 
 // ─── HELPERS ─────────────────────────────────────────────
 const ESTADOS = [
@@ -78,10 +80,15 @@ export default function DenunciaDetailPage() {
   const [tabActiva, setTabActiva] = useState<TabId>("general");
   const [saving, setSaving] = useState(false);
 
+
+  const { usuario } = useAuth();
   const { data, loading, refetch } = useQuery(GET_DENUNCIA_BY_ID, {
     variables: { id: Number(id) },
   });
   const [actualizarDenuncia] = useMutation(ACTUALIZAR_DENUNCIA);
+  const [admitirDenuncia]  = useMutation(ADMITIR_DENUNCIA);
+  const { data: dataSalas } = useQuery(GET_SALAS_TRIBUNAL);
+  const salas = (dataSalas?.allSalasTribunal ?? []).filter((s: any) => s.activa);
   const { toast } = useCrudNotifications("Denuncia");
 
   const denuncia = data?.denunciaById;
@@ -118,6 +125,38 @@ export default function DenunciaDetailPage() {
       toast.success(`Denuncia movida a ${getEstadoInfo(nuevoEstado).label}`);
     } catch (error: any) {
       toast.error(error.message || "Error al avanzar etapa");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAdmitir = async (datos: { idSala: number; numeroExpediente: string }) => {
+    if (!datos.idSala || !datos.numeroExpediente.trim()) {
+      toast.error("Sala y número de expediente son obligatorios.");
+      return;
+    }
+    if (!usuario?.idUsuario) {
+      toast.error("No se pudo identificar al usuario.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const { data: res } = await admitirDenuncia({
+        variables: {
+          idDenuncia:       Number(id),
+          idSala:           Number(datos.idSala),
+          idUsuario:        Number(usuario.idUsuario),
+          numeroExpediente: datos.numeroExpediente.trim(),
+        },
+      });
+      if (res?.admitirDenuncia?.ok) {
+        toast.success(res.admitirDenuncia.mensaje);
+        await refetch();
+      } else {
+        toast.error(res?.admitirDenuncia?.mensaje ?? "Error al admitir la denuncia.");
+      }
+    } catch (e: any) {
+      toast.error(e.message ?? "Error inesperado.");
     } finally {
       setSaving(false);
     }
@@ -359,15 +398,21 @@ export default function DenunciaDetailPage() {
                   onRechazar={() => avanzarEtapa("ARCHIVADA")}
                   onSolicitarSubsanacion={() => avanzarEtapa("SUBSANACION")}
                   onRetirar={() => setTabActiva("etapas")}
+                  onAdmitir={handleAdmitir}
+                  salas={salas}
                   saving={saving}
                 />
               )}
 
               {denuncia.estado === "SUBSANACION" && (
-                <EtapaSubsanacion
+                <EtapaAdmision
                   denuncia={denuncia}
-                  onSubsanar={(datos) => avanzarEtapa("ADMITIDA", datos)}
+                  onAvanzar={(nuevoEstado) => avanzarEtapa(nuevoEstado)}
                   onRechazar={() => avanzarEtapa("ARCHIVADA")}
+                  onSolicitarSubsanacion={() => avanzarEtapa("SUBSANACION")}
+                  onRetirar={() => setTabActiva("etapas")}
+                  onAdmitir={handleAdmitir}
+                  salas={salas}
                   saving={saving}
                 />
               )}

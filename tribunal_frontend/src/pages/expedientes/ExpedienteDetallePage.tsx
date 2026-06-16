@@ -378,10 +378,15 @@ function ModalCambioEstado({ expediente, onClose, onCambiado }: {
   const todos: any[] = data?.allEstadosExpediente ?? [];
 
   // Mostrar estados de nivel mayor al actual + terminales (excluir el estado actual)
-  const opciones = todos.filter(e =>
-    e.idEstado !== expediente.idEstadoExpediente?.idEstado &&
-    (e.esTerminal || e.nivel > nivelActual)
-  );
+  const opciones = todos.filter(e => {
+    if (e.idEstado === expediente.idEstadoExpediente?.idEstado) return false;
+    // Art. 59: Conciliación solo antes del término probatorio (nivel <= 3)
+    if (e.nombreEstado === "Conciliado" && nivelActual > 3) return false;
+    // Art. 23 par. I: Desistido en 1ra instancia no termina el proceso
+    // Solo permitir Desistido desde segunda instancia (nivel >= 8)
+    if (e.nombreEstado === "Desistido" && nivelActual < 8) return false;
+    return e.esTerminal || e.nivel > nivelActual;
+  });
 
   const guardar = async () => {
     if (!estadoId) { setErr("Seleccioná un estado de destino."); return; }
@@ -917,7 +922,7 @@ function FormActuacion({ idExpediente, onSaved, onCancel }: { idExpediente: numb
 // ══════════════════════════════════════════════════════════════════════════
 // FORM CONFORMACIÓN
 // ══════════════════════════════════════════════════════════════════════════
-function FormConformacion({ idExpediente, onSaved, onCancel }: { idExpediente: number; onSaved: () => void; onCancel: () => void }) {
+function FormConformacion({ idExpediente, vocalesYaAsignados = [], onSaved, onCancel }: { idExpediente: number; vocalesYaAsignados?: number[]; onSaved: () => void; onCancel: () => void }) {
   const { data: dV, loading: lV } = useQuery(GET_VOCALES);
   const [crear] = useMutation(CREAR_CONFORMACION);
   const [form, setForm] = useState({ idVocal: 0, vocalLabel: "", rolEnCaso: "" });
@@ -925,7 +930,11 @@ function FormConformacion({ idExpediente, onSaved, onCancel }: { idExpediente: n
   const [saving, setSaving] = useState(false);
   const [modalAbierto, setModalAbierto] = useState(false);
 
-  const vocales: any[] = (dV?.allVocales ?? []).filter((v: any) => v.activo);
+  // IDs de vocales ya asignados a este expediente
+  const asignadosSet = new Set(vocalesYaAsignados);
+  const vocales: any[] = (dV?.allVocales ?? []).filter(
+    (v: any) => v.activo && !asignadosSet.has(Number(v.idVocal))
+  );
   const opciones: OpcionModal[] = vocales.map((v: any) => ({
     id: v.idVocal,
     titulo: `${v.idPersona?.nombre} ${v.idPersona?.primerApellido}`,
@@ -1652,7 +1661,7 @@ export default function ExpedienteDetallePage() {
               {tabActiva === "vocales" && (
                 <div className="space-y-4">
                   <SeccionHeader count={vocales.length} singular="vocal asignado" plural="vocales asignados" onAgregar={() => abrirForm("vocales")} mostrarBoton={!showForm["vocales"]} />
-                  {showForm["vocales"] && <FormConformacion idExpediente={idExpediente} onSaved={() => onSaved("vocales")} onCancel={() => cerrarForm("vocales")} />}
+                  {showForm["vocales"] && <FormConformacion idExpediente={idExpediente} vocalesYaAsignados={vocales.map((c: any) => Number(c.idVocal?.idVocal))} onSaved={() => onSaved("vocales")} onCancel={() => cerrarForm("vocales")} />}
                   {vocales.length === 0 && !showForm["vocales"] ? (
                     <TablaVacia icono={Building2} mensaje="Sin conformación de sala registrada" onAgregar={() => abrirForm("vocales")} labelAgregar="Asignar vocal" />
                   ) : (
