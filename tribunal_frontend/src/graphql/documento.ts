@@ -296,3 +296,32 @@ export const GET_PARTES_PROCESALES = gql`
     }
   }
 `;
+
+
+export const CREAR_NOTIFICACION_TABLON = gql`
+  mutation CrearNotificacionTablon(
+    $idExpediente: Int!
+    $idParte: Int!
+    $idUsuario: Int!
+    $descripcion: String!
+  ) {
+    crearNotificacionTablon(
+      idExpediente: $idExpediente
+      idParte: $idParte
+      idUsuario: $idUsuario
+      descripcion: $descripcion
+    ) {
+      ok
+      mensaje
+      notificacion {
+        idNotificacion
+        tipoNotificacion
+        estadoNotificacion
+        fechaEmision
+        idExpediente { idExpediente numeroExpediente }
+        idDocumento { idDocumento titulo }
+        idParte { idParte idPersona { nombre primerApellido } }
+      }
+    }
+  }
+`;

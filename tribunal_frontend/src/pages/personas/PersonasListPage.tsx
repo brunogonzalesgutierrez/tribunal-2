@@ -315,8 +315,8 @@ export default function PersonasListPage() {
 
   // ✅ GUARDAR CON BLOQUEO
   const guardar = async () => {
-    if (!form.nombre || !form.primerApellido || !form.registroUniversitario) {
-      toast.error("Nombre, primer apellido y N° Registro son obligatorios.");
+    if (!form.nombre || !form.primerApellido || !form.registroUniversitario || !form.numeroDocumento.trim()) {
+      toast.error("Nombre, primer apellido, N° Registro y C.I. son obligatorios.");
       return;
     }
     
@@ -649,6 +649,7 @@ export default function PersonasListPage() {
               value={form.numeroDocumento} 
               onChange={f("numeroDocumento")} 
               disabled={saving}
+              required   // ← agregar esto
             />
           </div>
           <Field 

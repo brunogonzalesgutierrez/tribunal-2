@@ -7,6 +7,12 @@ import { X, Edit, Trash2, Users, AlertCircle, ChevronLeft, ChevronRight } from "
 // TIPOS
 // ════════════════════════════════════════════════════════
 
+export interface ContactoSimple {
+  tipoContacto: string;
+  valor: string;
+  esPrincipal: boolean;
+}
+
 export interface Persona {
   idPersona: number;
   numeroDocumento: string;
@@ -17,6 +23,7 @@ export interface Persona {
   registroUniversitario?: string;
   esAbogado: boolean;
   titularA?: string;
+  contactos?: ContactoSimple[];  // ← agregar, opcional para no romper nada
 }
 
 export interface Contacto {

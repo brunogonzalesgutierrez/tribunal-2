@@ -53,6 +53,8 @@ export const GET_DENUNCIA_BY_ID = gql`
 export const CREAR_DENUNCIA = gql`
   mutation CrearDenuncia($input: CrearDenunciaInput!) {
     crearDenuncia(input: $input) {
+      ok
+      mensaje
       denuncia {
         id
         numeroDenuncia
@@ -101,6 +103,15 @@ export const GET_PERSONAS = gql`
       primerApellido
       segundoApellido
       numeroDocumento
+      estamento
+      registroUniversitario
+      esAbogado
+      titularA
+      contactos {
+        tipoContacto
+        valor
+        esPrincipal
+      }
     }
   }
 `;
@@ -154,5 +165,65 @@ export const GET_HISTORIAL_POR_EXPEDIENTE = gql`
 export const GET_PROXIMO_NUMERO_DENUNCIA = gql`
   query GetProximoNumeroDenuncia {
     proximoNumeroDenuncia
+  }
+`;
+
+export const ENVIAR_CITACION_ADMISION = gql`
+  mutation EnviarCitacionAdmision($idDenuncia: Int!, $idUsuario: Int!) {
+    enviarCitacionAdmision(idDenuncia: $idDenuncia, idUsuario: $idUsuario) {
+      ok
+      mensaje
+      emailEnviado
+    }
+  }
+`;
+
+export const ENVIAR_CITACION_TERMINO_PROBATORIO = gql`
+  mutation EnviarCitacionTerminoProbatorio($idDenuncia: Int!, $idUsuario: Int!) {
+    enviarCitacionTerminoProbatorio(idDenuncia: $idDenuncia, idUsuario: $idUsuario) {
+      ok
+      mensaje
+      enviados
+      fallidos
+      sinEmail
+      destinatarios
+    }
+  }
+`;
+
+export const ENVIAR_NOTIFICACION_RESOLUCION = gql`
+  mutation EnviarNotificacionResolucion($idDenuncia: Int!, $idUsuario: Int!) {
+    enviarNotificacionResolucion(idDenuncia: $idDenuncia, idUsuario: $idUsuario) {
+      ok
+      mensaje
+      enviados
+      fallidos
+      sinEmail
+      destinatarios
+    }
+  }
+`;
+
+export const ENVIAR_NOTIFICACION_RESOLUCION_APELACION = gql`
+  mutation EnviarNotificacionResolucionApelacion($idDenuncia: Int!, $idUsuario: Int!) {
+    enviarNotificacionResolucionApelacion(idDenuncia: $idDenuncia, idUsuario: $idUsuario) {
+      ok
+      mensaje
+      enviados
+      fallidos
+      sinEmail
+      destinatarios
+    }
+  }
+`;
+
+
+export const ENVIAR_NOTIFICACION_SUBSANACION = gql`
+  mutation EnviarNotificacionSubsanacion($idDenuncia: Int!, $idUsuario: Int!) {
+    enviarNotificacionSubsanacion(idDenuncia: $idDenuncia, idUsuario: $idUsuario) {
+      ok
+      mensaje
+      emailEnviado
+    }
   }
 `;

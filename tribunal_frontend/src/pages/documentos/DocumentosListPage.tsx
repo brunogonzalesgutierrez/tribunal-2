@@ -15,14 +15,14 @@ import {
 import {
   Documento, Expediente, TipoDoc,
   fmtFecha, BoolBadge,
-  Modal, Field, SelectField, ErrorBox, ModalFooter,
-  StatCard, TablaDesktop, ActionBtns, SearchBar,
+  Modal, Field, ErrorBox, ModalFooter,
+  TablaDesktop, ActionBtns,
 } from "./shared";
 import { useCrudNotifications } from "../../hooks/useCrudNotifications";
-import { useToast } from "../../context/ToastContext";
+
 
 // ─── URL base del backend ─────────────────────────────────
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api";
+const API_URL = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8000/api";
 
 // ─── COMPONENTE DRAG & DROP ───────────────────────────────
 interface DropZoneProps {

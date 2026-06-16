@@ -18,13 +18,21 @@ import {
 } from "lucide-react";
 
 
+
 // ─── TIPOS ───────────────────────────────────────────────
+interface Contacto {
+  tipoContacto: string;
+  valor: string;
+  esPrincipal: boolean;
+}
+
 interface Persona {
   idPersona: number;
   nombre: string;
   primerApellido: string;
   segundoApellido?: string;
   numeroDocumento: string;
+  contactos: Contacto[];  // ← agregar
 }
 
 interface Denuncia {
@@ -133,7 +141,6 @@ function BuscadorPersona({
   );
 
 
-
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
@@ -182,16 +189,40 @@ function BuscadorPersona({
                   }}
                   className="w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700"
                 >
-                  <div className="flex justify-between items-center">
-                    <div>
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
                       <p className="font-semibold text-gray-800 dark:text-white">
                         {p.nombre} {p.primerApellido} {p.segundoApellido || ""}
                       </p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">CI: {p.numeroDocumento}</p>
+
+                      {/* ── Indicador de contactos ── */}
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {p.contactos.length === 0 ? (
+                          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">
+                            ⚠️ Sin contactos — no recibirá notificaciones
+                          </span>
+                        ) : (
+                          <>
+                            {p.contactos.some(c => c.tipoContacto === "EMAIL") ? (
+                              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                ✅ Email: {p.contactos.find(c => c.tipoContacto === "EMAIL")?.valor}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                                ⚠️ Sin email
+                              </span>
+                            )}
+                            {p.contactos.some(c => c.tipoContacto === "CELULAR" || c.tipoContacto === "TELEFONO") && (
+                              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                📱 {p.contactos.find(c => c.tipoContacto === "CELULAR" || c.tipoContacto === "TELEFONO")?.valor}
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-blue-500">
-                      <Plus className="w-5 h-5" />
-                    </div>
+                    <Plus className="w-5 h-5 text-blue-500 shrink-0 mt-1" />
                   </div>
                 </button>
               ))}
@@ -406,7 +437,19 @@ export default function DenunciasPage() {
           ...(form.fechaHecho ? { fechaHecho: form.fechaHecho } : {}),
         };
         await executeCreate(async () => {
-          await crearDenuncia({ variables: { input } });
+          const { data: res } = await crearDenuncia({ variables: { input } });
+
+          // ✅ Manejar duplicado
+          if (!res?.crearDenuncia?.ok) {
+            // Refrescar el número sugerido y pre-llenarlo
+            const { data: nuevo } = await refetchProximo();
+            setForm(prev => ({
+              ...prev,
+              numeroDenuncia: nuevo?.proximoNumeroDenuncia ?? prev.numeroDenuncia,
+            }));
+            throw new Error(res?.crearDenuncia?.mensaje ?? "Error al crear la denuncia");
+          }
+
           await refetch();
           cerrarModal();
           return true;

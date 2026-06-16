@@ -24,6 +24,13 @@ import {
 import { useAuth } from "../../context/AuthContext";
 // Agregá junto a los otros imports de graphql
 import { GET_HISTORIAL_POR_EXPEDIENTE } from "../../graphql/denuncias";
+import {
+  ENVIAR_CITACION_ADMISION,
+  ENVIAR_CITACION_TERMINO_PROBATORIO,
+  ENVIAR_NOTIFICACION_RESOLUCION,
+  ENVIAR_NOTIFICACION_RESOLUCION_APELACION,
+  ENVIAR_NOTIFICACION_SUBSANACION,
+} from "../../graphql/denuncias";
 
 // ─── HELPERS ─────────────────────────────────────────────
 const ESTADOS = [
@@ -88,6 +95,13 @@ export default function DenunciaDetailPage() {
   });
   const [actualizarDenuncia] = useMutation(ACTUALIZAR_DENUNCIA);
   const [admitirDenuncia]    = useMutation(ADMITIR_DENUNCIA);
+
+
+  const [enviarCitacionAdmision]         = useMutation(ENVIAR_CITACION_ADMISION);
+  const [enviarCitacionTerminoProbatorio] = useMutation(ENVIAR_CITACION_TERMINO_PROBATORIO);
+  const [enviarNotificacionResolucion]    = useMutation(ENVIAR_NOTIFICACION_RESOLUCION);
+  const [enviarNotificacionResolucionApelacion] = useMutation(ENVIAR_NOTIFICACION_RESOLUCION_APELACION);
+  const [enviarNotificacionSubsanacion] = useMutation(ENVIAR_NOTIFICACION_SUBSANACION);
   const { data: dataSalas }  = useQuery(GET_SALAS_TRIBUNAL);
 
   // ✅ Siempre desde data, nunca desde denuncia (que aún no está definida)
@@ -171,16 +185,198 @@ export default function DenunciaDetailPage() {
           idUsuario:  Number(usuario.idUsuario),
         },
       });
+
       if (res?.admitirDenuncia?.ok) {
         toast.success(
           `${res.admitirDenuncia.mensaje} — N° ${res.admitirDenuncia.numeroExpediente}`
         );
         await refetch();
+
+        // ── Enviar citación al denunciado (Art. 44 + Art. 58a) ──
+        try {
+          const { data: citacion } = await enviarCitacionAdmision({
+            variables: { idDenuncia: Number(id), idUsuario: Number(usuario?.idUsuario) },
+          });
+          if (citacion?.enviarCitacionAdmision?.ok) {
+            toast.success(
+              `Citación enviada al denunciado: ${citacion.enviarCitacionAdmision.emailEnviado}`
+            );
+          } else {
+            // No bloquea el flujo — la admisión ya fue exitosa
+            toast.error(
+              `Denuncia admitida pero no se pudo enviar la citación: ${citacion?.enviarCitacionAdmision?.mensaje}`
+            );
+          }
+        } catch {
+          toast.error("Denuncia admitida pero hubo un error al enviar la citación por email.");
+        }
+
       } else {
         toast.error(res?.admitirDenuncia?.mensaje ?? "Error al admitir la denuncia.");
       }
     } catch (e: any) {
       toast.error(e.message ?? "Error inesperado.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSolicitarSubsanacion = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await actualizarDenuncia({
+        variables: {
+          id: Number(id),
+          input: { estado: "SUBSANACION" },
+          idUsuario: usuario?.idUsuario ? Number(usuario.idUsuario) : null,
+        },
+      });
+      await refetch();
+      toast.success("Denuncia enviada a subsanación (Art. 56)");
+
+      try {
+        const { data: notif } = await enviarNotificacionSubsanacion({
+          variables: { idDenuncia: Number(id), idUsuario: Number(usuario?.idUsuario) },
+        });
+        if (notif?.enviarNotificacionSubsanacion?.ok) {
+          toast.success(`Notificación de subsanación enviada al denunciante`);
+        } else {
+          toast.error(`Estado actualizado pero no se pudo notificar: ${notif?.enviarNotificacionSubsanacion?.mensaje}`);
+        }
+      } catch {
+        toast.error("Estado actualizado pero hubo un error al enviar la notificación.");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Error al solicitar subsanación");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+
+  const handleAbrirPruebas = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      // 1. Cambiar estado a PRUEBAS
+      await actualizarDenuncia({
+        variables: {
+          id: Number(id),
+          input: { estado: "PRUEBAS" },
+          idUsuario: usuario?.idUsuario ? Number(usuario.idUsuario) : null,
+        },
+      });
+      await refetch();
+      toast.success("Período probatorio abierto (Art. 60)");
+
+      // 2. Enviar citación a ambas partes (Art. 60 II)
+      try {
+        const { data: citacion } = await enviarCitacionTerminoProbatorio({
+          variables: { idDenuncia: Number(id), idUsuario: Number(usuario?.idUsuario) },
+        });
+        if (citacion?.enviarCitacionTerminoProbatorio?.ok) {
+          toast.success(
+            `Notificaciones enviadas a ${citacion.enviarCitacionTerminoProbatorio.enviados} parte(s)`
+          );
+        } else {
+          toast.error(
+            `Pruebas abiertas pero no se pudo notificar: ${citacion?.enviarCitacionTerminoProbatorio?.mensaje}`
+          );
+        }
+      } catch {
+        toast.error("Período probatorio abierto pero hubo un error al enviar las notificaciones.");
+      }
+
+    } catch (error: any) {
+      toast.error(error.message || "Error al abrir el período probatorio");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEmitirResolucion = async (
+      resolucion: string,
+      fecha: string,
+      tipo: string,
+      tipoSancion?: string,
+      detalleSancion?: string
+    ) => {
+      if (saving) return;
+      setSaving(true);
+      try {
+        // 1. Cambiar estado a RESUELTA y guardar datos de la resolución
+        await actualizarDenuncia({
+          variables: {
+            id: Number(id),
+            input: {
+              estado: "RESUELTA",
+              resolucion,
+              fechaResolucion: fecha,
+              tipoResolucion: tipo,
+              ...(tipoSancion    && { tipoSancion }),
+              ...(detalleSancion && { detalleSancion }),
+            },
+            idUsuario: usuario?.idUsuario ? Number(usuario.idUsuario) : null,
+          },
+        });
+        await refetch();
+        toast.success("Resolución definitiva emitida (Art. 75)");
+
+        // 2. Notificar a ambas partes (Art. 45 + Art. 46)
+        try {
+          const { data: notif } = await enviarNotificacionResolucion({
+            variables: { idDenuncia: Number(id), idUsuario: Number(usuario?.idUsuario) },
+          });
+          if (notif?.enviarNotificacionResolucion?.ok) {
+            toast.success(
+              `Resolución notificada a ${notif.enviarNotificacionResolucion.enviados} parte(s)`
+            );
+          } else {
+            toast.error(
+              `Resolución emitida pero no se pudo notificar: ${notif?.enviarNotificacionResolucion?.mensaje}`
+            );
+          }
+        } catch {
+          toast.error("Resolución emitida pero hubo un error al enviar las notificaciones.");
+        }
+
+      } catch (error: any) {
+        toast.error(error.message || "Error al emitir la resolución");
+      } finally {
+        setSaving(false);
+      }
+    };
+
+
+    const handleResolverApelacion = async (datos: { resolucionApelacion: string }) => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await actualizarDenuncia({
+        variables: {
+          id: Number(id),
+          input: { estado: "EJECUTADA", resolucionApelacion: datos.resolucionApelacion },
+          idUsuario: usuario?.idUsuario ? Number(usuario.idUsuario) : null,
+        },
+      });
+      await refetch();
+      toast.success("Resolución de segunda instancia registrada (Art. 86)");
+
+      try {
+        const { data: notif } = await enviarNotificacionResolucionApelacion({
+          variables: { idDenuncia: Number(id), idUsuario: Number(usuario?.idUsuario) },
+        });
+        if (notif?.enviarNotificacionResolucionApelacion?.ok) {
+          toast.success(`Resolución de 2da instancia notificada a ${notif.enviarNotificacionResolucionApelacion.enviados} parte(s)`);
+        } else {
+          toast.error(`Resolución registrada pero no se pudo notificar: ${notif?.enviarNotificacionResolucionApelacion?.mensaje}`);
+        }
+      } catch {
+        toast.error("Resolución registrada pero hubo un error al enviar las notificaciones.");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Error al registrar la resolución de apelación");
     } finally {
       setSaving(false);
     }
@@ -420,7 +616,7 @@ export default function DenunciaDetailPage() {
                   denuncia={denuncia}
                   onAvanzar={(nuevoEstado) => avanzarEtapa(nuevoEstado)}
                   onRechazar={() => avanzarEtapa("ARCHIVADA")}
-                  onSolicitarSubsanacion={() => avanzarEtapa("SUBSANACION")}
+                  onSolicitarSubsanacion={handleSolicitarSubsanacion}
                   onRetirar={() => setTabActiva("etapas")}
                   onAdmitir={handleAdmitir}
                   salas={salas}
@@ -433,7 +629,7 @@ export default function DenunciaDetailPage() {
                   denuncia={denuncia}
                   onAvanzar={(nuevoEstado) => avanzarEtapa(nuevoEstado)}
                   onRechazar={() => avanzarEtapa("ARCHIVADA")}
-                  onSolicitarSubsanacion={() => avanzarEtapa("SUBSANACION")}
+                  onSolicitarSubsanacion={handleSolicitarSubsanacion}
                   onRetirar={() => setTabActiva("etapas")}
                   onAdmitir={handleAdmitir}
                   salas={salas}
@@ -469,7 +665,7 @@ export default function DenunciaDetailPage() {
                 <>
                   <EtapaPruebas
                     denuncia={denuncia}
-                    onAbrirPruebas={() => avanzarEtapa("PRUEBAS")}
+                    onAbrirPruebas={handleAbrirPruebas}
                     saving={saving}
                   />
                   <EtapaConciliacion
@@ -491,9 +687,7 @@ export default function DenunciaDetailPage() {
               {denuncia.estado === "CONCLUSION" && (
                 <EtapaResolucion
                   denuncia={denuncia}
-                  onEmitirResolucion={(resolucion, fecha, tipo, tipoSancion, detalleSancion) =>
-                    avanzarEtapa("RESUELTA", { resolucion, fechaResolucion: fecha, tipoResolucion: tipo, tipoSancion, detalleSancion })
-                  }
+                  onEmitirResolucion={handleEmitirResolucion}
                   saving={saving}
                 />
               )}
@@ -511,7 +705,7 @@ export default function DenunciaDetailPage() {
                 <EtapaApelacion
                   denuncia={denuncia}
                   onRemitirSuperior={(datos) => avanzarEtapa("APELADA", datos)}
-                  onResolverApelacion={(datos) => avanzarEtapa("EJECUTADA", datos)}
+                  onResolverApelacion={handleResolverApelacion}
                   saving={saving}
                 />
               )}

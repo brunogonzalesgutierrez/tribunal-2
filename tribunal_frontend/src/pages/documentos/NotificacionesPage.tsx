@@ -8,6 +8,7 @@ import {
   CREAR_NOTIFICACION,
   ACTUALIZAR_NOTIFICACION,
   ELIMINAR_NOTIFICACION,
+  CREAR_NOTIFICACION_TABLON,
 } from "../../graphql/documento";
 import { Bell, Plus, Edit, Trash2, Clock, CheckCircle, XCircle, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 import {
@@ -36,9 +37,8 @@ const ESTADO_NOTIF_OPTS = [
 
 const initForm = {
   idExpediente:      "",
-  idDocumento:       "",
   idParte:           "",
-  tipoNotificacion:  "",
+  descripcion:       "",
   estadoNotificacion: "PENDIENTE",
   fechaDiligencia:   "",
 };
@@ -439,6 +439,7 @@ export default function NotificacionesPage() {
   const { data: dataDoc }          = useQuery(GET_DOCUMENTOS);
   const { data: dataParte }        = useQuery(GET_PARTES_PROCESALES);
   const [crearNotificacion]      = useMutation(CREAR_NOTIFICACION);
+  const [crearNotificacionTablon] = useMutation(CREAR_NOTIFICACION_TABLON);
   const [actualizarNotificacion] = useMutation(ACTUALIZAR_NOTIFICACION);
   const [eliminarNotificacion]   = useMutation(ELIMINAR_NOTIFICACION);
 
@@ -527,12 +528,11 @@ export default function NotificacionesPage() {
   const abrirEditar = (n: Notificacion) => {
     setEdit(n);
     setForm({
-      idExpediente:      String(n.idExpediente?.idExpediente ?? ""),
-      idDocumento:       String(n.idDocumento?.idDocumento ?? ""),
-      idParte:           String(n.idParte?.idParte ?? ""),
-      tipoNotificacion:  n.tipoNotificacion,
+      idExpediente:       String(n.idExpediente?.idExpediente ?? ""),
+      idParte:            String(n.idParte?.idParte ?? ""),
+      descripcion:        "",
       estadoNotificacion: n.estadoNotificacion,
-      fechaDiligencia:   n.fechaDiligencia ? n.fechaDiligencia.substring(0, 16) : "",
+      fechaDiligencia:    n.fechaDiligencia ? n.fechaDiligencia.substring(0, 16) : "",
     });
     setExpedienteSeleccionado(`${n.idExpediente?.numeroExpediente ?? ''}`);
     setDocumentoSeleccionado(n.idDocumento?.titulo ?? "");
@@ -544,14 +544,9 @@ export default function NotificacionesPage() {
 
   // ✅ GUARDAR CON BLOQUEO
   const guardar = async () => {
-    if (!editando && (!form.idExpediente || !form.idDocumento || !form.idParte || !form.tipoNotificacion)) {
-      toast.error("Todos los campos son obligatorios."); 
-      return;
-    }
-    
     if (saving) return;
     setSaving(true);
-    
+
     try {
       if (editando) {
         await executeUpdate(async () => {
@@ -560,41 +555,45 @@ export default function NotificacionesPage() {
               id: Number(editando.idNotificacion),
               input: {
                 estadoNotificacion: form.estadoNotificacion,
-                fechaDiligencia:    form.fechaDiligencia || undefined,
+                fechaDiligencia: form.fechaDiligencia || undefined,
               },
             },
           });
-          await refetch(); 
+          await refetch();
           setModal(false);
           return true;
         });
       } else {
-        if (!usuario?.idUsuario) {
-          toast.error("No se ha encontrado el usuario actual."); 
+        if (!form.idExpediente || !form.idParte || !form.descripcion.trim()) {
+          toast.error("Expediente, parte y descripción son obligatorios.");
           return;
         }
-        
+        if (!usuario?.idUsuario) {
+          toast.error("No se ha encontrado el usuario actual.");
+          return;
+        }
+
         await executeCreate(async () => {
-          await crearNotificacion({
+          const { data } = await crearNotificacionTablon({
             variables: {
-              idExpediente:     Number(form.idExpediente),
-              idDocumento:      Number(form.idDocumento),
-              idParte:          Number(form.idParte),
-              idUsuario:        Number(usuario.idUsuario),
-              tipoNotificacion: form.tipoNotificacion,
+              idExpediente: Number(form.idExpediente),
+              idParte:      Number(form.idParte),
+              idUsuario:    Number(usuario.idUsuario),
+              descripcion:  form.descripcion.trim(),
             },
           });
-          await refetch(); 
+          if (!data?.crearNotificacionTablon?.ok) {
+            throw new Error(data?.crearNotificacionTablon?.mensaje ?? "Error al crear.");
+          }
+          await refetch();
           setModal(false);
           setExpedienteSeleccionado("");
-          setDocumentoSeleccionado("");
           setParteSeleccionada("");
-          setTipoNotifSeleccionado("");
           return true;
         });
       }
-    } catch (e: any) { 
-      setErr(e.message ?? "Error."); 
+    } catch (e: any) {
+      setErr(e.message ?? "Error.");
     } finally {
       setSaving(false);
     }
@@ -645,7 +644,7 @@ export default function NotificacionesPage() {
           disabled={saving}
           className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-semibold text-sm shadow-lg shadow-amber-500/25 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
         >
-          <Plus className="w-4 h-4" /> Nueva notificación
+          <Plus className="w-4 h-4" /> Notificación en tablero
         </button>
       </div>
 
@@ -831,7 +830,11 @@ export default function NotificacionesPage() {
         >
           {!editando ? (
             <>
-              {/* Expediente - Con buscador */}
+              <div className="mb-4 p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-400">
+                <p className="font-semibold mb-1">Notificación en Tablero (Art. 47)</p>
+                <p>Para citaciones de admisión, subsanación, probatorio y resoluciones, las notificaciones se generan automáticamente desde el flujo de denuncias.</p>
+              </div>
+
               <div className="mb-4">
                 <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
                   Expediente <span className="text-red-500">*</span>
@@ -839,67 +842,18 @@ export default function NotificacionesPage() {
                 {expedienteSeleccionado ? (
                   <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800">
                     <span className="flex-1 text-sm text-gray-800 dark:text-white">{expedienteSeleccionado}</span>
-                    <button
-                      onClick={() => {
-                        setForm(p => ({ ...p, idExpediente: "", idDocumento: "", idParte: "" }));
-                        setExpedienteSeleccionado("");
-                        setDocumentoSeleccionado("");
-                        setParteSeleccionada("");
-                      }}
-                      disabled={saving}
-                      className="p-1 rounded-lg text-gray-500 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
+                    <button onClick={() => { setForm(p => ({ ...p, idExpediente: "", idParte: "" })); setExpedienteSeleccionado(""); setParteSeleccionada(""); }} disabled={saving} className="p-1 rounded-lg text-gray-500 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors disabled:opacity-40">
                       <X className="w-4 h-4" />
                     </button>
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => setBuscadorExpAbierto(true)}
-                    disabled={saving}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-amber-400 dark:hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Buscar y seleccionar expediente
+                  <button type="button" onClick={() => setBuscadorExpAbierto(true)} disabled={saving}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-amber-400 dark:hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 transition-all disabled:opacity-50">
+                    <Plus className="w-4 h-4" /> Buscar expediente
                   </button>
                 )}
               </div>
 
-              {/* Documento - Con buscador */}
-              {form.idExpediente && (
-                <div className="mb-4">
-                  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
-                    Documento <span className="text-red-500">*</span>
-                  </label>
-                  {documentoSeleccionado ? (
-                    <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800">
-                      <span className="flex-1 text-sm text-gray-800 dark:text-white">{documentoSeleccionado}</span>
-                      <button
-                        onClick={() => {
-                          setForm(p => ({ ...p, idDocumento: "" }));
-                          setDocumentoSeleccionado("");
-                        }}
-                        disabled={saving}
-                        className="p-1 rounded-lg text-gray-500 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setBuscadorDocAbierto(true)}
-                      disabled={saving}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-amber-400 dark:hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Buscar y seleccionar documento
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* Parte Procesal - Con buscador */}
               {form.idExpediente && (
                 <div className="mb-4">
                   <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
@@ -908,68 +862,39 @@ export default function NotificacionesPage() {
                   {parteSeleccionada ? (
                     <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800">
                       <span className="flex-1 text-sm text-gray-800 dark:text-white">{parteSeleccionada}</span>
-                      <button
-                        onClick={() => {
-                          setForm(p => ({ ...p, idParte: "" }));
-                          setParteSeleccionada("");
-                        }}
-                        disabled={saving}
-                        className="p-1 rounded-lg text-gray-500 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
+                      <button onClick={() => { setForm(p => ({ ...p, idParte: "" })); setParteSeleccionada(""); }} disabled={saving} className="p-1 rounded-lg text-gray-500 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors disabled:opacity-40">
                         <X className="w-4 h-4" />
                       </button>
                     </div>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => setBuscadorParteAbierto(true)}
-                      disabled={saving}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-amber-400 dark:hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Buscar y seleccionar parte
+                    <button type="button" onClick={() => setBuscadorParteAbierto(true)} disabled={saving}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-amber-400 dark:hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 transition-all disabled:opacity-50">
+                      <Plus className="w-4 h-4" /> Buscar parte procesal
                     </button>
                   )}
                 </div>
               )}
 
-              {/* Tipo de Notificación - Con buscador */}
               <div className="mb-4">
                 <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
-                  Tipo de notificación <span className="text-red-500">*</span>
+                  Descripción <span className="text-red-500">*</span>
                 </label>
-                {tipoNotifSeleccionado ? (
-                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800">
-                    <span className="flex-1 text-sm text-gray-800 dark:text-white">{tipoNotifSeleccionado}</span>
-                    <button
-                      onClick={() => {
-                        setForm(p => ({ ...p, tipoNotificacion: "" }));
-                        setTipoNotifSeleccionado("");
-                      }}
-                      disabled={saving}
-                      className="p-1 rounded-lg text-gray-500 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setBuscadorTipoAbierto(true)}
-                    disabled={saving}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:border-amber-400 dark:hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Buscar y seleccionar tipo de notificación
-                  </button>
-                )}
+                <textarea
+                  value={form.descripcion}
+                  onChange={e => setForm(p => ({ ...p, descripcion: e.target.value }))}
+                  rows={3}
+                  disabled={saving}
+                  placeholder="Ej: Se fijó en tablero providencia señalando fecha para declaración informativa..."
+                  className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all outline-none resize-none disabled:opacity-50"
+                />
               </div>
 
               <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-xs text-blue-700 dark:text-blue-400">
-                La notificación será registrada por: <strong>{usuario?.nombre} {usuario?.paterno}</strong>
+                Registrado por: <strong>{usuario?.nombre} {usuario?.paterno}</strong>
               </div>
             </>
           ) : (
+            /* bloque editando — sin cambios */
             <>
               <div className="mb-4 p-2.5 rounded-xl bg-gray-100 dark:bg-slate-700/50 text-gray-700 dark:text-gray-300 text-sm">
                 Expediente: #{expedienteSeleccionado}

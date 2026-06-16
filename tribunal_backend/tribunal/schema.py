@@ -607,6 +607,14 @@ class Query(graphene.ObjectType):
     documento_by_id  = graphene.Field(DocumentoType,  id=graphene.Int(required=True))
 
     all_denuncias = graphene.List(DenunciaType)
+
+    # En class Query, junto a all_denuncias:
+    proximo_numero_denuncia = graphene.String()
+
+    def resolve_proximo_numero_denuncia(root, info):
+        from datetime import date
+        return _generar_numero_denuncia(date.today().year)
+
     denuncia_by_id = graphene.Field(DenunciaType, id=graphene.Int(required=True))
     all_resoluciones_antiguas = graphene.List(ResolucionAntiguaType)
     resolucion_antigua_by_id = graphene.Field(ResolucionAntiguaType, id=graphene.Int(required=True))
@@ -1107,6 +1115,9 @@ class CrearPersona(graphene.Mutation):
         input = CrearPersonaInput(required=True)
     persona = graphene.Field(PersonaType)
     def mutate(root, info, input):
+        if not input.numero_documento or not input.numero_documento.strip():
+            raise GraphQLError("El número de documento (C.I.) es obligatorio.")
+    
         return CrearPersona(persona=Persona.objects.create(
             numero_documento=input.numero_documento,
             nombre=input.nombre,
@@ -1125,7 +1136,13 @@ class ActualizarPersona(graphene.Mutation):
     def mutate(root, info, id, input):
         try:
             obj = Persona.objects.get(id_persona=id)
-            for field in ['numero_documento', 'nombre', 'primer_apellido',
+
+            if input.numero_documento is not None:
+                if not input.numero_documento.strip():
+                    raise GraphQLError("El número de documento no puede estar vacío.")
+                obj.numero_documento = input.numero_documento
+
+            for field in ['nombre', 'primer_apellido',
                           'segundo_apellido', 'estamento', 'registro_universitario',
                           'es_abogado', 'titular_a']:
                 val = input.get(field)
@@ -3862,6 +3879,1235 @@ Este mensaje fue generado automáticamente por el Sistema de Gestión Judicial. 
         )
 
 
+class EnviarCitacionAdmisionType(graphene.ObjectType):
+    ok            = graphene.Boolean()
+    mensaje       = graphene.String()
+    email_enviado = graphene.String()
+
+
+
+class EnviarNotificacionSubsanacionType(graphene.ObjectType):
+    ok            = graphene.Boolean()
+    mensaje       = graphene.String()
+    email_enviado = graphene.String()
+
+
+class EnviarNotificacionSubsanacion(graphene.Mutation):
+    """
+    Notifica al denunciante que su denuncia presenta defectos y debe
+    subsanarlos en 3 días hábiles (Art. 56).
+    """
+    class Arguments:
+        id_denuncia = graphene.Int(required=True)
+        id_usuario  = graphene.Int(required=True)
+
+    Output = EnviarNotificacionSubsanacionType
+
+    def mutate(self, info, id_denuncia, id_usuario):
+        try:
+            denuncia = Denuncia.objects.select_related(
+                'denunciante', 'expediente'
+            ).get(id=id_denuncia)
+        except Denuncia.DoesNotExist:
+            return EnviarNotificacionSubsanacionType(
+                ok=False, mensaje="Denuncia no encontrada.", email_enviado=None
+            )
+
+        denunciante = denuncia.denunciante
+        nombre_denunciante = f"{denunciante.nombre} {denunciante.primer_apellido}"
+        if denunciante.segundo_apellido:
+            nombre_denunciante += f" {denunciante.segundo_apellido}"
+
+        contacto = (
+            ContactoPersona.objects.filter(
+                id_persona=denunciante,
+                tipo_contacto__iexact="EMAIL",
+                es_principal=True,
+            ).first()
+            or
+            ContactoPersona.objects.filter(
+                id_persona=denunciante,
+                tipo_contacto__iexact="EMAIL",
+            ).first()
+        )
+
+        if not contacto:
+            return EnviarNotificacionSubsanacionType(
+                ok=False,
+                mensaje=f"El denunciante {nombre_denunciante} no tiene email registrado.",
+                email_enviado=None
+            )
+
+        email_destino = contacto.valor.strip()
+
+        from django.utils.timezone import localtime
+        from datetime import date
+        ahora = localtime(timezone.now())
+        fecha_hoy = date.today()
+        fecha_larga = f"{fecha_hoy.day} de {MESES_ES[fecha_hoy.month - 1]} de {fecha_hoy.year}"
+        hora_str = ahora.strftime("%H:%M")
+
+        asunto = f"SUBSANACIÓN REQUERIDA — Denuncia {denuncia.numero_denuncia}"
+
+        texto_plano = f"""DENUNCIA DEFECTUOSA — SUBSANACIÓN REQUERIDA (Art. 56)
+Tribunal de Justicia Universitaria — U.A.G.R.M.
+
+Denuncia: {denuncia.numero_denuncia}
+Fecha: {fecha_larga} — {hora_str} hrs.
+Denunciante: {nombre_denunciante}
+
+El Tribunal de Justicia Universitaria ha verificado que su denuncia
+presenta defectos formales que deben ser subsanados.
+
+Tiene un plazo IMPRORROGABLE de TRES (3) DÍAS HÁBILES para subsanar
+los defectos señalados, bajo apercibimiento de tenerla por no presentada
+(Art. 56 del Reglamento de Justicia Universitaria).
+
+Abg. {SECRETARIO_NOMBRE}
+{SECRETARIO_CARGO}
+Tribunal de Justicia Universitaria — U.A.G.R.M.
+"""
+
+        html_body = f"""<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 0;">
+<tr><td align="center">
+<table width="650" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #d1d5db;border-radius:4px;">
+<tr><td style="padding:32px 40px;">
+<p style="margin:0 0 24px;text-align:center;font-size:15px;font-weight:bold;color:#111827;">
+  DENUNCIA DEFECTUOSA — SUBSANACIÓN REQUERIDA
+</p>
+<div style="font-size:13.5px;color:#1f2937;line-height:1.9;">
+  <p>Denuncia <strong>{denuncia.numero_denuncia}</strong></p>
+  <p>En la ciudad de Santa Cruz a horas <strong>{hora_str}</strong> del día <strong>{fecha_larga}</strong>.</p>
+  <p><strong>Denunciante:</strong> {nombre_denunciante}</p>
+  <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:16px 20px;margin:16px 0;">
+    <p style="margin:0 0 8px;font-weight:bold;color:#92400e;">⚠ Subsanación requerida (Art. 56):</p>
+    <p style="margin:0;color:#78350f;line-height:1.7;">
+      Su denuncia presenta defectos formales. Tiene un plazo
+      <strong>improrrogable de TRES (3) DÍAS HÁBILES</strong> para subsanarlos,
+      bajo apercibimiento de tenerla por <strong>no presentada</strong>.
+    </p>
+  </div>
+  <p style="font-weight:bold;">Quien informado/a de su tenor se dio por: NOTIFICADO/A</p>
+  <p><strong>Abg. {SECRETARIO_NOMBRE}</strong><br/>{SECRETARIO_CARGO}</p>
+</div>
+</td></tr></table></td></tr></table></body></html>"""
+
+        try:
+            msg = EmailMultiAlternatives(
+                subject=asunto,
+                body=texto_plano,
+                from_email=django_settings.DEFAULT_FROM_EMAIL,
+                to=[email_destino],
+            )
+            msg.attach_alternative(html_body, "text/html")
+            msg.send(fail_silently=False)
+
+            usuario_obj = Usuario.objects.filter(id_usuario=id_usuario).first()
+            if usuario_obj and denuncia.expediente:
+                try:
+                    _registrar_notificacion_envio(
+                        expediente=denuncia.expediente,
+                        persona=denunciante,
+                        tipo_documento_codigo='NOT-SUB',
+                        titulo_documento=f"Notificación Subsanación — Denuncia {denuncia.numero_denuncia}",
+                        usuario=usuario_obj,
+                    )
+                except Exception:
+                    pass
+
+            return EnviarNotificacionSubsanacionType(
+                ok=True,
+                mensaje=f"Notificación enviada correctamente a {email_destino}.",
+                email_enviado=email_destino
+            )
+        except Exception as e:
+            return EnviarNotificacionSubsanacionType(
+                ok=False,
+                mensaje=f"Error al enviar la notificación: {str(e)}",
+                email_enviado=None
+            )
+
+
+
+
+def _registrar_notificacion_envio(expediente, persona, tipo_documento_codigo, titulo_documento, usuario, tipo_notificacion="ELECTRONICA"):
+    """
+    Registra el envío de una citación/notificación en Documento y Notificacion,
+    separado de la fecha real de diligencia (Art. 44/45: el envío del correo no es
+    la notificación formal). Queda en estado PENDIENTE hasta que alguien complete
+    fecha_diligencia desde NotificacionesPage con la fecha real del acto.
+    """
+    if not expediente:
+        return None
+
+    parte = ParteProcesal.objects.filter(
+        id_expediente=expediente, id_persona=persona, activo=True
+    ).first()
+    if not parte:
+        return None
+
+    tipo_doc, _ = TipoDoc.objects.get_or_create(
+        codigo=tipo_documento_codigo,
+        defaults={'nombre': tipo_documento_codigo, 'requiere_firma': False, 'es_publico': False}
+    )
+
+    documento = Documento.objects.create(
+        id_expediente=expediente,
+        id_tipo_doc=tipo_doc,
+        id_persona=persona,
+        titulo=titulo_documento,
+        ruta_archivo='',
+        tamano_kb=0,
+        hash_integridad='',
+        es_electronico=True,
+        firmado_digitalmente=False,
+    )
+
+    return Notificacion.objects.create(
+        id_expediente=expediente,
+        id_documento=documento,
+        id_parte=parte,
+        tipo_notificacion=tipo_notificacion,
+        estado_notificacion='PENDIENTE',
+        usuario=usuario,
+    )
+
+
+
+
+class EnviarCitacionAdmision(graphene.Mutation):
+    """
+    Envía la citación personal al denunciado al momento del Auto de Admisión.
+    Art. 44 + Art. 58a — plazo improrrogable de 10 días hábiles para asumir defensa.
+    """
+    class Arguments:
+        id_denuncia = graphene.Int(required=True)
+        id_usuario  = graphene.Int(required=True)
+
+    Output = EnviarCitacionAdmisionType
+
+    def mutate(self, info, id_denuncia, id_usuario):
+        try:
+            denuncia = Denuncia.objects.select_related(
+                'denunciado', 'denunciante', 'expediente'
+            ).get(id=id_denuncia)
+        except Denuncia.DoesNotExist:
+            return EnviarCitacionAdmisionType(
+                ok=False, mensaje="Denuncia no encontrada.", email_enviado=None
+            )
+
+        if denuncia.estado != "ADMITIDA":
+            return EnviarCitacionAdmisionType(
+                ok=False,
+                mensaje="La denuncia debe estar en estado ADMITIDA para enviar la citación.",
+                email_enviado=None
+            )
+
+        denunciado = denuncia.denunciado
+        nombre_denunciado = f"{denunciado.nombre} {denunciado.primer_apellido}"
+        if denunciado.segundo_apellido:
+            nombre_denunciado += f" {denunciado.segundo_apellido}"
+
+        # Buscar email del denunciado
+        contacto = (
+            ContactoPersona.objects.filter(
+                id_persona=denunciado,
+                tipo_contacto__iexact="EMAIL",
+                es_principal=True,
+            ).first()
+            or
+            ContactoPersona.objects.filter(
+                id_persona=denunciado,
+                tipo_contacto__iexact="EMAIL",
+            ).first()
+        )
+
+        if not contacto:
+            return EnviarCitacionAdmisionType(
+                ok=False,
+                mensaje=f"El denunciado {nombre_denunciado} no tiene email registrado.",
+                email_enviado=None
+            )
+
+        email_destino = contacto.valor.strip()
+        numero_expediente = denuncia.expediente.numero_expediente if denuncia.expediente else "—"
+
+        from django.utils.timezone import localtime
+        from datetime import date
+        ahora = localtime(timezone.now())
+        fecha_hoy = date.today()
+        MESES_ES = [
+            "enero","febrero","marzo","abril","mayo","junio",
+            "julio","agosto","septiembre","octubre","noviembre","diciembre",
+        ]
+        fecha_larga = f"{fecha_hoy.day} de {MESES_ES[fecha_hoy.month - 1]} de {fecha_hoy.year}"
+        hora_str    = ahora.strftime("%H:%M")
+
+        asunto = (
+            f"CITACIÓN — Auto de Admisión — "
+            f"Expediente {numero_expediente} — "
+            f"Denuncia {denuncia.numero_denuncia}"
+        )
+
+        html_body = f"""<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 0;">
+  <tr><td align="center">
+  <table width="650" cellpadding="0" cellspacing="0"
+         style="background:#ffffff;border:1px solid #d1d5db;border-radius:4px;">
+    <tr><td style="padding:32px 40px;">
+
+      <!-- Encabezado -->
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="text-align:center;padding-bottom:20px;">
+            <p style="margin:0;font-size:13px;font-weight:bold;color:#111827;line-height:1.45;">
+              UNIVERSIDAD AUTÓNOMA "GABRIEL RENÉ MORENO"<br/>
+              TRIBUNAL DE JUSTICIA UNIVERSITARIA<br/>
+              DE PRIMERA INSTANCIA
+            </p>
+          </td>
+        </tr>
+      </table>
+
+      <!-- Título -->
+      <p style="margin:0 0 24px;text-align:center;font-size:15px;font-weight:bold;
+                color:#111827;letter-spacing:0.5px;border-top:1px solid #e5e7eb;padding-top:20px;">
+        AUTO DE ADMISIÓN — CITACIÓN PERSONAL
+      </p>
+
+      <!-- Cuerpo -->
+      <div style="font-size:13.5px;color:#1f2937;line-height:1.9;">
+
+        <p style="margin:0 0 14px;">
+          Expediente Nro. <strong>{numero_expediente}</strong> —
+          Denuncia <strong>{denuncia.numero_denuncia}</strong>
+        </p>
+
+        <p style="margin:0 0 14px;">
+          En la ciudad de Santa Cruz a horas <strong>{hora_str}</strong> del día
+          <strong>{fecha_larga}</strong>.
+        </p>
+
+        <p style="margin:0 0 4px;"><strong>Citado/a:</strong></p>
+        <p style="margin:0 0 14px;">{nombre_denunciado}</p>
+
+        <p style="margin:0 0 4px;"><strong>En calidad de:</strong> Denunciado/a</p>
+
+        <p style="margin:0 0 14px;">
+          Lugar: Notificación electrónica enviada al correo <strong>{email_destino}</strong>.
+        </p>
+
+        <!-- Recuadro principal -->
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;
+                    padding:16px 20px;margin:0 0 16px;">
+          <p style="margin:0 0 8px;font-weight:bold;color:#1e40af;">
+            Con lo siguiente — AUTO DE ADMISIÓN (Art. 58):
+          </p>
+          <p style="margin:0 0 8px;color:#1e3a8a;line-height:1.7;">
+            El Tribunal de Justicia Universitaria de Primera Instancia ha admitido la denuncia
+            disciplinaria interpuesta en su contra, iniciando la etapa investigativa.
+          </p>
+          <p style="margin:0;color:#1e3a8a;line-height:1.7;">
+            Se le cita para que en el plazo <strong>improrrogable de 10 días hábiles</strong>
+            asuma su defensa sobre los hechos o actos denunciados, advirtiéndosele que el proceso
+            continuará <strong>con o sin su contestación</strong> (Art. 58 inc. a).
+          </p>
+        </div>
+
+        <!-- Descripción de los hechos -->
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;
+                    padding:14px 18px;margin:0 0 16px;">
+          <p style="margin:0 0 6px;font-size:11px;font-weight:bold;color:#6b7280;
+                    text-transform:uppercase;letter-spacing:1px;">
+            Hechos denunciados
+          </p>
+          <p style="margin:0;font-size:13px;color:#374151;line-height:1.7;">
+            {denuncia.descripcion}
+          </p>
+        </div>
+
+        <p style="margin:16px 0 4px;font-weight:bold;">
+          Quien informado/a de su tenor se dio por: CITADO/A
+        </p>
+
+        <p style="margin:0 0 24px;">
+          Recibiéndose la presente citación mediante comunicación electrónica oficial.
+        </p>
+
+        <p style="margin:0;font-size:13px;color:#1f2937;line-height:1.6;">
+          <strong>Abg. {SECRETARIO_NOMBRE}</strong><br/>
+          {SECRETARIO_CARGO}<br/>
+          Tribunal de Justicia Universitaria<br/>
+          U.A.G.R.M.
+        </p>
+      </div>
+
+      <!-- Pie -->
+      <p style="margin:28px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;
+                font-size:11px;color:#9ca3af;">
+        Este mensaje fue generado automáticamente por el Sistema de Gestión Judicial.
+        Por favor no responda a este correo electrónico.
+      </p>
+
+    </td></tr>
+  </table>
+  </td></tr>
+</table>
+</body></html>"""
+
+        texto_plano = f"""AUTO DE ADMISIÓN — CITACIÓN PERSONAL
+Tribunal de Justicia Universitaria — U.A.G.R.M.
+
+Expediente: {numero_expediente}
+Denuncia: {denuncia.numero_denuncia}
+Fecha: {fecha_larga} — {hora_str} hrs.
+
+Citado/a: {nombre_denunciado}
+
+Se le hace saber que el Tribunal ha admitido la denuncia disciplinaria interpuesta en su contra.
+Tiene un plazo IMPRORROGABLE de 10 DÍAS HÁBILES para asumir su defensa (Art. 58 inc. a).
+El proceso continuará con o sin su contestación.
+
+Hechos denunciados:
+{denuncia.descripcion}
+
+Abg. {SECRETARIO_NOMBRE}
+{SECRETARIO_CARGO}
+Tribunal de Justicia Universitaria — U.A.G.R.M.
+"""
+
+        try:
+            msg = EmailMultiAlternatives(
+                subject=asunto,
+                body=texto_plano,
+                from_email=django_settings.DEFAULT_FROM_EMAIL,
+                to=[email_destino],
+            )
+            msg.attach_alternative(html_body, "text/html")
+            msg.send(fail_silently=False)
+
+            usuario_obj = Usuario.objects.filter(id_usuario=id_usuario).first()
+            if usuario_obj:
+                try:
+                    _registrar_notificacion_envio(
+                        expediente=denuncia.expediente,
+                        persona=denunciado,
+                        tipo_documento_codigo='CIT-ADM',
+                        titulo_documento=f"Citación de Admisión — Denuncia {denuncia.numero_denuncia}",
+                        usuario=usuario_obj,
+                    )
+                except Exception:
+                    pass
+
+            return EnviarCitacionAdmisionType(
+                ok=True,
+                mensaje=f"Citación enviada correctamente a {email_destino}.",
+                email_enviado=email_destino
+            )
+        except Exception as e:
+            return EnviarCitacionAdmisionType(
+                ok=False,
+                mensaje=f"Error al enviar la citación: {str(e)}",
+                email_enviado=None
+            )
+
+
+
+
+# ──────────────────────────────────────────────────────────────
+# CITACIÓN 2 — APERTURA DEL TÉRMINO PROBATORIO (Art. 60)
+# ──────────────────────────────────────────────────────────────
+
+class EnviarCitacionTerminoProbatorioType(graphene.ObjectType):
+    ok            = graphene.Boolean()
+    mensaje       = graphene.String()
+    enviados      = graphene.Int()
+    fallidos      = graphene.Int()
+    sin_email     = graphene.List(graphene.String)
+    destinatarios = graphene.List(graphene.String)
+
+
+class EnviarCitacionTerminoProbatorio(graphene.Mutation):
+    """
+    Notifica a AMBAS partes (denunciante y denunciado) la apertura del
+    término probatorio de 30 días hábiles (Art. 60).
+    Las partes tienen 5 días hábiles para ratificar pruebas desde esta notificación.
+    """
+    class Arguments:
+        id_denuncia = graphene.Int(required=True)
+        id_usuario  = graphene.Int(required=True)
+
+    Output = EnviarCitacionTerminoProbatorioType
+
+    def mutate(self, info, id_denuncia, id_usuario):
+        try:
+            denuncia = Denuncia.objects.select_related(
+                'denunciado', 'denunciante', 'expediente'
+            ).get(id=id_denuncia)
+        except Denuncia.DoesNotExist:
+            return EnviarCitacionTerminoProbatorioType(
+                ok=False, mensaje="Denuncia no encontrada.",
+                enviados=0, fallidos=0, sin_email=[], destinatarios=[]
+            )
+
+        if denuncia.estado != "PRUEBAS":
+            return EnviarCitacionTerminoProbatorioType(
+                ok=False,
+                mensaje=f"La denuncia debe estar en estado 'PRUEBAS' para enviar esta citación. Estado actual: '{denuncia.estado}'.",
+                enviados=0, fallidos=0, sin_email=[], destinatarios=[]
+            )
+
+        numero_expediente = denuncia.expediente.numero_expediente if denuncia.expediente else "—"
+
+        from django.utils.timezone import localtime
+        from datetime import date
+        ahora = localtime(timezone.now())
+        fecha_hoy = date.today()
+        fecha_larga = f"{fecha_hoy.day} de {MESES_ES[fecha_hoy.month - 1]} de {fecha_hoy.year}"
+        hora_str = ahora.strftime("%H:%M")
+
+        partes = [
+            (denuncia.denunciante, "Denunciante"),
+            (denuncia.denunciado,  "Denunciado/a"),
+        ]
+
+        enviados      = 0
+        fallidos      = 0
+        sin_email     = []
+        destinatarios = []
+        
+        usuario_obj = Usuario.objects.filter(id_usuario=id_usuario).first()
+
+        for persona, rol in partes:
+            nombre = f"{persona.nombre} {persona.primer_apellido}"
+            if persona.segundo_apellido:
+                nombre += f" {persona.segundo_apellido}"
+
+            contacto = (
+                ContactoPersona.objects.filter(
+                    id_persona=persona,
+                    tipo_contacto__iexact="EMAIL",
+                    es_principal=True,
+                ).first()
+                or
+                ContactoPersona.objects.filter(
+                    id_persona=persona,
+                    tipo_contacto__iexact="EMAIL",
+                ).first()
+            )
+
+            if not contacto:
+                sin_email.append(f"{nombre} ({rol})")
+                continue
+
+            email_destino = contacto.valor.strip()
+
+            asunto = (
+                f"NOTIFICACIÓN — Apertura del Término Probatorio — "
+                f"Expediente {numero_expediente} — "
+                f"Denuncia {denuncia.numero_denuncia}"
+            )
+
+            html_body = f"""<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 0;">
+  <tr><td align="center">
+  <table width="650" cellpadding="0" cellspacing="0"
+         style="background:#ffffff;border:1px solid #d1d5db;border-radius:4px;">
+    <tr><td style="padding:32px 40px;">
+
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="text-align:center;padding-bottom:20px;">
+            <p style="margin:0;font-size:13px;font-weight:bold;color:#111827;line-height:1.45;">
+              UNIVERSIDAD AUTÓNOMA "GABRIEL RENÉ MORENO"<br/>
+              TRIBUNAL DE JUSTICIA UNIVERSITARIA<br/>
+              DE PRIMERA INSTANCIA
+            </p>
+          </td>
+        </tr>
+      </table>
+
+      <p style="margin:0 0 24px;text-align:center;font-size:15px;font-weight:bold;
+                color:#111827;letter-spacing:0.5px;border-top:1px solid #e5e7eb;padding-top:20px;">
+        AUTO DE APERTURA DEL TÉRMINO PROBATORIO — NOTIFICACIÓN PERSONAL
+      </p>
+
+      <div style="font-size:13.5px;color:#1f2937;line-height:1.9;">
+
+        <p style="margin:0 0 14px;">
+          Expediente Nro. <strong>{numero_expediente}</strong> —
+          Denuncia <strong>{denuncia.numero_denuncia}</strong>
+        </p>
+
+        <p style="margin:0 0 14px;">
+          En la ciudad de Santa Cruz a horas <strong>{hora_str}</strong> del día
+          <strong>{fecha_larga}</strong>.
+        </p>
+
+        <p style="margin:0 0 4px;"><strong>Notificado/a:</strong></p>
+        <p style="margin:0 0 4px;">{nombre}</p>
+        <p style="margin:0 0 14px;"><strong>En calidad de:</strong> {rol}</p>
+
+        <p style="margin:0 0 14px;">
+          Lugar: Notificación electrónica enviada al correo <strong>{email_destino}</strong>.
+        </p>
+
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;
+                    padding:16px 20px;margin:0 0 16px;">
+          <p style="margin:0 0 8px;font-weight:bold;color:#166534;">
+            Con lo siguiente — AUTO DE APERTURA DEL TÉRMINO PROBATORIO (Art. 60):
+          </p>
+          <p style="margin:0 0 8px;color:#14532d;line-height:1.7;">
+            El Tribunal de Justicia Universitaria de Primera Instancia, habiendo recibido la
+            declaración informativa, dicta <strong>Auto de Apertura del Término Probatorio</strong>
+            de <strong>treinta (30) días hábiles</strong>, a efecto de recepcionar las pruebas
+            de cargo y descargo.
+          </p>
+          <p style="margin:0;color:#14532d;line-height:1.7;">
+            Las partes podrán <strong>ratificar sus pruebas dentro de los cinco (5) días hábiles</strong>
+            computables desde la presente notificación (Art. 60 II).
+          </p>
+        </div>
+
+        <p style="margin:16px 0 4px;font-weight:bold;">
+          Quien informado/a de su tenor se dio por: NOTIFICADO/A
+        </p>
+
+        <p style="margin:0 0 24px;">
+          Recibiéndose la presente notificación mediante comunicación electrónica oficial.
+        </p>
+
+        <p style="margin:0;font-size:13px;color:#1f2937;line-height:1.6;">
+          <strong>Abg. {SECRETARIO_NOMBRE}</strong><br/>
+          {SECRETARIO_CARGO}<br/>
+          Tribunal de Justicia Universitaria<br/>
+          U.A.G.R.M.
+        </p>
+      </div>
+
+      <p style="margin:28px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;
+                font-size:11px;color:#9ca3af;">
+        Este mensaje fue generado automáticamente por el Sistema de Gestión Judicial.
+        Por favor no responda a este correo electrónico.
+      </p>
+
+    </td></tr>
+  </table>
+  </td></tr>
+</table>
+</body></html>"""
+
+            texto_plano = f"""AUTO DE APERTURA DEL TÉRMINO PROBATORIO — NOTIFICACIÓN PERSONAL
+Tribunal de Justicia Universitaria — U.A.G.R.M.
+
+Expediente: {numero_expediente}
+Denuncia: {denuncia.numero_denuncia}
+Fecha: {fecha_larga} — {hora_str} hrs.
+
+Notificado/a: {nombre} ({rol})
+
+El Tribunal dicta Auto de Apertura del Término Probatorio de TREINTA (30) DÍAS HÁBILES
+para recepcionar pruebas de cargo y descargo (Art. 60).
+
+Usted tiene CINCO (5) DÍAS HÁBILES desde esta notificación para ratificar sus pruebas (Art. 60 II).
+
+Abg. {SECRETARIO_NOMBRE}
+{SECRETARIO_CARGO}
+Tribunal de Justicia Universitaria — U.A.G.R.M.
+"""
+
+            try:
+                msg = EmailMultiAlternatives(
+                    subject=asunto,
+                    body=texto_plano,
+                    from_email=django_settings.DEFAULT_FROM_EMAIL,
+                    to=[email_destino],
+                )
+                msg.attach_alternative(html_body, "text/html")
+                msg.send(fail_silently=False)
+                enviados += 1
+                destinatarios.append(f"{nombre} <{email_destino}>")
+
+                if usuario_obj:
+                    try:
+                        _registrar_notificacion_envio(
+                            expediente=denuncia.expediente,
+                            persona=persona,
+                            tipo_documento_codigo='NOT-PROB',
+                            titulo_documento=f"Apertura Término Probatorio — Denuncia {denuncia.numero_denuncia}",
+                            usuario=usuario_obj,
+                        )
+                    except Exception:
+                        pass
+            except Exception as e:
+                fallidos += 1
+
+        mensaje = f"Notificaciones enviadas: {enviados}."
+        if fallidos:
+            mensaje += f" Fallidos: {fallidos}."
+        if sin_email:
+            mensaje += f" Sin email: {len(sin_email)} parte(s)."
+
+        return EnviarCitacionTerminoProbatorioType(
+            ok=fallidos == 0,
+            mensaje=mensaje,
+            enviados=enviados,
+            fallidos=fallidos,
+            sin_email=sin_email,
+            destinatarios=destinatarios,
+        )
+
+
+# ──────────────────────────────────────────────────────────────
+# CITACIÓN 3 — NOTIFICACIÓN RESOLUCIÓN DEFINITIVA (Art. 45 + 46)
+# ──────────────────────────────────────────────────────────────
+
+class EnviarNotificacionResolucionType(graphene.ObjectType):
+    ok            = graphene.Boolean()
+    mensaje       = graphene.String()
+    enviados      = graphene.Int()
+    fallidos      = graphene.Int()
+    sin_email     = graphene.List(graphene.String)
+    destinatarios = graphene.List(graphene.String)
+
+
+class EnviarNotificacionResolucion(graphene.Mutation):
+    """
+    Notifica a AMBAS partes la resolución definitiva de primera instancia (Art. 45 + Art. 46).
+    Plazo máximo: 5 días hábiles desde la fecha de emisión de la resolución.
+    """
+    class Arguments:
+        id_denuncia = graphene.Int(required=True)
+        id_usuario  = graphene.Int(required=True)
+
+    Output = EnviarNotificacionResolucionType
+
+    def mutate(self, info, id_denuncia, id_usuario):
+        try:
+            denuncia = Denuncia.objects.select_related(
+                'denunciado', 'denunciante', 'expediente'
+            ).get(id=id_denuncia)
+        except Denuncia.DoesNotExist:
+            return EnviarNotificacionResolucionType(
+                ok=False, mensaje="Denuncia no encontrada.",
+                enviados=0, fallidos=0, sin_email=[], destinatarios=[]
+            )
+
+        if denuncia.estado != "RESUELTA":
+            return EnviarNotificacionResolucionType(
+                ok=False,
+                mensaje=f"La denuncia debe estar en estado 'RESUELTA' para enviar esta notificación. Estado actual: '{denuncia.estado}'.",
+                enviados=0, fallidos=0, sin_email=[], destinatarios=[]
+            )
+
+        if not denuncia.resolucion:
+            return EnviarNotificacionResolucionType(
+                ok=False,
+                mensaje="La denuncia no tiene resolución registrada.",
+                enviados=0, fallidos=0, sin_email=[], destinatarios=[]
+            )
+
+        numero_expediente = denuncia.expediente.numero_expediente if denuncia.expediente else "—"
+        fecha_resolucion_str = "—"
+        if denuncia.fecha_resolucion:
+            fr = denuncia.fecha_resolucion
+            fecha_resolucion_str = f"{fr.day} de {MESES_ES[fr.month - 1]} de {fr.year}"
+
+        from django.utils.timezone import localtime
+        from datetime import date
+        ahora = localtime(timezone.now())
+        fecha_hoy = date.today()
+        fecha_larga = f"{fecha_hoy.day} de {MESES_ES[fecha_hoy.month - 1]} de {fecha_hoy.year}"
+        hora_str = ahora.strftime("%H:%M")
+
+        tipo_res_label = denuncia.tipo_resolucion or "Resolución Definitiva"
+        tipo_sancion_label = denuncia.tipo_sancion or "—"
+        detalle_sancion_label = denuncia.detalle_sancion or "—"
+
+        partes = [
+            (denuncia.denunciante, "Denunciante"),
+            (denuncia.denunciado,  "Denunciado/a"),
+        ]
+
+        enviados      = 0
+        fallidos      = 0
+        sin_email     = []
+        destinatarios = []
+        usuario_obj   = Usuario.objects.filter(id_usuario=id_usuario).first()
+
+        for persona, rol in partes:
+            nombre = f"{persona.nombre} {persona.primer_apellido}"
+            if persona.segundo_apellido:
+                nombre += f" {persona.segundo_apellido}"
+
+            contacto = (
+                ContactoPersona.objects.filter(
+                    id_persona=persona,
+                    tipo_contacto__iexact="EMAIL",
+                    es_principal=True,
+                ).first()
+                or
+                ContactoPersona.objects.filter(
+                    id_persona=persona,
+                    tipo_contacto__iexact="EMAIL",
+                ).first()
+            )
+
+            if not contacto:
+                sin_email.append(f"{nombre} ({rol})")
+                continue
+
+            email_destino = contacto.valor.strip()
+
+            asunto = (
+                f"NOTIFICACIÓN — Resolución Definitiva — "
+                f"Expediente {numero_expediente} — "
+                f"Denuncia {denuncia.numero_denuncia}"
+            )
+
+            html_body = f"""<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 0;">
+  <tr><td align="center">
+  <table width="650" cellpadding="0" cellspacing="0"
+         style="background:#ffffff;border:1px solid #d1d5db;border-radius:4px;">
+    <tr><td style="padding:32px 40px;">
+
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="text-align:center;padding-bottom:20px;">
+            <p style="margin:0;font-size:13px;font-weight:bold;color:#111827;line-height:1.45;">
+              UNIVERSIDAD AUTÓNOMA "GABRIEL RENÉ MORENO"<br/>
+              TRIBUNAL DE JUSTICIA UNIVERSITARIA<br/>
+              DE PRIMERA INSTANCIA
+            </p>
+          </td>
+        </tr>
+      </table>
+
+      <p style="margin:0 0 24px;text-align:center;font-size:15px;font-weight:bold;
+                color:#111827;letter-spacing:0.5px;border-top:1px solid #e5e7eb;padding-top:20px;">
+        RESOLUCIÓN DEFINITIVA DE PRIMERA INSTANCIA — NOTIFICACIÓN PERSONAL
+      </p>
+
+      <div style="font-size:13.5px;color:#1f2937;line-height:1.9;">
+
+        <p style="margin:0 0 14px;">
+          Expediente Nro. <strong>{numero_expediente}</strong> —
+          Denuncia <strong>{denuncia.numero_denuncia}</strong>
+        </p>
+
+        <p style="margin:0 0 14px;">
+          En la ciudad de Santa Cruz a horas <strong>{hora_str}</strong> del día
+          <strong>{fecha_larga}</strong>.
+        </p>
+
+        <p style="margin:0 0 4px;"><strong>Notificado/a:</strong></p>
+        <p style="margin:0 0 4px;">{nombre}</p>
+        <p style="margin:0 0 14px;"><strong>En calidad de:</strong> {rol}</p>
+
+        <p style="margin:0 0 14px;">
+          Lugar: Notificación electrónica enviada al correo <strong>{email_destino}</strong>.
+        </p>
+
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;
+                    padding:16px 20px;margin:0 0 16px;">
+          <p style="margin:0 0 8px;font-weight:bold;color:#991b1b;">
+            Con lo siguiente — RESOLUCIÓN DEFINITIVA (Art. 45):
+          </p>
+          <p style="margin:0 0 6px;color:#7f1d1d;line-height:1.7;">
+            El Tribunal de Justicia Universitaria de Primera Instancia ha emitido
+            <strong>Resolución Definitiva</strong> en la causa disciplinaria de referencia.
+          </p>
+          <table width="100%" cellpadding="0" cellspacing="0"
+                 style="border-top:1px solid #fca5a5;margin-top:10px;padding-top:10px;">
+            <tr>
+              <td style="font-size:12px;color:#7f1d1d;padding:4px 0;width:40%;">
+                <strong>Tipo de resolución:</strong>
+              </td>
+              <td style="font-size:12px;color:#7f1d1d;padding:4px 0;">
+                {tipo_res_label}
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size:12px;color:#7f1d1d;padding:4px 0;">
+                <strong>Fecha de resolución:</strong>
+              </td>
+              <td style="font-size:12px;color:#7f1d1d;padding:4px 0;">
+                {fecha_resolucion_str}
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size:12px;color:#7f1d1d;padding:4px 0;">
+                <strong>Tipo de sanción:</strong>
+              </td>
+              <td style="font-size:12px;color:#7f1d1d;padding:4px 0;">
+                {tipo_sancion_label}
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size:12px;color:#7f1d1d;padding:4px 0;vertical-align:top;">
+                <strong>Detalle:</strong>
+              </td>
+              <td style="font-size:12px;color:#7f1d1d;padding:4px 0;">
+                {detalle_sancion_label}
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;
+                    padding:14px 18px;margin:0 0 16px;">
+          <p style="margin:0;font-size:12px;color:#92400e;line-height:1.6;">
+            ⚠ <strong>Recurso de Apelación (Art. 82):</strong> Tiene el plazo
+            <strong>perentorio de cinco (5) días hábiles</strong> computables desde
+            la presente notificación para interponer recurso de apelación ante este Tribunal.
+          </p>
+        </div>
+
+        <p style="margin:16px 0 4px;font-weight:bold;">
+          Quien informado/a de su tenor se dio por: NOTIFICADO/A
+        </p>
+
+        <p style="margin:0 0 24px;">
+          Recibiéndose la presente notificación mediante comunicación electrónica oficial.
+        </p>
+
+        <p style="margin:0;font-size:13px;color:#1f2937;line-height:1.6;">
+          <strong>Abg. {SECRETARIO_NOMBRE}</strong><br/>
+          {SECRETARIO_CARGO}<br/>
+          Tribunal de Justicia Universitaria<br/>
+          U.A.G.R.M.
+        </p>
+      </div>
+
+      <p style="margin:28px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;
+                font-size:11px;color:#9ca3af;">
+        Este mensaje fue generado automáticamente por el Sistema de Gestión Judicial.
+        Por favor no responda a este correo electrónico.
+      </p>
+
+    </td></tr>
+  </table>
+  </td></tr>
+</table>
+</body></html>"""
+
+            texto_plano = f"""RESOLUCIÓN DEFINITIVA DE PRIMERA INSTANCIA — NOTIFICACIÓN PERSONAL
+Tribunal de Justicia Universitaria — U.A.G.R.M.
+
+Expediente: {numero_expediente}
+Denuncia: {denuncia.numero_denuncia}
+Fecha de notificación: {fecha_larga} — {hora_str} hrs.
+
+Notificado/a: {nombre} ({rol})
+
+El Tribunal de Justicia Universitaria ha emitido RESOLUCIÓN DEFINITIVA en esta causa.
+
+Tipo de resolución: {tipo_res_label}
+Fecha de resolución: {fecha_resolucion_str}
+Tipo de sanción: {tipo_sancion_label}
+Detalle: {detalle_sancion_label}
+
+RECURSO DE APELACIÓN (Art. 82): Tiene 5 DÍAS HÁBILES desde esta notificación para apelar.
+
+Abg. {SECRETARIO_NOMBRE}
+{SECRETARIO_CARGO}
+Tribunal de Justicia Universitaria — U.A.G.R.M.
+"""
+
+            try:
+                msg = EmailMultiAlternatives(
+                    subject=asunto,
+                    body=texto_plano,
+                    from_email=django_settings.DEFAULT_FROM_EMAIL,
+                    to=[email_destino],
+                )
+                msg.attach_alternative(html_body, "text/html")
+                msg.send(fail_silently=False)
+                enviados += 1
+                destinatarios.append(f"{nombre} <{email_destino}>")
+
+                if usuario_obj:
+                    try:
+                        _registrar_notificacion_envio(
+                            expediente=denuncia.expediente,
+                            persona=persona,
+                            tipo_documento_codigo='RES-1RA',
+                            titulo_documento=f"Resolución de Primera Instancia — Denuncia {denuncia.numero_denuncia}",
+                            usuario=usuario_obj,
+                        )
+                    except Exception:
+                        pass
+            except Exception as e:
+                fallidos += 1
+
+        mensaje = f"Notificaciones enviadas: {enviados}."
+        if fallidos:
+            mensaje += f" Fallidos: {fallidos}."
+        if sin_email:
+            mensaje += f" Sin email: {len(sin_email)} parte(s)."
+
+        return EnviarNotificacionResolucionType(
+            ok=fallidos == 0,
+            mensaje=mensaje,
+            enviados=enviados,
+            fallidos=fallidos,
+            sin_email=sin_email,
+            destinatarios=destinatarios,
+        )
+    
+
+class EnviarNotificacionResolucionApelacionType(graphene.ObjectType):
+    ok            = graphene.Boolean()
+    mensaje       = graphene.String()
+    enviados      = graphene.Int()
+    fallidos      = graphene.Int()
+    sin_email     = graphene.List(graphene.String)
+    destinatarios = graphene.List(graphene.String)
+
+
+class EnviarNotificacionResolucionApelacion(graphene.Mutation):
+    """
+    Notifica a AMBAS partes la resolución de segunda instancia (Art. 48.II + Art. 86).
+    Igual que la resolución de primera instancia, debe ser notificación personal.
+    """
+    class Arguments:
+        id_denuncia = graphene.Int(required=True)
+        id_usuario  = graphene.Int(required=True)
+
+    Output = EnviarNotificacionResolucionApelacionType
+
+    def mutate(self, info, id_denuncia, id_usuario):
+        try:
+            denuncia = Denuncia.objects.select_related(
+                'denunciado', 'denunciante', 'expediente'
+            ).get(id=id_denuncia)
+        except Denuncia.DoesNotExist:
+            return EnviarNotificacionResolucionApelacionType(
+                ok=False, mensaje="Denuncia no encontrada.",
+                enviados=0, fallidos=0, sin_email=[], destinatarios=[]
+            )
+
+        if not denuncia.resolucion_apelacion:
+            return EnviarNotificacionResolucionApelacionType(
+                ok=False,
+                mensaje="La denuncia no tiene resolución de segunda instancia registrada.",
+                enviados=0, fallidos=0, sin_email=[], destinatarios=[]
+            )
+
+        usuario_obj = Usuario.objects.filter(id_usuario=id_usuario).first()
+        numero_expediente = denuncia.expediente.numero_expediente if denuncia.expediente else "—"
+
+        from django.utils.timezone import localtime
+        from datetime import date
+        ahora = localtime(timezone.now())
+        fecha_hoy = date.today()
+        fecha_larga = f"{fecha_hoy.day} de {MESES_ES[fecha_hoy.month - 1]} de {fecha_hoy.year}"
+        hora_str = ahora.strftime("%H:%M")
+
+        partes = [
+            (denuncia.denunciante, "Denunciante"),
+            (denuncia.denunciado,  "Denunciado/a"),
+        ]
+
+        enviados      = 0
+        fallidos      = 0
+        sin_email     = []
+        destinatarios = []
+
+        for persona, rol in partes:
+            nombre = f"{persona.nombre} {persona.primer_apellido}"
+            if persona.segundo_apellido:
+                nombre += f" {persona.segundo_apellido}"
+
+            contacto = (
+                ContactoPersona.objects.filter(
+                    id_persona=persona, tipo_contacto__iexact="EMAIL", es_principal=True,
+                ).first()
+                or
+                ContactoPersona.objects.filter(
+                    id_persona=persona, tipo_contacto__iexact="EMAIL",
+                ).first()
+            )
+
+            if not contacto:
+                sin_email.append(f"{nombre} ({rol})")
+                continue
+
+            email_destino = contacto.valor.strip()
+            asunto = (
+                f"NOTIFICACIÓN — Resolución de Segunda Instancia — "
+                f"Expediente {numero_expediente} — Denuncia {denuncia.numero_denuncia}"
+            )
+
+            texto_plano = f"""RESOLUCIÓN DE SEGUNDA INSTANCIA — NOTIFICACIÓN PERSONAL
+Tribunal Superior y de Apelaciones — U.A.G.R.M.
+
+Expediente: {numero_expediente}
+Denuncia: {denuncia.numero_denuncia}
+Fecha de notificación: {fecha_larga} — {hora_str} hrs.
+
+Notificado/a: {nombre} ({rol})
+
+El Tribunal Superior y de Apelaciones ha resuelto el recurso de apelación (Art. 86):
+
+{denuncia.resolucion_apelacion}
+
+Esta resolución es definitiva y tiene autoridad de cosa juzgada (Art. 87).
+
+Abg. {SECRETARIO_NOMBRE}
+{SECRETARIO_CARGO}
+Tribunal de Justicia Universitaria — U.A.G.R.M.
+"""
+
+            html_body = f"""<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 0;">
+<tr><td align="center">
+<table width="650" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #d1d5db;border-radius:4px;">
+<tr><td style="padding:32px 40px;">
+<p style="margin:0 0 24px;text-align:center;font-size:15px;font-weight:bold;color:#111827;">
+  RESOLUCIÓN DE SEGUNDA INSTANCIA — NOTIFICACIÓN PERSONAL
+</p>
+<div style="font-size:13.5px;color:#1f2937;line-height:1.9;">
+  <p>Expediente Nro. <strong>{numero_expediente}</strong> — Denuncia <strong>{denuncia.numero_denuncia}</strong></p>
+  <p>En la ciudad de Santa Cruz a horas <strong>{hora_str}</strong> del día <strong>{fecha_larga}</strong>.</p>
+  <p><strong>Notificado/a:</strong> {nombre} — <strong>{rol}</strong></p>
+  <p>Lugar: Notificación electrónica enviada al correo <strong>{email_destino}</strong>.</p>
+  <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px 20px;margin:16px 0;">
+    <p style="margin:0 0 8px;font-weight:bold;color:#991b1b;">Resolución del Tribunal Superior (Art. 86):</p>
+    <p style="margin:0;color:#7f1d1d;">{denuncia.resolucion_apelacion}</p>
+  </div>
+  <p style="font-weight:bold;">Quien informado/a de su tenor se dio por: NOTIFICADO/A</p>
+  <p><strong>Abg. {SECRETARIO_NOMBRE}</strong><br/>{SECRETARIO_CARGO}</p>
+</div>
+</td></tr></table></td></tr></table></body></html>"""
+
+            try:
+                msg = EmailMultiAlternatives(
+                    subject=asunto,
+                    body=texto_plano,
+                    from_email=django_settings.DEFAULT_FROM_EMAIL,
+                    to=[email_destino],
+                )
+                msg.attach_alternative(html_body, "text/html")
+                msg.send(fail_silently=False)
+                enviados += 1
+                destinatarios.append(f"{nombre} <{email_destino}>")
+
+                if usuario_obj:
+                    try:
+                        _registrar_notificacion_envio(
+                            expediente=denuncia.expediente,
+                            persona=persona,
+                            tipo_documento_codigo='RES-2DA',
+                            titulo_documento=f"Resolución 2da Instancia — Denuncia {denuncia.numero_denuncia}",
+                            usuario=usuario_obj,
+                        )
+                    except Exception:
+                        pass
+            except Exception:
+                fallidos += 1
+
+        mensaje = f"Notificaciones enviadas: {enviados}."
+        if fallidos:
+            mensaje += f" Fallidos: {fallidos}."
+        if sin_email:
+            mensaje += f" Sin email: {len(sin_email)} parte(s)."
+
+        return EnviarNotificacionResolucionApelacionType(
+            ok=fallidos == 0,
+            mensaje=mensaje,
+            enviados=enviados,
+            fallidos=fallidos,
+            sin_email=sin_email,
+            destinatarios=destinatarios,
+        )
+
+class CrearNotificacionTablonType(graphene.ObjectType):
+    ok            = graphene.Boolean()
+    mensaje       = graphene.String()
+    notificacion  = graphene.Field(NotificacionType)
+
+
+class CrearNotificacionTablon(graphene.Mutation):
+    """
+    Crea una notificación en tablero (Art. 47) sin necesidad de
+    que el secretario cargue un documento previo.
+    El sistema genera internamente un documento NOT-TABLERO.
+    """
+    class Arguments:
+        id_expediente = graphene.Int(required=True)
+        id_parte      = graphene.Int(required=True)
+        id_usuario    = graphene.Int(required=True)
+        descripcion   = graphene.String(required=True)
+
+    Output = CrearNotificacionTablonType
+
+    def mutate(self, info, id_expediente, id_parte, id_usuario, descripcion):
+        try:
+            expediente = Expediente.objects.get(id_expediente=id_expediente)
+        except Expediente.DoesNotExist:
+            return CrearNotificacionTablonType(ok=False, mensaje="Expediente no encontrado.", notificacion=None)
+
+        try:
+            parte = ParteProcesal.objects.get(id_parte=id_parte)
+        except ParteProcesal.DoesNotExist:
+            return CrearNotificacionTablonType(ok=False, mensaje="Parte procesal no encontrada.", notificacion=None)
+
+        try:
+            usuario = Usuario.objects.get(id_usuario=id_usuario)
+        except Usuario.DoesNotExist:
+            return CrearNotificacionTablonType(ok=False, mensaje="Usuario no encontrado.", notificacion=None)
+
+        tipo_doc, _ = TipoDoc.objects.get_or_create(
+            codigo='NOT-TABLERO',
+            defaults={
+                'nombre': 'Notificación en Tablero',
+                'requiere_firma': False,
+                'es_publico': False,
+            }
+        )
+
+        documento = Documento.objects.create(
+            id_expediente=expediente,
+            id_tipo_doc=tipo_doc,
+            id_persona=None,
+            titulo=descripcion[:200],
+            ruta_archivo='',
+            tamano_kb=0,
+            hash_integridad='',
+            es_electronico=False,
+            firmado_digitalmente=False,
+        )
+
+        notificacion = Notificacion.objects.create(
+            id_expediente=expediente,
+            id_documento=documento,
+            id_parte=parte,
+            tipo_notificacion='TABLERO',
+            estado_notificacion='PENDIENTE',
+            usuario=usuario,
+        )
+
+        return CrearNotificacionTablonType(ok=True, mensaje="Notificación en tablero registrada.", notificacion=notificacion)
+
+
+
+
 class RegistroAsistenciaInput(graphene.InputObjectType):
     id_persona          = graphene.Int(required=True)
     rol_en_audiencia    = graphene.String(required=True)
@@ -3930,15 +5176,28 @@ class RegistrarAsistenciaBatch(graphene.Mutation):
             mensaje=f"Asistencia registrada para {creados} persona(s).",
             registros=creados,
         )
-
+    
+    
 class CrearDenuncia(graphene.Mutation):
     class Arguments:
         input = CrearDenunciaInput(required=True)
     
     denuncia = graphene.Field(DenunciaType)
+    ok       = graphene.Boolean()
+    mensaje  = graphene.String()
     
     def mutate(root, info, input):
         from datetime import datetime
+
+        # ✅ Validar unicidad del número de denuncia
+        if Denuncia.objects.filter(numero_denuncia=input.numero_denuncia).exists():
+            return CrearDenuncia(
+                denuncia=None,
+                ok=False,
+                mensaje=f"El número '{input.numero_denuncia}' ya existe. "
+                        f"El sistema generó uno nuevo, por favor verificá el campo."
+            )
+
         denuncia = Denuncia(
             numero_denuncia=input.numero_denuncia,
             denunciante_id=input.id_denunciante,
@@ -3949,51 +5208,99 @@ class CrearDenuncia(graphene.Mutation):
             expediente_id=input.get('id_expediente', None)
         )
         denuncia.save()
-        return CrearDenuncia(denuncia=denuncia)
+        return CrearDenuncia(denuncia=denuncia, ok=True, mensaje=None)
+
+
+# ── FUERA de CrearDenuncia, al nivel del módulo ────────────────
+
+def _generar_numero_denuncia(ano: int) -> str:
+    """
+    Genera el número de denuncia automáticamente.
+    Formato: DEN-{correlativo con 3 dígitos}/{año}
+    Ejemplo: DEN-001/2025
+    """
+    cantidad = Denuncia.objects.filter(
+        fecha_denuncia__year=ano
+    ).count()
+
+    correlativo = str(cantidad + 1).zfill(3)
+    return f"DEN-{correlativo}/{ano}"
+
+
+
+
+def _generar_numero_expediente(id_sala: int, ano: int) -> str:
+    """
+    Genera el número de expediente automáticamente.
+    Formato: EXP-S{numero_sala}-{año}-{correlativo con 3 dígitos}
+    Ejemplo: EXP-S1-2025-001
+    """
+    cantidad = Expediente.objects.filter(
+        id_sala__id_sala=id_sala,
+        ano=ano
+    ).count()
+
+    correlativo = str(cantidad + 1).zfill(3)
+
+    try:
+        sala = SalaTribunal.objects.get(id_sala=id_sala)
+        numero_sala = ''.join(filter(str.isdigit, sala.nombre_sala)) or str(id_sala)
+    except SalaTribunal.DoesNotExist:
+        numero_sala = str(id_sala)
+
+    return f"EXP-S{numero_sala}-{ano}-{correlativo}"
 
 
 class AdmitirDenuncia(graphene.Mutation):
     class Arguments:
-        id_denuncia       = graphene.Int(required=True)
-        id_sala           = graphene.Int(required=True)
-        id_usuario        = graphene.Int(required=True)
-        numero_expediente = graphene.String(required=True)
+        id_denuncia = graphene.Int(required=True)
+        id_sala     = graphene.Int(required=True)
+        id_usuario  = graphene.Int(required=True)
 
-    denuncia   = graphene.Field(DenunciaType)
-    expediente = graphene.Field(ExpedienteType)
-    ok         = graphene.Boolean()
-    mensaje    = graphene.String()
+    denuncia          = graphene.Field(DenunciaType)
+    expediente        = graphene.Field(ExpedienteType)
+    ok                = graphene.Boolean()
+    mensaje           = graphene.String()
+    numero_expediente = graphene.String()
 
-    def mutate(root, info, id_denuncia, id_sala, id_usuario, numero_expediente):
+    def mutate(root, info, id_denuncia, id_sala, id_usuario):
         from datetime import date
         try:
             with transaction.atomic():
-                # 1. Obtener la denuncia
                 try:
                     denuncia = Denuncia.objects.get(id=id_denuncia)
                 except Denuncia.DoesNotExist:
                     return AdmitirDenuncia(ok=False, mensaje="Denuncia no encontrada.")
 
-                # Validar que esté en estado admisible
                 if denuncia.estado not in ["REGISTRADA", "SUBSANACION"]:
                     return AdmitirDenuncia(
                         ok=False,
                         mensaje=f"No se puede admitir una denuncia en estado '{denuncia.estado}'."
                     )
 
-                # 2. Obtener dependencias
-                sala         = SalaTribunal.objects.get(id_sala=id_sala)
-                tipo_proceso = TipoProceso.objects.get(codigo="PDS")
-                usuario      = Usuario.objects.get(id_usuario=id_usuario)
+                sala            = SalaTribunal.objects.get(id_sala=id_sala)
+                tipo_proceso    = TipoProceso.objects.get(codigo="PDS")
+                usuario         = Usuario.objects.get(id_usuario=id_usuario)
+                estado_admision = EstadoExpediente.objects.get(nombre_estado="Auto de Admisión")
 
-                estado_admision = EstadoExpediente.objects.get(
-                    nombre_estado="Auto de Admisión"
-                )
+                ano               = date.today().year
+                numero_expediente = _generar_numero_expediente(id_sala, ano)
 
-                # 3. Crear el expediente
+                intentos = 0
+                while Expediente.objects.filter(
+                    numero_expediente=numero_expediente
+                ).exists() and intentos < 10:
+                    intentos += 1
+                    cantidad = Expediente.objects.filter(
+                        id_sala__id_sala=id_sala, ano=ano
+                    ).count() + intentos
+                    correlativo   = str(cantidad).zfill(3)
+                    numero_sala   = ''.join(filter(str.isdigit, sala.nombre_sala)) or str(id_sala)
+                    numero_expediente = f"EXP-S{numero_sala}-{ano}-{correlativo}"
+
                 expediente = Expediente.objects.create(
                     numero_expediente=numero_expediente,
-                    ano=date.today().year,
+                    ano=ano,
                     id_sala=sala,
                     id_tipo_proceso=tipo_proceso,
                     id_estado_expediente=estado_admision,
@@ -4004,7 +5311,6 @@ class AdmitirDenuncia(graphene.Mutation):
                     )
                 )
 
-                # 4. Registrar historial del expediente
                 HistorialEstado.objects.create(
                     id_expediente=expediente,
                     id_estado_anterior=None,
@@ -4016,7 +5322,6 @@ class AdmitirDenuncia(graphene.Mutation):
                     )
                 )
 
-                # 5. Agregar partes procesales automáticamente
                 rol_denunciante = RolProcesal.objects.get(nombre_rol="Denunciante")
                 rol_denunciado  = RolProcesal.objects.get(nombre_rol="Denunciado")
 
@@ -4033,7 +5338,6 @@ class AdmitirDenuncia(graphene.Mutation):
                     activo=True
                 )
 
-                # 6. Vincular denuncia al expediente y cambiar estado
                 denuncia.expediente = expediente
                 denuncia.estado     = "ADMITIDA"
                 denuncia.save()
@@ -4046,29 +5350,87 @@ class AdmitirDenuncia(graphene.Mutation):
                         f"{denuncia.denunciado.nombre} (Denunciado) como partes."
                     ),
                     denuncia=denuncia,
-                    expediente=expediente
+                    expediente=expediente,
+                    numero_expediente=numero_expediente
                 )
 
         except SalaTribunal.DoesNotExist:
             return AdmitirDenuncia(ok=False, mensaje="Sala no encontrada.")
         except TipoProceso.DoesNotExist:
-            return AdmitirDenuncia(ok=False, mensaje="Tipo de proceso PDS no encontrado. Verificá la pobladа.")
+            return AdmitirDenuncia(ok=False, mensaje="Tipo de proceso PDS no encontrado.")
         except EstadoExpediente.DoesNotExist:
-            return AdmitirDenuncia(ok=False, mensaje="Estado 'Auto de Admisión' no encontrado. Verificá la pobladа.")
+            return AdmitirDenuncia(ok=False, mensaje="Estado 'Auto de Admisión' no encontrado.")
         except RolProcesal.DoesNotExist as e:
             return AdmitirDenuncia(ok=False, mensaje=f"Rol procesal no encontrado: {str(e)}")
         except Exception as e:
             return AdmitirDenuncia(ok=False, mensaje=f"Error inesperado: {str(e)}")
 
+# ── FUERA de la clase, al nivel del módulo ─────────────────────
+
+MAPA_ESTADO_DENUNCIA_EXPEDIENTE = {
+    "ADMITIDA":                "Auto de Admisión",
+    "DECLARACION_INFORMATIVA": "Etapa Investigativa",
+    "PRUEBAS":                 "Término Probatorio",
+    "CONCLUSION":              "Clausura Probatoria",
+    "RESUELTA":                "Resuelto Primera Instancia",
+    "APELADA":                 "Remitido en Apelación",
+    "EJECUTADA":               "Ejecutoriado",
+    "ARCHIVADA":               "Archivado",
+    "RETIRADA":                "Archivado",
+    "CONCILIADA":              "Conciliado",
+}
+
+
+def _sincronizar_estado_expediente(denuncia, usuario_id=None):
+    if not denuncia.expediente:
+        return
+
+    nombre_estado = MAPA_ESTADO_DENUNCIA_EXPEDIENTE.get(denuncia.estado)
+    if not nombre_estado:
+        return
+
+    try:
+        nuevo_estado = EstadoExpediente.objects.get(nombre_estado=nombre_estado)
+    except EstadoExpediente.DoesNotExist:
+        return
+
+    expediente      = denuncia.expediente
+    estado_anterior = expediente.id_estado_expediente
+
+    if estado_anterior and estado_anterior.id_estado == nuevo_estado.id_estado:
+        return
+
+    expediente.id_estado_expediente = nuevo_estado
+    if nuevo_estado.es_terminal:
+        from django.utils import timezone
+        expediente.fecha_conclusion = timezone.now().date()
+    expediente.save()
+
+    try:
+        usuario = Usuario.objects.get(id_usuario=usuario_id) if usuario_id else None
+        HistorialEstado.objects.create(
+            id_expediente=expediente,
+            id_estado_anterior=estado_anterior,
+            id_estado_nuevo=nuevo_estado,
+            usuario=usuario,
+            motivo=(
+                f"Sincronización automática desde Denuncia {denuncia.numero_denuncia} "
+                f"— nuevo estado: {denuncia.estado}"
+            )
+        )
+    except Exception:
+        pass
+
 
 class ActualizarDenuncia(graphene.Mutation):
     class Arguments:
-        id = graphene.Int(required=True)
-        input = ActualizarDenunciaInput(required=True)
-    
+        id         = graphene.Int(required=True)
+        input      = ActualizarDenunciaInput(required=True)
+        id_usuario = graphene.Int()
+
     denuncia = graphene.Field(DenunciaType)
-    
-    def mutate(root, info, id, input):
+
+    def mutate(root, info, id, input, id_usuario=None):
         try:
             denuncia = Denuncia.objects.get(id=id)
         except Denuncia.DoesNotExist:
@@ -4079,28 +5441,34 @@ class ActualizarDenuncia(graphene.Mutation):
         def parse_fecha(valor):
             return datetime.strptime(valor, '%Y-%m-%d').date()
 
-        if input.get('estado'):            denuncia.estado = input.estado
-        if input.get('descripcion'):       denuncia.descripcion = input.descripcion
-        if input.get('tipo_denunciado'):   denuncia.tipo_denunciado = input.tipo_denunciado
-        if input.get('fecha_hecho'):       denuncia.fecha_hecho = parse_fecha(input.fecha_hecho)
-        # Resolución
-        if input.get('resolucion'):        denuncia.resolucion = input.resolucion
-        if input.get('tipo_resolucion'):   denuncia.tipo_resolucion = input.tipo_resolucion
-        if input.get('fecha_resolucion'):  denuncia.fecha_resolucion = parse_fecha(input.fecha_resolucion)
-        if input.get('tipo_sancion'):      denuncia.tipo_sancion = input.tipo_sancion
-        if input.get('detalle_sancion'):   denuncia.detalle_sancion = input.detalle_sancion
-        # Retiro
-        if input.get('fecha_retiro'):      denuncia.fecha_retiro = parse_fecha(input.fecha_retiro)
-        if input.get('motivo_retiro'):     denuncia.motivo_retiro = input.motivo_retiro
-        # Conciliación
+        estado_anterior = denuncia.estado
+
+        if input.get('estado'):           denuncia.estado = input.estado
+        if input.get('descripcion'):      denuncia.descripcion = input.descripcion
+        if input.get('tipo_denunciado'):  denuncia.tipo_denunciado = input.tipo_denunciado
+        if input.get('fecha_hecho'):      denuncia.fecha_hecho = parse_fecha(input.fecha_hecho)
+
+        if input.get('resolucion'):       denuncia.resolucion = input.resolucion
+        if input.get('tipo_resolucion'):  denuncia.tipo_resolucion = input.tipo_resolucion
+        if input.get('fecha_resolucion'): denuncia.fecha_resolucion = parse_fecha(input.fecha_resolucion)
+        if input.get('tipo_sancion'):     denuncia.tipo_sancion = input.tipo_sancion
+        if input.get('detalle_sancion'):  denuncia.detalle_sancion = input.detalle_sancion
+
+        if input.get('fecha_retiro'):     denuncia.fecha_retiro = parse_fecha(input.fecha_retiro)
+        if input.get('motivo_retiro'):    denuncia.motivo_retiro = input.motivo_retiro
+
         if input.get('fecha_conciliacion'):  denuncia.fecha_conciliacion = parse_fecha(input.fecha_conciliacion)
         if input.get('acta_conciliacion'):   denuncia.acta_conciliacion = input.acta_conciliacion
-        # Apelación
+
         if input.get('fecha_apelacion'):         denuncia.fecha_apelacion = parse_fecha(input.fecha_apelacion)
         if input.get('resolucion_apelacion'):    denuncia.resolucion_apelacion = input.resolucion_apelacion
         if input.get('fecha_remision_superior'): denuncia.fecha_remision_superior = parse_fecha(input.fecha_remision_superior)
 
         denuncia.save()
+
+        if input.get('estado') and input.estado != estado_anterior:
+            _sincronizar_estado_expediente(denuncia, usuario_id=id_usuario)
+
         return ActualizarDenuncia(denuncia=denuncia)
 
 class EliminarDenuncia(graphene.Mutation):
@@ -4324,8 +5692,14 @@ class Mutation(graphene.ObjectType):
     regenerar_qr  = RegenerarQr.Field()
     enviar_reportes_por_email = EnviarReportesPorEmail.Field()
     enviar_citaciones_audiencia = EnviarCitacionesAudiencia.Field()
+    enviar_citacion_admision = EnviarCitacionAdmision.Field()
+    enviar_notificacion_subsanacion = EnviarNotificacionSubsanacion.Field()
+    enviar_citacion_termino_probatorio = EnviarCitacionTerminoProbatorio.Field()  # ← NUEVO
+    enviar_notificacion_resolucion     = EnviarNotificacionResolucion.Field()      # ← NUEVO
+    enviar_notificacion_resolucion_apelacion = EnviarNotificacionResolucionApelacion.Field()
     enviar_certificado_no_hallado = EnviarCertificadoNoHallado.Field()
-    registrar_asistencia  = RegistrarAsistencia.Field()
+    crear_notificacion_tablon = CrearNotificacionTablon.Field()
+  
     registrar_asistencia_batch = RegistrarAsistenciaBatch.Field()
 
     # DENUNCIAS
@@ -4339,6 +5713,7 @@ class Mutation(graphene.ObjectType):
     crear_resolucion_antigua = CrearResolucionAntigua.Field()
     actualizar_resolucion_antigua = ActualizarResolucionAntigua.Field()
     eliminar_resolucion_antigua = EliminarResolucionAntigua.Field()
+    
 
 
 schema = graphene.Schema(query=Query, mutation=Mutation)
