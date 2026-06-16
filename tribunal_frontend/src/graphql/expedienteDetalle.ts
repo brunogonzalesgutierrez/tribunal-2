@@ -19,6 +19,10 @@ export const GET_DETALLE_EXPEDIENTE = gql`
       }
       idTipoProceso { idTipoProceso nombre codigo }
       idEstadoExpediente { idEstado nombreEstado esTerminal nivel }
+      denuncias {        # ← plural, es reverse FK
+        id
+        numeroDenuncia
+      }
     }
 
     # ── Solo los datos de ESTE expediente ─────────────────
@@ -127,6 +131,175 @@ export const GET_DETALLE_EXPEDIENTE = gql`
       idEstadoAnterior { idEstado nombreEstado nivel }
       idEstadoNuevo { idEstado nombreEstado nivel }
       usuario { idUsuario nombres paterno }
+    }
+  }
+`;
+
+
+
+// ─── ESTADOS EXPEDIENTE ──────────────────────────────────
+
+export const GET_ESTADOS_TODOS = gql`
+  query {
+    allEstadosExpediente {
+      idEstado
+      nombreEstado
+      esTerminal
+      nivel
+    }
+  }
+`;
+
+export const CAMBIAR_ESTADO = gql`
+  mutation CambiarEstado(
+    $idExpediente: Int!
+    $idEstadoNuevo: Int!
+    $idUsuario: Int!
+    $motivo: String!
+  ) {
+    crearHistorialEstado(
+      idExpediente: $idExpediente
+      idEstadoNuevo: $idEstadoNuevo
+      idUsuario: $idUsuario
+      motivo: $motivo
+    ) {
+      historial {
+        idHistorial
+        fechaCambio
+        idEstadoNuevo { idEstado nombreEstado nivel }
+      }
+    }
+  }
+`;
+
+// ─── PARTES PROCESALES ───────────────────────────────────
+
+export const CREAR_PARTE = gql`
+  mutation CrearParteProcesal($idExpediente: Int!, $idPersona: Int!, $idRol: Int!) {
+    crearParteProcesal(idExpediente: $idExpediente, idPersona: $idPersona, idRol: $idRol) {
+      parte {
+        idParte
+        activo
+        idPersona { nombre primerApellido }
+        idRol { nombreRol }
+      }
+    }
+  }
+`;
+
+export const ELIMINAR_PARTE = gql`
+  mutation EliminarParteProcesal($id: Int!) {
+    eliminarParteProcesal(id: $id) {
+      ok
+      mensaje
+    }
+  }
+`;
+
+// ─── RESOLUCIONES ────────────────────────────────────────
+
+export const CREAR_RESOLUCION = gql`
+  mutation CrearResolucion($input: CrearResolucionInput!) {
+    crearResolucion(input: $input) {
+      resolucion {
+        idResolucion
+        numeroResolucion
+        fechaResolucion
+        estado
+      }
+    }
+  }
+`;
+
+export const ELIMINAR_RESOLUCION = gql`
+  mutation EliminarResolucion($id: Int!) {
+    eliminarResolucion(id: $id) {
+      ok
+      mensaje
+    }
+  }
+`;
+
+// ─── ACTUACIONES ─────────────────────────────────────────
+
+export const CREAR_ACTUACION = gql`
+  mutation CrearActuacionProcesal(
+    $idExpediente: Int!
+    $idTipoActuacion: Int!
+    $idUsuario: Int!
+    $folioInicio: Int!
+    $folioFin: Int!
+    $descripcion: String
+  ) {
+    crearActuacionProcesal(
+      idExpediente: $idExpediente
+      idTipoActuacion: $idTipoActuacion
+      idUsuario: $idUsuario
+      folioInicio: $folioInicio
+      folioFin: $folioFin
+      descripcion: $descripcion
+    ) {
+      actuacion {
+        idActuacion
+        descripcion
+        folioInicio
+        folioFin
+        idTipoActuacion { nombre }
+      }
+    }
+  }
+`;
+
+export const ELIMINAR_ACTUACION = gql`
+  mutation EliminarActuacionProcesal($id: Int!) {
+    eliminarActuacionProcesal(id: $id) {
+      ok
+      mensaje
+    }
+  }
+`;
+
+// ─── CATÁLOGOS ───────────────────────────────────────────
+
+export const GET_TIPOS_RES = gql`
+  query {
+    allTiposResolucion {
+      idTipoRes
+      codigo
+      nombre
+      nivelJerarquico
+    }
+  }
+`;
+
+export const GET_TIPOS_ACT = gql`
+  query {
+    allTiposActuacion {
+      idTipoActuacion
+      codigo
+      nombre
+    }
+  }
+`;
+
+export const GET_PERSONAS_DETALLE = gql`
+  query {
+    allPersonas {
+      idPersona
+      nombre
+      primerApellido
+      segundoApellido
+      numeroDocumento
+      esAbogado
+    }
+  }
+`;
+
+export const GET_ROLES_PROC = gql`
+  query {
+    allRolesProcesal {
+      idRol
+      nombreRol
     }
   }
 `;

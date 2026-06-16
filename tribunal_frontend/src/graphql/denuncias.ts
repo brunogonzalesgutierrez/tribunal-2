@@ -23,7 +23,65 @@ const DENUNCIA_FIELDS = `
   fechaApelacion
   resolucionApelacion
   fechaRemisionSuperior
-  expediente { idExpediente numeroExpediente }
+  # Art. 77
+  fechaSolicitudAclaracion
+  aclaracionEnmienda
+  # Art. 23
+  fechaDesistimiento
+  motivoDesistimiento
+  # Art. 80
+  fechaFallecimientoDenunciado
+  # Art. 61
+  medidasPrecautorias
+  fechaMedidasPrecautorias
+  # Art. 83
+  fechaCompulsa
+  resolucionCompulsa
+  # Art. 46
+  fechaNotificacionResolucion
+  expediente {
+    idExpediente
+    numeroExpediente
+    conformaciones {
+      idConformacion
+      rolEnCaso
+      idVocal {
+        cargo
+        idPersona { nombre primerApellido }
+        idSala { nombreSala }
+      }
+    }
+    audiencias {
+      idAudiencia
+      fechaHoraProgramada
+      fechaHoraInicio
+      fechaHoraFin
+      estadoAudiencia
+      motivoSuspension
+      linkVideoconferencia
+      idTipoAudiencia { idTipoAudiencia nombre duracionEstimada }
+      idSalaAud { idSalaAud nombreSala capacidad equipadaVideoconf }
+    }
+    partes {
+      idParte
+      activo
+      idPersona {
+        idPersona nombre primerApellido segundoApellido numeroDocumento
+        contactos { tipoContacto valor esPrincipal }
+      }
+      idRol { idRol nombreRol }
+    }
+    documentos {
+      idDocumento
+      titulo
+      fechaPresentacion
+      numeroFolio
+      rutaArchivo
+      tamanoKb
+      firmadoDigitalmente
+      idTipoDoc { idTipoDoc codigo nombre esPublico requiereFirma }
+    }
+  }
 `;
 
 // ============================================================
@@ -144,10 +202,6 @@ export const ADMITIR_DENUNCIA = gql`
   }
 `;
 
-
-
-// Agregá esto al final de denuncias.ts
-
 export const GET_HISTORIAL_POR_EXPEDIENTE = gql`
   query GetHistorialPorExpediente($idExpediente: Int!) {
     historialPorExpediente(idExpediente: $idExpediente) {
@@ -160,7 +214,6 @@ export const GET_HISTORIAL_POR_EXPEDIENTE = gql`
     }
   }
 `;
-
 
 export const GET_PROXIMO_NUMERO_DENUNCIA = gql`
   query GetProximoNumeroDenuncia {
@@ -216,7 +269,6 @@ export const ENVIAR_NOTIFICACION_RESOLUCION_APELACION = gql`
     }
   }
 `;
-
 
 export const ENVIAR_NOTIFICACION_SUBSANACION = gql`
   mutation EnviarNotificacionSubsanacion($idDenuncia: Int!, $idUsuario: Int!) {

@@ -449,6 +449,8 @@ class CrearDenunciaInput(graphene.InputObjectType):
     id_expediente   = graphene.Int()
 
 
+
+
 class ActualizarDenunciaInput(graphene.InputObjectType):
     estado           = graphene.String()
     descripcion      = graphene.String()
@@ -470,6 +472,22 @@ class ActualizarDenunciaInput(graphene.InputObjectType):
     fecha_apelacion          = graphene.String()
     resolucion_apelacion     = graphene.String()
     fecha_remision_superior  = graphene.String()
+    # Aclaración/enmienda (Art. 77)
+    fecha_solicitud_aclaracion = graphene.String()
+    aclaracion_enmienda        = graphene.String()
+    # Desistimiento (Art. 23)
+    fecha_desistimiento  = graphene.String()
+    motivo_desistimiento = graphene.String()
+    # Fallecimiento denunciado (Art. 80)
+    fecha_fallecimiento_denunciado = graphene.String()
+    # Medidas precautorias (Art. 61)
+    medidas_precautorias       = graphene.String()
+    fecha_medidas_precautorias = graphene.String()
+    # Compulsa (Art. 83)
+    fecha_compulsa      = graphene.String()
+    resolucion_compulsa = graphene.String()
+    # Notificación personal resolución (Art. 46)
+    fecha_notificacion_resolucion = graphene.String()
 
 # DESPUÉS
 class CrearResolucionAntiguaInput(graphene.InputObjectType):
@@ -5178,6 +5196,67 @@ class RegistrarAsistenciaBatch(graphene.Mutation):
         )
     
     
+def _registrar_actuacion_automatica(expediente, estado_nuevo: str, usuario_id=None):
+    """
+    Registra automáticamente una ActuacionProcesal en el expediente
+    cuando la denuncia cambia de estado. Art. 9 — todo debe quedar en el expediente.
+    """
+    MAPA = {
+        "SUBSANACION":             ("SUB", "Subsanación de defectos requerida (Art. 56)"),
+        "ADMITIDA":                ("ADA", "Auto de Admisión e inicio de etapa investigativa (Art. 58)"),
+        "ARCHIVADA":               ("REC", "Denuncia rechazada o archivada (Art. 57)"),
+        "RETIRADA":                ("RDE", "Retiro de denuncia por el denunciante (Art. 22)"),
+        "DECLARACION_INFORMATIVA": ("DIN", "Declaración informativa recibida (Art. 58 inc. a)"),
+        "PRUEBAS":                 ("AAP", "Auto de Apertura del Término Probatorio — 30 días hábiles (Art. 60)"),
+        "CONCLUSION":              ("CTP", "Clausura del Término Probatorio (Art. 74)"),
+        "RESUELTA":                ("DRF", "Dictado de Resolución Final motivada (Art. 75)"),
+        "APELADA":                 ("IAP", "Interposición de Recurso de Apelación (Art. 82)"),
+        "EJECUTADA":               ("EFA", "Ejecución de Fallo — proceso concluido (Art. 90)"),
+        "CONCILIADA":              ("CNA", "Conciliación — acuerdo entre partes (Art. 59)"),
+        "PRESCRITA":               ("PRS", "Prescripción declarada (Art. 8 / Art. 81)"),
+        "FALLECIDO":               ("ARC", "Archivo por fallecimiento del denunciado (Art. 80)"),
+        "DESISTIDA":               ("ARC", "Archivo por desistimiento del denunciante (Art. 23)"),
+    }
+
+    if estado_nuevo not in MAPA:
+        return
+
+    codigo, descripcion = MAPA[estado_nuevo]
+
+    try:
+        tipo_actuacion = TipoActuacion.objects.get(codigo=codigo)
+    except TipoActuacion.DoesNotExist:
+        return
+
+    # Calcular folio: último folio_fin + 1, o 1 si no hay actuaciones
+    ultima = ActuacionProcesal.objects.filter(
+        id_expediente=expediente
+    ).order_by('-folio_fin').first()
+    folio_inicio = (ultima.folio_fin + 1) if ultima else 1
+    folio_fin    = folio_inicio
+
+    try:
+        usuario = Usuario.objects.get(id_usuario=usuario_id) if usuario_id else None
+        if not usuario:
+            usuario = Usuario.objects.filter(activo=True).order_by('id_usuario').first()
+        if not usuario:
+            return
+
+        ActuacionProcesal.objects.create(
+            id_expediente=expediente,
+            id_tipo_actuacion=tipo_actuacion,
+            usuario=usuario,
+            folio_inicio=folio_inicio,
+            folio_fin=folio_fin,
+            es_publica=True,
+            descripcion=descripcion,
+        )
+    except Exception:
+        pass  # No romper el flujo principal si falla el registro automático
+
+
+
+
 class CrearDenuncia(graphene.Mutation):
     class Arguments:
         input = CrearDenunciaInput(required=True)
@@ -5342,6 +5421,8 @@ class AdmitirDenuncia(graphene.Mutation):
                 denuncia.estado     = "ADMITIDA"
                 denuncia.save()
 
+                _registrar_actuacion_automatica(expediente, "ADMITIDA", usuario_id=id_usuario)
+
                 return AdmitirDenuncia(
                     ok=True,
                     mensaje=(
@@ -5378,10 +5459,13 @@ MAPA_ESTADO_DENUNCIA_EXPEDIENTE = {
     "ARCHIVADA":               "Archivado",
     "RETIRADA":                "Archivado",
     "CONCILIADA":              "Conciliado",
+    "PRESCRITA":               "Archivado",
+    "FALLECIDO":               "Archivado",
+    "DESISTIDA":               "Archivado",
 }
 
-
 def _sincronizar_estado_expediente(denuncia, usuario_id=None):
+    
     if not denuncia.expediente:
         return
 
@@ -5420,6 +5504,9 @@ def _sincronizar_estado_expediente(denuncia, usuario_id=None):
         )
     except Exception:
         pass
+
+
+
 
 
 class ActualizarDenuncia(graphene.Mutation):
@@ -5464,12 +5551,28 @@ class ActualizarDenuncia(graphene.Mutation):
         if input.get('resolucion_apelacion'):    denuncia.resolucion_apelacion = input.resolucion_apelacion
         if input.get('fecha_remision_superior'): denuncia.fecha_remision_superior = parse_fecha(input.fecha_remision_superior)
 
+        if input.get('fecha_solicitud_aclaracion'):    denuncia.fecha_solicitud_aclaracion = parse_fecha(input.fecha_solicitud_aclaracion)
+        if input.get('aclaracion_enmienda'):           denuncia.aclaracion_enmienda = input.aclaracion_enmienda
+        if input.get('fecha_desistimiento'):           denuncia.fecha_desistimiento = parse_fecha(input.fecha_desistimiento)
+        if input.get('motivo_desistimiento'):          denuncia.motivo_desistimiento = input.motivo_desistimiento
+        if input.get('fecha_fallecimiento_denunciado'): denuncia.fecha_fallecimiento_denunciado = parse_fecha(input.fecha_fallecimiento_denunciado)
+        if input.get('medidas_precautorias'):          denuncia.medidas_precautorias = input.medidas_precautorias
+        if input.get('fecha_medidas_precautorias'):    denuncia.fecha_medidas_precautorias = parse_fecha(input.fecha_medidas_precautorias)
+        if input.get('fecha_compulsa'):                denuncia.fecha_compulsa = parse_fecha(input.fecha_compulsa)
+        if input.get('resolucion_compulsa'):           denuncia.resolucion_compulsa = input.resolucion_compulsa
+        if input.get('fecha_notificacion_resolucion'): denuncia.fecha_notificacion_resolucion = parse_fecha(input.fecha_notificacion_resolucion)
+
         denuncia.save()
 
         if input.get('estado') and input.estado != estado_anterior:
             _sincronizar_estado_expediente(denuncia, usuario_id=id_usuario)
+            if denuncia.expediente:
+                _registrar_actuacion_automatica(denuncia.expediente, input.estado, usuario_id=id_usuario)
 
         return ActualizarDenuncia(denuncia=denuncia)
+
+        
+
 
 class EliminarDenuncia(graphene.Mutation):
     class Arguments:

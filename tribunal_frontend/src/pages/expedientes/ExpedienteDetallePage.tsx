@@ -1,61 +1,32 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@apollo/client";
-import { gql } from "@apollo/client";
+
 import { useAuth } from "../../context/AuthContext";
-import { GET_DETALLE_EXPEDIENTE } from "../../graphql/expedienteDetalle";
+import {
+  GET_DETALLE_EXPEDIENTE,
+  GET_ESTADOS_TODOS, CAMBIAR_ESTADO,
+  CREAR_PARTE, ELIMINAR_PARTE,
+  CREAR_RESOLUCION, ELIMINAR_RESOLUCION,
+  CREAR_ACTUACION, ELIMINAR_ACTUACION,
+  GET_TIPOS_RES, GET_TIPOS_ACT,
+  GET_PERSONAS_DETALLE, GET_ROLES_PROC,
+} from "../../graphql/expedienteDetalle";
 import {
   CREAR_AUDIENCIA, ACTUALIZAR_AUDIENCIA, ELIMINAR_AUDIENCIA,
-  GET_TIPOS_AUDIENCIA, GET_SALAS_AUDIENCIA, ENVIAR_CITACIONES_AUDIENCIA, GET_ASISTENCIAS_AUDIENCIA,
-  REGISTRAR_ASISTENCIA_BATCH
+  GET_TIPOS_AUDIENCIA, GET_SALAS_AUDIENCIA, ENVIAR_CITACIONES_AUDIENCIA,
+  GET_ASISTENCIAS_AUDIENCIA, REGISTRAR_ASISTENCIA_BATCH,
 } from "../../graphql/audiencias";
+import {
+  GET_VOCALES,
+  CREAR_CONFORMACION, ELIMINAR_CONFORMACION,
+} from "../../graphql/tribunal";
+import { GET_TIPOS_DOC, ELIMINAR_DOCUMENTO } from "../../graphql/documento";
 import { useCrudNotifications } from "../../hooks/useCrudNotifications";
 import { generarPdfResolucion } from "../../utils/generarPdfResolucion";
 
 // ─── GraphQL adicional ─────────────────────────────────────────────────────
-const GET_PERSONAS   = gql`query { allPersonas { idPersona nombre primerApellido segundoApellido numeroDocumento esAbogado } }`;
-const GET_ROLES_PROC = gql`query { allRolesProcesal { idRol nombreRol } }`;
-const GET_VOCALES    = gql`query { allVocales { idVocal cargo activo idPersona { nombre primerApellido } idSala { nombreSala } } }`;
-const GET_TIPOS_DOC  = gql`query { allTiposDoc { idTipoDoc codigo nombre requiereFirma esPublico } }`;
-const GET_TIPOS_RES  = gql`query { allTiposResolucion { idTipoRes codigo nombre nivelJerarquico } }`;
-const GET_TIPOS_ACT  = gql`query { allTiposActuacion { idTipoActuacion codigo nombre } }`;
-
-// ─── GraphQL para cambio de estado ────────────────────────────────────────
-const GET_ESTADOS_TODOS = gql`
-  query { allEstadosExpediente { idEstado nombreEstado esTerminal nivel } }
-`;
-const CAMBIAR_ESTADO = gql`
-  mutation CambiarEstado(
-    $idExpediente: Int!
-    $idEstadoNuevo: Int!
-    $idUsuario: Int!
-    $motivo: String!
-  ) {
-    crearHistorialEstado(
-      idExpediente: $idExpediente
-      idEstadoNuevo: $idEstadoNuevo
-      idUsuario: $idUsuario
-      motivo: $motivo
-    ) {
-      historial {
-        idHistorial
-        fechaCambio
-        idEstadoNuevo { idEstado nombreEstado nivel }
-      }
-    }
-  }
-`;
-
-const CREAR_PARTE        = gql`mutation CrearParteProcesal($idExpediente: Int!, $idPersona: Int!, $idRol: Int!) { crearParteProcesal(idExpediente: $idExpediente, idPersona: $idPersona, idRol: $idRol) { parte { idParte activo idPersona { nombre primerApellido } idRol { nombreRol } } } }`;
-const ELIMINAR_PARTE     = gql`mutation EliminarParteProcesal($id: Int!) { eliminarParteProcesal(id: $id) { ok mensaje } }`;
-const CREAR_RESOLUCION   = gql`mutation CrearResolucion($input: CrearResolucionInput!) { crearResolucion(input: $input) { resolucion { idResolucion numeroResolucion fechaResolucion estado } } }`;
-const ELIMINAR_RESOLUCION= gql`mutation EliminarResolucion($id: Int!) { eliminarResolucion(id: $id) { ok mensaje } }`;
-const ELIMINAR_DOCUMENTO = gql`mutation EliminarDocumento($id: Int!) { eliminarDocumento(id: $id) { ok mensaje } }`;
-const CREAR_ACTUACION    = gql`mutation CrearActuacionProcesal($idExpediente: Int!, $idTipoActuacion: Int!, $idUsuario: Int!, $folioInicio: Int!, $folioFin: Int!, $descripcion: String) { crearActuacionProcesal(idExpediente: $idExpediente, idTipoActuacion: $idTipoActuacion, idUsuario: $idUsuario, folioInicio: $folioInicio, folioFin: $folioFin, descripcion: $descripcion) { actuacion { idActuacion descripcion folioInicio folioFin idTipoActuacion { nombre } } } }`;
-const ELIMINAR_ACTUACION = gql`mutation EliminarActuacionProcesal($id: Int!) { eliminarActuacionProcesal(id: $id) { ok mensaje } }`;
-const CREAR_CONFORMACION = gql`mutation CrearConformacion($idExpediente: Int!, $idVocal: Int!, $rolEnCaso: String!) { crearConformacion(idExpediente: $idExpediente, idVocal: $idVocal, rolEnCaso: $rolEnCaso) { conformacion { idConformacion rolEnCaso idVocal { cargo idPersona { nombre primerApellido } } } } }`;
-const ELIMINAR_CONFORMACION = gql`mutation EliminarConformacion($id: Int!) { eliminarConformacion(id: $id) { ok mensaje } }`;
-
+// (todo movido a graphql/)
 // ─── Imports de iconos ─────────────────────────────────────────────────────
 import {
   X, FolderOpen, Users, Calendar, Scale, FileText,
@@ -665,7 +636,7 @@ function FormAudiencia({ idExpediente, editando, onSaved, onCancel }: {
 // FORM PARTE PROCESAL
 // ══════════════════════════════════════════════════════════════════════════
 function FormParte({ idExpediente, onSaved, onCancel }: { idExpediente: number; onSaved: () => void; onCancel: () => void }) {
-  const { data: dP, loading: lP } = useQuery(GET_PERSONAS);
+  const { data: dP, loading: lP } = useQuery(GET_PERSONAS_DETALLE);
   const { data: dR, loading: lR } = useQuery(GET_ROLES_PROC);
   const [crear] = useMutation(CREAR_PARTE);
   const [form, setForm] = useState({ idPersona: 0, personaLabel: "", idRol: 0, rolLabel: "" });
@@ -1478,6 +1449,7 @@ export default function ExpedienteDetallePage() {
   });
 
   const exp          = data?.expedienteById;
+  const denunciaVinculada = exp?.denuncias?.[0] ?? null;
   const partes       = data?.partesPorExpediente         ?? [];
   const vocales      = data?.conformacionesPorExpediente ?? [];
   const audiencias   = data?.audienciasPorExpediente     ?? [];
@@ -1602,16 +1574,36 @@ export default function ExpedienteDetallePage() {
                         </Pill>) : "—"} />
                       <InfoCell label="Fecha de Conclusión" value={fmtFecha(exp.fechaConclusion)} />
 
-                      {/* Botón cambiar estado — solo si el expediente no está en estado terminal */}
                       {!exp.idEstadoExpediente?.esTerminal && (
                         <div className="col-span-full mt-1">
-                          <button
-                            onClick={() => setShowCambioEstado(true)}
-                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 text-sm font-semibold hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
-                          >
-                            <ArrowRight className="w-4 h-4" />
-                            Cambiar estado
-                          </button>
+                          {denunciaVinculada ? (
+                            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                              <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                                  El estado de este expediente se gestiona desde la denuncia asociada
+                                </p>
+                                <p className="text-xs text-amber-600 dark:text-amber-500 mt-0.5">
+                                  Denuncia <span className="font-mono font-bold">{denunciaVinculada.numeroDenuncia}</span>
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => navigate(`/denuncias/${denunciaVinculada.id}`)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors shrink-0"
+                              >
+                                <ArrowRight className="w-3.5 h-3.5" />
+                                Ir a la denuncia
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setShowCambioEstado(true)}
+                              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 text-sm font-semibold hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                            >
+                              <ArrowRight className="w-4 h-4" />
+                              Cambiar estado
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>

@@ -530,9 +530,9 @@ class Denuncia(models.Model):
     ESTADOS = [
         ('REGISTRADA', 'Registrada'),
         ('SUBSANACION', 'Subsanación'),
-        ('RETIRADA', 'Retirada'),          # ← NUEVO Art. 22
+        ('RETIRADA', 'Retirada'),
         ('ADMITIDA', 'Admitida'),
-        ('CONCILIADA', 'Conciliada'),       # ← NUEVO Art. 59
+        ('CONCILIADA', 'Conciliada'),
         ('DECLARACION_INFORMATIVA', 'Declaración Informativa'),
         ('PRUEBAS', 'Período Probatorio'),
         ('CONCLUSION', 'Conclusión'),
@@ -540,6 +540,9 @@ class Denuncia(models.Model):
         ('APELADA', 'Apelada'),
         ('EJECUTADA', 'Ejecutada'),
         ('ARCHIVADA', 'Archivada'),
+        ('PRESCRITA', 'Prescrita'),       # Art. 8 — prescripción 2 años
+        ('FALLECIDO', 'Fallecido'),       # Art. 80 — fallecimiento del denunciado
+        ('DESISTIDA', 'Desistida'),       # Art. 23 — desistimiento (distinto al retiro)
     ]
 
     TIPOS_DENUNCIADO = [
@@ -631,6 +634,56 @@ class Denuncia(models.Model):
     fecha_remision_superior = models.DateField(
         blank=True, null=True,
         help_text="Fecha en que se remitió al Tribunal Superior (Art. 86)"
+    )
+
+        # ── Aclaración/complementación/enmienda (Art. 77)
+    fecha_solicitud_aclaracion = models.DateField(
+        blank=True, null=True,
+        help_text="Fecha en que se solicitó aclaración/complementación (Art. 77 — 2 días hábiles)"
+    )
+    aclaracion_enmienda = models.TextField(
+        blank=True, null=True,
+        help_text="Texto de la aclaración, complementación o enmienda a la resolución (Art. 77)"
+    )
+
+    # ── Desistimiento (Art. 23)
+    fecha_desistimiento = models.DateField(
+        blank=True, null=True,
+        help_text="Fecha del desistimiento del denunciante (Art. 23 — solo aplica a su acción, proceso continúa)"
+    )
+    motivo_desistimiento = models.TextField(
+        blank=True, null=True
+    )
+
+    # ── Fallecimiento del denunciado (Art. 80)
+    fecha_fallecimiento_denunciado = models.DateField(
+        blank=True, null=True,
+        help_text="Fecha de fallecimiento del denunciado — concluye el proceso (Art. 80)"
+    )
+
+    # ── Medidas precautorias (Art. 61)
+    medidas_precautorias = models.TextField(
+        blank=True, null=True,
+        help_text="Descripción de medidas precautorias adoptadas por el Tribunal (Art. 61)"
+    )
+    fecha_medidas_precautorias = models.DateField(
+        blank=True, null=True
+    )
+
+    # ── Compulsa disciplinaria (Art. 83)
+    fecha_compulsa = models.DateField(
+        blank=True, null=True,
+        help_text="Fecha de interposición del recurso de compulsa (Art. 83)"
+    )
+    resolucion_compulsa = models.TextField(
+        blank=True, null=True,
+        help_text="Resolución del Tribunal Superior sobre la compulsa (Art. 85)"
+    )
+
+    # ── Registro de notificación personal de resolución (Art. 45/46)
+    fecha_notificacion_resolucion = models.DateField(
+        blank=True, null=True,
+        help_text="Fecha en que se practicó la notificación personal de la resolución definitiva (Art. 46 — máx. 5 días hábiles)"
     )
 
     expediente = models.ForeignKey(

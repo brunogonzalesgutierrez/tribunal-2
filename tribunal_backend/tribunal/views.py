@@ -110,6 +110,8 @@ def subir_documento(request):
         })
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return JsonResponse({"ok": False, "mensaje": f"Error interno: {str(e)}"}, status=500)
 
 

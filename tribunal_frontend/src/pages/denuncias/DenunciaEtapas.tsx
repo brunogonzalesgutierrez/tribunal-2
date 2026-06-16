@@ -30,6 +30,16 @@ interface Denuncia {
   fechaApelacion?: string;
   resolucionApelacion?: string;
   fechaRemisionSuperior?: string;
+  fechaSolicitudAclaracion?: string;
+  aclaracionEnmienda?: string;
+  fechaDesistimiento?: string;
+  motivoDesistimiento?: string;
+  fechaFallecimientoDenunciado?: string;
+  medidasPrecautorias?: string;
+  fechaMedidasPrecautorias?: string;
+  fechaCompulsa?: string;
+  resolucionCompulsa?: string;
+  fechaNotificacionResolucion?: string;
   expediente?: { idExpediente: number; numeroExpediente: string };
 }
 
@@ -720,6 +730,816 @@ export function EtapaApelacion({ denuncia, onApelar, onEjecutar, onRemitirSuperi
     </div>
   );
 }
+
+// ─────────────────────────────────────────────────────────────
+// 10. ACLARACIÓN / COMPLEMENTACIÓN / ENMIENDA (Art. 77)
+// ─────────────────────────────────────────────────────────────
+interface EtapaAclaracionProps {
+  denuncia: Denuncia;
+  onRegistrar: (datos: { aclaracionEnmienda: string; fechaSolicitudAclaracion: string }) => void;
+  saving: boolean;
+}
+
+export function EtapaAclaracion({ denuncia, onRegistrar, saving }: EtapaAclaracionProps) {
+  const [texto, setTexto] = useState(denuncia.aclaracionEnmienda || "");
+  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [abierto, setAbierto] = useState(false);
+
+  if (denuncia.aclaracionEnmienda) {
+    return (
+      <div className="bg-violet-50 dark:bg-violet-900/20 rounded-2xl border border-violet-200 dark:border-violet-800 p-5">
+        <h3 className="text-sm font-semibold text-violet-700 dark:text-violet-400 mb-2 flex items-center gap-2">
+          <FileText className="w-4 h-4" />
+          Aclaración/Enmienda registrada (Art. 77)
+        </h3>
+        <p className="text-sm text-violet-700 dark:text-violet-300 leading-relaxed">{denuncia.aclaracionEnmienda}</p>
+        {denuncia.fechaSolicitudAclaracion && (
+          <p className="text-xs text-violet-500 mt-2">Fecha: {denuncia.fechaSolicitudAclaracion}</p>
+        )}
+      </div>
+    );
+  }
+
+  if (!abierto) {
+    return (
+      <div className="bg-violet-50 dark:bg-violet-900/20 rounded-2xl border border-violet-200 dark:border-violet-800 p-5">
+        <h3 className="text-sm font-semibold text-violet-700 dark:text-violet-400 mb-2 flex items-center gap-2">
+          <FileText className="w-4 h-4" />
+          Aclaración / Complementación / Enmienda (Art. 77)
+        </h3>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          Las partes tienen <span className="font-semibold text-violet-600">2 días hábiles</span> desde la notificación para solicitar aclaración, complementación o enmienda. No puede alterar lo sustancial de la decisión (Art. 77 par. IV).
+        </p>
+        <button
+          onClick={() => setAbierto(true)}
+          disabled={saving}
+          className="px-4 py-2 rounded-xl bg-violet-500 hover:bg-violet-600 text-white text-sm font-semibold transition-colors flex items-center gap-2"
+        >
+          <FileText className="w-4 h-4" /> Registrar aclaración
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-violet-50 dark:bg-violet-900/20 rounded-2xl border border-violet-200 dark:border-violet-800 p-5">
+      <h3 className="text-sm font-semibold text-violet-700 dark:text-violet-400 mb-3 flex items-center gap-2">
+        <FileText className="w-4 h-4" />
+        Registrar Aclaración / Enmienda (Art. 77)
+      </h3>
+      <div className="mb-3">
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          Fecha de solicitud
+        </label>
+        <input
+          type="date"
+          value={fecha}
+          onChange={e => setFecha(e.target.value)}
+          disabled={saving}
+          className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-violet-500 outline-none"
+        />
+      </div>
+      <div className="mb-4">
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          Texto de la aclaración / complementación / enmienda
+        </label>
+        <textarea
+          value={texto}
+          onChange={e => setTexto(e.target.value)}
+          rows={5}
+          disabled={saving}
+          placeholder="Describa la aclaración, complementación o enmienda a la resolución..."
+          className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-violet-500 outline-none"
+        />
+      </div>
+      <div className="flex gap-3 justify-end">
+        <button
+          onClick={() => setAbierto(false)}
+          disabled={saving}
+          className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={() => onRegistrar({ aclaracionEnmienda: texto, fechaSolicitudAclaracion: fecha })}
+          disabled={saving || !texto.trim()}
+          className="px-4 py-2.5 rounded-xl bg-violet-500 hover:bg-violet-600 text-white font-semibold text-sm transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+          Registrar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+// ─────────────────────────────────────────────────────────────
+// 11. NOTIFICACIÓN PERSONAL DE RESOLUCIÓN (Art. 46)
+// ─────────────────────────────────────────────────────────────
+interface EtapaNotificacionResolucionProps {
+  denuncia: Denuncia;
+  onRegistrar: (datos: { fechaNotificacionResolucion: string }) => void;
+  saving: boolean;
+}
+
+export function EtapaNotificacionResolucion({
+  denuncia, onRegistrar, saving
+}: EtapaNotificacionResolucionProps) {
+  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [abierto, setAbierto] = useState(false);
+
+  if (denuncia.fechaNotificacionResolucion) {
+    return (
+      <div className="bg-sky-50 dark:bg-sky-900/20 rounded-2xl border border-sky-200 dark:border-sky-800 p-5">
+        <h3 className="text-sm font-semibold text-sky-700 dark:text-sky-400 mb-1 flex items-center gap-2">
+          <Send className="w-4 h-4" />
+          Notificación personal registrada (Art. 46)
+        </h3>
+        <p className="text-xs text-sky-500">
+          Notificado el: {denuncia.fechaNotificacionResolucion}
+        </p>
+        <p className="text-xs text-gray-400 mt-1">
+          El plazo de 5 días hábiles para apelar corre desde esta fecha (Art. 82).
+        </p>
+      </div>
+    );
+  }
+
+  if (!abierto) {
+    return (
+      <div className="bg-sky-50 dark:bg-sky-900/20 rounded-2xl border border-sky-200 dark:border-sky-800 p-5">
+        <h3 className="text-sm font-semibold text-sky-700 dark:text-sky-400 mb-2 flex items-center gap-2">
+          <Send className="w-4 h-4" />
+          Notificación personal de resolución (Art. 46)
+        </h3>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          Registrá la fecha en que se notificó personalmente la resolución a las partes.
+          Desde esta fecha corren los{" "}
+          <span className="font-semibold text-sky-600">5 días hábiles</span> para interponer
+          recurso de apelación (Art. 82).
+        </p>
+        <button
+          onClick={() => setAbierto(true)}
+          disabled={saving}
+          className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold transition-colors flex items-center gap-2"
+        >
+          <Send className="w-4 h-4" /> Registrar notificación
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-sky-50 dark:bg-sky-900/20 rounded-2xl border border-sky-200 dark:border-sky-800 p-5">
+      <h3 className="text-sm font-semibold text-sky-700 dark:text-sky-400 mb-3 flex items-center gap-2">
+        <Send className="w-4 h-4" />
+        Registrar notificación personal (Art. 46)
+      </h3>
+      <div className="mb-4">
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          Fecha de notificación personal
+        </label>
+        <input
+          type="date"
+          value={fecha}
+          onChange={e => setFecha(e.target.value)}
+          disabled={saving}
+          className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
+        />
+      </div>
+      <div className="flex gap-3 justify-end">
+        <button
+          onClick={() => setAbierto(false)}
+          disabled={saving}
+          className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={() => onRegistrar({ fechaNotificacionResolucion: fecha })}
+          disabled={saving || !fecha}
+          className="px-4 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-semibold text-sm transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+          Registrar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+
+// ─────────────────────────────────────────────────────────────
+// 12. MEDIDAS PRECAUTORIAS (Art. 61)
+// ─────────────────────────────────────────────────────────────
+interface EtapaMedidasPrecautoriasProps {
+  denuncia: Denuncia;
+  onRegistrar: (datos: { medidasPrecautorias: string; fechaMedidasPrecautorias: string }) => void;
+  saving: boolean;
+}
+
+export function EtapaMedidasPrecautorias({
+  denuncia, onRegistrar, saving
+}: EtapaMedidasPrecautoriasProps) {
+  const [texto, setTexto] = useState(denuncia.medidasPrecautorias || "");
+  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [abierto, setAbierto] = useState(false);
+
+  if (denuncia.medidasPrecautorias) {
+    return (
+      <div className="bg-rose-50 dark:bg-rose-900/20 rounded-2xl border border-rose-200 dark:border-rose-800 p-5">
+        <h3 className="text-sm font-semibold text-rose-700 dark:text-rose-400 mb-2 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4" />
+          Medidas precautorias vigentes (Art. 61)
+        </h3>
+        <p className="text-sm text-rose-700 dark:text-rose-300 leading-relaxed">
+          {denuncia.medidasPrecautorias}
+        </p>
+        {denuncia.fechaMedidasPrecautorias && (
+          <p className="text-xs text-rose-500 mt-2">
+            Dispuestas el: {denuncia.fechaMedidasPrecautorias}
+          </p>
+        )}
+        <button
+          onClick={() => setAbierto(true)}
+          disabled={saving}
+          className="mt-3 px-3 py-1.5 rounded-lg border border-rose-300 dark:border-rose-700 text-rose-600 dark:text-rose-400 text-xs font-medium hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-colors"
+        >
+          Actualizar medidas
+        </button>
+
+        {abierto && (
+          <div className="mt-4 space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Nueva fecha
+              </label>
+              <input
+                type="date"
+                value={fecha}
+                onChange={e => setFecha(e.target.value)}
+                disabled={saving}
+                className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-rose-500 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Medidas actualizadas
+              </label>
+              <textarea
+                value={texto}
+                onChange={e => setTexto(e.target.value)}
+                rows={4}
+                disabled={saving}
+                className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-rose-500 outline-none"
+              />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setAbierto(false)}
+                disabled={saving}
+                className="px-4 py-2 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => { onRegistrar({ medidasPrecautorias: texto, fechaMedidasPrecautorias: fecha }); setAbierto(false); }}
+                disabled={saving || !texto.trim()}
+                className="px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-semibold text-sm transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                Actualizar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (!abierto) {
+    return (
+      <div className="bg-rose-50 dark:bg-rose-900/20 rounded-2xl border border-rose-200 dark:border-rose-800 p-5">
+        <h3 className="text-sm font-semibold text-rose-700 dark:text-rose-400 mb-2 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4" />
+          Medidas precautorias (Art. 61)
+        </h3>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          El Tribunal puede disponer medidas precautorias en cualquier etapa del proceso
+          para evitar que el denunciado eluda la acción de la justicia o cause perjuicios
+          irreparables (Art. 61).
+        </p>
+        <button
+          onClick={() => setAbierto(true)}
+          disabled={saving}
+          className="px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-sm font-semibold transition-colors flex items-center gap-2"
+        >
+          <AlertTriangle className="w-4 h-4" /> Disponer medidas precautorias
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-rose-50 dark:bg-rose-900/20 rounded-2xl border border-rose-200 dark:border-rose-800 p-5">
+      <h3 className="text-sm font-semibold text-rose-700 dark:text-rose-400 mb-3 flex items-center gap-2">
+        <AlertTriangle className="w-4 h-4" />
+        Registrar medidas precautorias (Art. 61)
+      </h3>
+      <div className="mb-3">
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          Fecha de la resolución
+        </label>
+        <input
+          type="date"
+          value={fecha}
+          onChange={e => setFecha(e.target.value)}
+          disabled={saving}
+          className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-rose-500 outline-none"
+        />
+      </div>
+      <div className="mb-4">
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          Descripción de las medidas dispuestas
+        </label>
+        <textarea
+          value={texto}
+          onChange={e => setTexto(e.target.value)}
+          rows={5}
+          disabled={saving}
+          placeholder="Ej: Suspensión preventiva del cargo, prohibición de salida del país, retención de haberes..."
+          className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-rose-500 outline-none"
+        />
+      </div>
+      <div className="flex gap-3 justify-end">
+        <button
+          onClick={() => setAbierto(false)}
+          disabled={saving}
+          className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={() => onRegistrar({ medidasPrecautorias: texto, fechaMedidasPrecautorias: fecha })}
+          disabled={saving || !texto.trim()}
+          className="px-4 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-semibold text-sm transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+          Registrar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+// ─────────────────────────────────────────────────────────────
+// 13. FALLECIMIENTO DEL DENUNCIADO (Art. 80)
+// ─────────────────────────────────────────────────────────────
+interface EtapaFallecimientoProps {
+  denuncia: Denuncia;
+  onRegistrar: (datos: { fechaFallecimientoDenunciado: string }) => void;
+  saving: boolean;
+}
+
+export function EtapaFallecimiento({
+  denuncia, onRegistrar, saving
+}: EtapaFallecimientoProps) {
+  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [confirmando, setConfirmando] = useState(false);
+
+  if (!confirmando) {
+    return (
+      <div className="bg-gray-100 dark:bg-gray-800/40 rounded-2xl border border-gray-300 dark:border-gray-700 p-5">
+        <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2 flex items-center gap-2">
+          <XCircle className="w-4 h-4" />
+          Fallecimiento del denunciado (Art. 80)
+        </h3>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          Si el denunciado fallece durante el proceso, la acción disciplinaria se extingue
+          y el expediente se archiva (Art. 80). Esta acción es irreversible.
+        </p>
+        <button
+          onClick={() => setConfirmando(true)}
+          disabled={saving}
+          className="px-4 py-2 rounded-xl bg-gray-500 hover:bg-gray-600 text-white text-sm font-semibold transition-colors flex items-center gap-2"
+        >
+          <XCircle className="w-4 h-4" /> Registrar fallecimiento
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-gray-100 dark:bg-gray-800/40 rounded-2xl border-2 border-gray-400 dark:border-gray-600 p-5">
+      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+        <XCircle className="w-4 h-4" />
+        Confirmar fallecimiento del denunciado (Art. 80)
+      </h3>
+
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-3 mb-4">
+        <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
+          ⚠ Esta acción archivará el expediente de forma definitiva. No puede revertirse.
+        </p>
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          Fecha de fallecimiento
+        </label>
+        <input
+          type="date"
+          value={fecha}
+          onChange={e => setFecha(e.target.value)}
+          disabled={saving}
+          className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-gray-500 outline-none"
+        />
+      </div>
+
+      <div className="flex gap-3 justify-end">
+        <button
+          onClick={() => setConfirmando(false)}
+          disabled={saving}
+          className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={() => onRegistrar({ fechaFallecimientoDenunciado: fecha })}
+          disabled={saving || !fecha}
+          className="px-4 py-2.5 rounded-xl bg-gray-600 hover:bg-gray-700 text-white font-semibold text-sm transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+          Confirmar y archivar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+// ─────────────────────────────────────────────────────────────
+// 14. DESISTIMIENTO (Art. 23)
+// ─────────────────────────────────────────────────────────────
+interface EtapaDesistimientoProps {
+  denuncia: Denuncia;
+  onRegistrar: (datos: { fechaDesistimiento: string; motivoDesistimiento: string }) => void;
+  saving: boolean;
+}
+
+export function EtapaDesistimiento({
+  denuncia, onRegistrar, saving
+}: EtapaDesistimientoProps) {
+  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [motivo, setMotivo] = useState("");
+  const [confirmando, setConfirmando] = useState(false);
+
+  if (!confirmando) {
+    return (
+      <div className="bg-orange-50 dark:bg-orange-900/20 rounded-2xl border border-orange-200 dark:border-orange-800 p-5">
+        <h3 className="text-sm font-semibold text-orange-700 dark:text-orange-400 mb-2 flex items-center gap-2">
+          <XCircle className="w-4 h-4" />
+          Desistimiento (Art. 23)
+        </h3>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          El denunciante puede desistir de la denuncia{" "}
+          <span className="font-semibold text-orange-600">después de la citación</span> al
+          denunciado. A diferencia del retiro (Art. 22), el desistimiento impide reiniciar
+          la acción por los mismos hechos. El Tribunal puede continuar de oficio si los
+          hechos afectan el orden público universitario (Art. 23 par. II).
+        </p>
+        <button
+          onClick={() => setConfirmando(true)}
+          disabled={saving}
+          className="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold transition-colors flex items-center gap-2"
+        >
+          <XCircle className="w-4 h-4" /> Registrar desistimiento
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-orange-50 dark:bg-orange-900/20 rounded-2xl border-2 border-orange-300 dark:border-orange-700 p-5">
+      <h3 className="text-sm font-semibold text-orange-700 dark:text-orange-400 mb-3 flex items-center gap-2">
+        <XCircle className="w-4 h-4" />
+        Confirmar desistimiento (Art. 23)
+      </h3>
+
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-3 mb-4">
+        <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
+          ⚠ Esta acción archivará el proceso. El denunciante no podrá reiniciar la acción
+          por los mismos hechos (Art. 23 par. I). Si los hechos afectan el orden público
+          universitario, el Tribunal puede continuar de oficio.
+        </p>
+      </div>
+
+      <div className="mb-3">
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          Fecha de desistimiento
+        </label>
+        <input
+          type="date"
+          value={fecha}
+          onChange={e => setFecha(e.target.value)}
+          disabled={saving}
+          className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-orange-500 outline-none"
+        />
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          Motivo del desistimiento
+        </label>
+        <textarea
+          value={motivo}
+          onChange={e => setMotivo(e.target.value)}
+          rows={4}
+          disabled={saving}
+          placeholder="Indique el motivo por el cual el denunciante desiste de la acción..."
+          className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-orange-500 outline-none"
+        />
+      </div>
+
+      <div className="flex gap-3 justify-end">
+        <button
+          onClick={() => setConfirmando(false)}
+          disabled={saving}
+          className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={() => onRegistrar({ fechaDesistimiento: fecha, motivoDesistimiento: motivo })}
+          disabled={saving || !motivo.trim() || !fecha}
+          className="px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold text-sm transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+          Confirmar desistimiento
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+// ─────────────────────────────────────────────────────────────
+// 15. PRESCRIPCIÓN (Art. 8 / Art. 81)
+// ─────────────────────────────────────────────────────────────
+interface EtapaPrescripcionProps {
+  denuncia: Denuncia;
+  onRegistrar: (datos: { resolucion: string; fechaResolucion: string }) => void;
+  saving: boolean;
+}
+
+export function EtapaPrescripcion({
+  denuncia, onRegistrar, saving
+}: EtapaPrescripcionProps) {
+  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [fundamentacion, setFundamentacion] = useState("");
+  const [confirmando, setConfirmando] = useState(false);
+
+  // Calcular si hay prescripción inminente (referencial, no bloqueante)
+  const fechaHecho = denuncia.fechaHecho ? new Date(denuncia.fechaHecho) : null;
+  const diasTranscurridos = fechaHecho
+    ? Math.floor((Date.now() - fechaHecho.getTime()) / (1000 * 60 * 60 * 24))
+    : null;
+  const mesesTranscurridos = diasTranscurridos ? Math.floor(diasTranscurridos / 30) : null;
+  const prescripcionInminente = diasTranscurridos !== null && diasTranscurridos > 600; // ~20 meses
+
+  if (!confirmando) {
+    return (
+      <div className="bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-300 dark:border-slate-600 p-5">
+        <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-2 flex items-center gap-2">
+          <Clock className="w-4 h-4" />
+          Prescripción de la acción (Art. 8 / Art. 81)
+        </h3>
+
+        {prescripcionInminente && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-3 mb-3">
+            <p className="text-xs text-amber-700 dark:text-amber-400 font-medium flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              Atención: han transcurrido aprox.{" "}
+              <span className="font-bold">{mesesTranscurridos} meses</span> desde los hechos.
+              El plazo de prescripción es de 2 años (Art. 8).
+            </p>
+          </div>
+        )}
+
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          La acción disciplinaria prescribe a los{" "}
+          <span className="font-semibold text-slate-600 dark:text-slate-400">2 años</span>{" "}
+          desde la comisión del hecho (Art. 8). El Tribunal debe declarar la prescripción
+          de oficio o a petición de parte mediante resolución fundada (Art. 81).
+        </p>
+        <button
+          onClick={() => setConfirmando(true)}
+          disabled={saving}
+          className="px-4 py-2 rounded-xl bg-slate-500 hover:bg-slate-600 text-white text-sm font-semibold transition-colors flex items-center gap-2"
+        >
+          <Clock className="w-4 h-4" /> Declarar prescripción
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-slate-50 dark:bg-slate-800/40 rounded-2xl border-2 border-slate-400 dark:border-slate-600 p-5">
+      <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+        <Clock className="w-4 h-4" />
+        Declarar prescripción (Art. 8 / Art. 81)
+      </h3>
+
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-3 mb-4">
+        <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
+          ⚠ Esta acción archivará el proceso por prescripción. Requiere resolución
+          fundada del Tribunal (Art. 81). Es irreversible.
+        </p>
+      </div>
+
+      <div className="mb-3">
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          Fecha de la resolución de prescripción
+        </label>
+        <input
+          type="date"
+          value={fecha}
+          onChange={e => setFecha(e.target.value)}
+          disabled={saving}
+          className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-slate-500 outline-none"
+        />
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          Fundamentación de la resolución (Art. 81)
+        </label>
+        <textarea
+          value={fundamentacion}
+          onChange={e => setFundamentacion(e.target.value)}
+          rows={5}
+          disabled={saving}
+          placeholder="Indique los fundamentos de derecho y de hecho por los cuales se declara la prescripción de la acción disciplinaria..."
+          className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-slate-500 outline-none"
+        />
+      </div>
+
+      {fechaHecho && (
+        <div className="mb-4 p-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs text-slate-600 dark:text-slate-400 space-y-1">
+          <p>Fecha de los hechos: <span className="font-semibold">{new Date(fechaHecho).toLocaleDateString("es-BO")}</span></p>
+          {diasTranscurridos !== null && (
+            <p>Tiempo transcurrido: <span className="font-semibold">{mesesTranscurridos} meses ({diasTranscurridos} días)</span></p>
+          )}
+          <p>Prescripción legal: <span className="font-semibold">2 años desde el hecho (Art. 8)</span></p>
+        </div>
+      )}
+
+      <div className="flex gap-3 justify-end">
+        <button
+          onClick={() => setConfirmando(false)}
+          disabled={saving}
+          className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={() => onRegistrar({ resolucion: fundamentacion, fechaResolucion: fecha })}
+          disabled={saving || !fundamentacion.trim() || !fecha}
+          className="px-4 py-2.5 rounded-xl bg-slate-600 hover:bg-slate-700 text-white font-semibold text-sm transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Clock className="w-4 h-4" />}
+          Declarar prescripción
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+// ─────────────────────────────────────────────────────────────
+// 16. COMPULSA (Art. 83)
+// ─────────────────────────────────────────────────────────────
+interface EtapaCompulsaProps {
+  denuncia: Denuncia;
+  onRegistrar: (datos: { fechaCompulsa: string; resolucionCompulsa: string }) => void;
+  saving: boolean;
+}
+
+export function EtapaCompulsa({
+  denuncia, onRegistrar, saving
+}: EtapaCompulsaProps) {
+  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [resolucion, setResolucion] = useState(denuncia.resolucionCompulsa || "");
+  const [abierto, setAbierto] = useState(false);
+
+  if (denuncia.resolucionCompulsa) {
+    return (
+      <div className="bg-fuchsia-50 dark:bg-fuchsia-900/20 rounded-2xl border border-fuchsia-200 dark:border-fuchsia-800 p-5">
+        <h3 className="text-sm font-semibold text-fuchsia-700 dark:text-fuchsia-400 mb-2 flex items-center gap-2">
+          <Scale className="w-4 h-4" />
+          Compulsa registrada (Art. 83)
+        </h3>
+        <p className="text-sm text-fuchsia-700 dark:text-fuchsia-300 leading-relaxed">
+          {denuncia.resolucionCompulsa}
+        </p>
+        {denuncia.fechaCompulsa && (
+          <p className="text-xs text-fuchsia-500 mt-2">
+            Fecha: {denuncia.fechaCompulsa}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  if (!abierto) {
+    return (
+      <div className="bg-fuchsia-50 dark:bg-fuchsia-900/20 rounded-2xl border border-fuchsia-200 dark:border-fuchsia-800 p-5">
+        <h3 className="text-sm font-semibold text-fuchsia-700 dark:text-fuchsia-400 mb-2 flex items-center gap-2">
+          <Scale className="w-4 h-4" />
+          Compulsa (Art. 83)
+        </h3>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          Procede cuando el Tribunal de primera instancia{" "}
+          <span className="font-semibold text-fuchsia-600">niega el recurso de apelación</span>.
+          El agraviado puede recurrir directamente ante el Tribunal Superior dentro de las{" "}
+          <span className="font-semibold text-fuchsia-600">24 horas</span> de notificada
+          la negativa, para que el Superior decida si la apelación debe ser admitida (Art. 83).
+        </p>
+        <button
+          onClick={() => setAbierto(true)}
+          disabled={saving}
+          className="px-4 py-2 rounded-xl bg-fuchsia-500 hover:bg-fuchsia-600 text-white text-sm font-semibold transition-colors flex items-center gap-2"
+        >
+          <Scale className="w-4 h-4" /> Registrar compulsa
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-fuchsia-50 dark:bg-fuchsia-900/20 rounded-2xl border border-fuchsia-200 dark:border-fuchsia-800 p-5">
+      <h3 className="text-sm font-semibold text-fuchsia-700 dark:text-fuchsia-400 mb-3 flex items-center gap-2">
+        <Scale className="w-4 h-4" />
+        Registrar compulsa (Art. 83)
+      </h3>
+
+      <div className="bg-fuchsia-100 dark:bg-fuchsia-900/30 border border-fuchsia-200 dark:border-fuchsia-800 rounded-xl p-3 mb-4">
+        <p className="text-xs text-fuchsia-700 dark:text-fuchsia-400">
+          Plazo: <span className="font-bold">24 horas</span> desde la notificación de la
+          negativa de apelación para interponer compulsa ante el Tribunal Superior (Art. 83).
+        </p>
+      </div>
+
+      <div className="mb-3">
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          Fecha de interposición
+        </label>
+        <input
+          type="date"
+          value={fecha}
+          onChange={e => setFecha(e.target.value)}
+          disabled={saving}
+          className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-fuchsia-500 outline-none"
+        />
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          Resolución del Superior sobre la compulsa
+        </label>
+        <textarea
+          value={resolucion}
+          onChange={e => setResolucion(e.target.value)}
+          rows={5}
+          disabled={saving}
+          placeholder="Registre la resolución del Tribunal Superior: si admite o rechaza la compulsa, y en su caso si ordena que se conceda la apelación..."
+          className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-fuchsia-500 outline-none"
+        />
+      </div>
+
+      <div className="flex gap-3 justify-end">
+        <button
+          onClick={() => setAbierto(false)}
+          disabled={saving}
+          className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={() => onRegistrar({ fechaCompulsa: fecha, resolucionCompulsa: resolucion })}
+          disabled={saving || !resolucion.trim() || !fecha}
+          className="px-4 py-2.5 rounded-xl bg-fuchsia-500 hover:bg-fuchsia-600 text-white font-semibold text-sm transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+          Registrar compulsa
+        </button>
+      </div>
+    </div>
+  );
+}
+
 
 // ─────────────────────────────────────────────────────────────
 // 9. TIMELINE / PROGRESO

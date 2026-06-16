@@ -9,6 +9,8 @@ Ejecutar desde tribunal_backend con:
 import os
 import django
 
+from datetime import date
+
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 django.setup()
 
@@ -16,7 +18,8 @@ from django.contrib.auth.hashers import make_password
 from tribunal.models import (
     Rol, SalaTribunal, SalaAudiencia, Tribunal, EstadoExpediente,
     TipoProceso, TipoAudiencia, TipoDoc, TipoResolucion, TipoRecurso,
-    TipoActuacion, RolProcesal, Permiso, RolPermiso, Usuario
+    TipoActuacion, RolProcesal, Permiso, RolPermiso, Usuario, Persona,
+    ContactoPersona, VocalTribunal
 )
 
 print("=" * 60)
@@ -541,6 +544,105 @@ for u in usuarios_data:
         print(f"✅ Usuario creado: {u['username']} / {u['password']}")
     else:
         print(f"⚠️  Usuario ya existe: {u['username']}")
+
+
+
+# ══════════════════════════════════════════════════════════════
+# 16. PERSONAS
+# ══════════════════════════════════════════════════════════════
+
+print("\n👤 Creando personas...")
+
+william, _ = Persona.objects.get_or_create(
+    numero_documento="70000001",
+    defaults={
+        "nombre": "William",
+        "primer_apellido": "Torrico",
+        "segundo_apellido": "Jimenez",
+        "registro_universitario": "RU001"
+    }
+)
+
+eduardo, _ = Persona.objects.get_or_create(
+    numero_documento="70000002",
+    defaults={
+        "nombre": "Eduardo",
+        "primer_apellido": "Garcia",
+        "segundo_apellido": "Hernandez",
+        "registro_universitario": "RU002"
+    }
+)
+
+camila, _ = Persona.objects.get_or_create(
+    numero_documento="70000003",
+    defaults={
+        "nombre": "Camila",
+        "primer_apellido": "Justiniano",
+        "segundo_apellido": "Apaza",
+        "registro_universitario": "RU003"
+    }
+)
+
+print("✅ Personas creadas")
+
+
+
+
+
+# ══════════════════════════════════════════════════════════════
+# 17. CONTACTOS
+# ══════════════════════════════════════════════════════════════
+
+ContactoPersona.objects.get_or_create(
+    id_persona=william,
+    tipo_contacto="EMAIL",
+    valor="danielgonzalesgutierrez12@gmail.com",
+    defaults={
+        "es_principal": True,
+        "validado": True
+    }
+)
+
+ContactoPersona.objects.get_or_create(
+    id_persona=eduardo,
+    tipo_contacto="EMAIL",
+    valor="brunogonzalesgutierrez@gmail.com",
+    defaults={
+        "es_principal": True,
+        "validado": True
+    }
+)
+
+ContactoPersona.objects.get_or_create(
+    id_persona=camila,
+    tipo_contacto="EMAIL",
+    valor="kenny404xd@gmail.com",
+    defaults={
+        "es_principal": True,
+        "validado": True
+    }
+)
+
+print("✅ Contactos creados")
+
+
+
+
+# ══════════════════════════════════════════════════════════════
+# 18. VOCAL
+# ══════════════════════════════════════════════════════════════
+
+VocalTribunal.objects.get_or_create(
+    id_persona=camila,
+    defaults={
+        "id_sala": sala1,
+        "cargo": "Vocal Titular",
+        "fecha_posesion": date(2026, 1, 1),
+        "activo": True
+    }
+)
+
+print("✅ Vocal creada: Camila Justiniano Apaza")
 
 
 # ══════════════════════════════════════════════════════════════

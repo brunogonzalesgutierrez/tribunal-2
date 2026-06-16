@@ -1,36 +1,96 @@
+// src/pages/denuncias/DenunciaDetailPage.tsx
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@apollo/client";
-import { GET_DENUNCIA_BY_ID, ACTUALIZAR_DENUNCIA, ADMITIR_DENUNCIA } from "../../graphql/denuncias";
-import { GET_SALAS_TRIBUNAL } from "../../graphql/tribunal";
-import { useCrudNotifications } from "../../hooks/useCrudNotifications";
 import {
-  EtapaAdmision,
-  EtapaSubsanacion,
-  EtapaDeclaracionInformativa,
-  EtapaPruebas,
-  EtapaResolucion,
-  EtapaApelacion,
-  EtapaRetiro,
-  EtapaConciliacion,
-  TimelineDenuncia
-} from "./DenunciaEtapas";
-import {
-  AlertCircle, CheckCircle, ChevronLeft, Clock,
-  FileText, Send, Scale, FolderOpen, Plus, Loader2, AlertTriangle,
-  Gavel, FileCheck, ClipboardList, MessageSquare,
-  GitBranch, History, XCircle, User, HandshakeIcon,
-} from "lucide-react";
-import { useAuth } from "../../context/AuthContext";
-// Agregá junto a los otros imports de graphql
-import { GET_HISTORIAL_POR_EXPEDIENTE } from "../../graphql/denuncias";
-import {
+  GET_DENUNCIA_BY_ID, ACTUALIZAR_DENUNCIA, ADMITIR_DENUNCIA,
+  GET_HISTORIAL_POR_EXPEDIENTE,
   ENVIAR_CITACION_ADMISION,
   ENVIAR_CITACION_TERMINO_PROBATORIO,
   ENVIAR_NOTIFICACION_RESOLUCION,
   ENVIAR_NOTIFICACION_RESOLUCION_APELACION,
   ENVIAR_NOTIFICACION_SUBSANACION,
 } from "../../graphql/denuncias";
+import { GET_SALAS_TRIBUNAL } from "../../graphql/tribunal";
+import { GET_TIPOS_AUDIENCIA, GET_SALAS_AUDIENCIA, ELIMINAR_AUDIENCIA } from "../../graphql/audiencias";
+import { gql } from "@apollo/client";
+
+const GET_VOCALES_DISPONIBLES = gql`
+  query {
+    allVocales {
+      idVocal
+      cargo
+      activo
+      idPersona { nombre primerApellido }
+      idSala { nombreSala }
+    }
+  }
+`;
+
+const CREAR_CONFORMACION_DEN = gql`
+  mutation CrearConformacion($idExpediente: Int!, $idVocal: Int!, $rolEnCaso: String!) {
+    crearConformacion(idExpediente: $idExpediente, idVocal: $idVocal, rolEnCaso: $rolEnCaso) {
+      conformacion {
+        idConformacion
+        rolEnCaso
+        idVocal {
+          idVocal
+          cargo
+          idPersona { nombre primerApellido }
+          idSala { nombreSala }
+        }
+      }
+    }
+  }
+`;
+
+const ELIMINAR_CONFORMACION_DEN = gql`
+  mutation EliminarConformacion($id: Int!) {
+    eliminarConformacion(id: $id) {
+      ok
+      mensaje
+    }
+  }
+`;
+import { useCrudNotifications } from "../../hooks/useCrudNotifications";
+import {
+  EtapaAdmision,
+  EtapaDeclaracionInformativa,
+  EtapaPruebas,
+  EtapaResolucion,
+  EtapaApelacion,
+  EtapaRetiro,
+  EtapaConciliacion,
+  EtapaAclaracion,
+  EtapaNotificacionResolucion,
+  EtapaMedidasPrecautorias,
+  EtapaFallecimiento,
+  EtapaDesistimiento,
+  EtapaPrescripcion,
+  EtapaCompulsa,
+  TimelineDenuncia
+} from "./DenunciaEtapas";
+import {
+  FormAudienciaDenuncia,
+  ModalCitacionesDenuncia,
+  ModalAsistenciaDenuncia,
+} from "./DenunciaAudiencias";
+
+
+import {
+  FormDocumentoDenuncia,
+  TarjetaDocumentoDenuncia,
+} from "./DenunciaDocumentos";
+
+import { ELIMINAR_DOCUMENTO } from "../../graphql/documento";
+
+import {
+  AlertCircle, CheckCircle, ChevronLeft, Clock, Calendar,
+  FileText, Send, Scale, FolderOpen, Plus, Loader2, AlertTriangle,
+  Gavel, FileCheck, ClipboardList, MessageSquare,
+  GitBranch, History, XCircle, User, Lock, UserCheck, Building2, Trash2,
+} from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
 
 // ─── HELPERS ─────────────────────────────────────────────
 const ESTADOS = [
@@ -49,6 +109,9 @@ const ESTADOS_TERMINALES: Record<string, { color: string; icon: any; label: stri
   RETIRADA:    { label: "Retirada",    color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400", icon: XCircle },
   CONCILIADA:  { label: "Conciliada",  color: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400",         icon: CheckCircle },
   EJECUTADA:   { label: "Ejecutada",   color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",     icon: FileCheck },
+  FALLECIDO:   { label: "Archivado — Fallecimiento", color: "bg-gray-100 text-gray-600 dark:bg-gray-800/40 dark:text-gray-400", icon: XCircle },
+  DESISTIDA:   { label: "Desistida",  color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400", icon: XCircle },
+  PRESCRITA:   { label: "Prescrita",  color: "bg-slate-100 text-slate-600 dark:bg-slate-800/40 dark:text-slate-400",     icon: Clock },
 };
 
 const TIPOS_DENUNCIADO = [
@@ -75,12 +138,21 @@ const fmtFecha = (iso?: string) => {
 
 // ─── TABS ──────────────────────────────────────────────
 const TABS = [
-  { id: "general",   label: "General",   icon: FileText },
-  { id: "etapas",    label: "Etapas",    icon: GitBranch },
-  { id: "documentos",label: "Documentos",icon: FolderOpen },
-  { id: "historial", label: "Historial", icon: History },
+  { id: "general",    label: "General",    icon: FileText,   requiereExpediente: false },
+  { id: "etapas",     label: "Etapas",     icon: GitBranch,  requiereExpediente: false },
+  { id: "vocales",    label: "Vocales",     icon: User,       requiereExpediente: true  },
+  { id: "audiencias", label: "Audiencias", icon: Calendar,   requiereExpediente: true  },
+  { id: "documentos", label: "Documentos", icon: FolderOpen, requiereExpediente: true  },
+  { id: "historial",  label: "Historial",  icon: History,    requiereExpediente: true  },
 ] as const;
+
 type TabId = typeof TABS[number]["id"];
+
+const ESTADOS_CON_EXPEDIENTE = [
+  "ADMITIDA", "DECLARACION_INFORMATIVA", "PRUEBAS",
+  "CONCLUSION", "RESUELTA", "APELADA", "EJECUTADA",
+  "ARCHIVADA", "RETIRADA", "CONCILIADA",
+];
 
 // ─── COMPONENTE PRINCIPAL ────────────────────────────────
 export default function DenunciaDetailPage() {
@@ -89,38 +161,71 @@ export default function DenunciaDetailPage() {
   const [tabActiva, setTabActiva] = useState<TabId>("general");
   const [saving, setSaving] = useState(false);
 
+  const [showFormAud, setShowFormAud]   = useState(false);
+  const [editandoAud, setEditandoAud]   = useState<any | null>(null);
+  const [citacionAud, setCitacionAud]   = useState<any | null>(null);
+  const [asistenciaAud, setAsistenciaAud] = useState<any | null>(null);
+  const [eliminandoAudId, setEliminandoAudId] = useState<number | null>(null);
+  
+
+  const [showFormDoc, setShowFormDoc]       = useState(false);
+  const [eliminandoDocId, setEliminandoDocId] = useState<number | null>(null);
+  const [eliminarDocumento] = useMutation(ELIMINAR_DOCUMENTO);
+
+  const [crearConformacion]   = useMutation(CREAR_CONFORMACION_DEN);
+  const [eliminarConformacion] = useMutation(ELIMINAR_CONFORMACION_DEN);
+  const { data: dataVocales }  = useQuery(GET_VOCALES_DISPONIBLES);
+  const [showFormVocal, setShowFormVocal]       = useState(false);
+  const [formVocal, setFormVocal]               = useState({ idVocal: 0, vocalLabel: "", rolEnCaso: "" });
+  const [savingVocal, setSavingVocal]           = useState(false);
+  const [errVocal, setErrVocal]                 = useState("");
+  const [modalVocal, setModalVocal]             = useState(false);
+  const [eliminandoVocalId, setEliminandoVocalId] = useState<number | null>(null);
+
+
+
   const { usuario } = useAuth();
+
+  // ── Query principal: SIEMPRE primero, así `denuncia` existe para todo lo de abajo ──
   const { data, loading, refetch } = useQuery(GET_DENUNCIA_BY_ID, {
     variables: { id: Number(id) },
   });
+  const denuncia = data?.denunciaById;
+
   const [actualizarDenuncia] = useMutation(ACTUALIZAR_DENUNCIA);
   const [admitirDenuncia]    = useMutation(ADMITIR_DENUNCIA);
 
+  const [enviarCitacionAdmision]                 = useMutation(ENVIAR_CITACION_ADMISION);
+  const [enviarCitacionTerminoProbatorio]        = useMutation(ENVIAR_CITACION_TERMINO_PROBATORIO);
+  const [enviarNotificacionResolucion]           = useMutation(ENVIAR_NOTIFICACION_RESOLUCION);
+  const [enviarNotificacionResolucionApelacion]  = useMutation(ENVIAR_NOTIFICACION_RESOLUCION_APELACION);
+  const [enviarNotificacionSubsanacion]          = useMutation(ENVIAR_NOTIFICACION_SUBSANACION);
 
-  const [enviarCitacionAdmision]         = useMutation(ENVIAR_CITACION_ADMISION);
-  const [enviarCitacionTerminoProbatorio] = useMutation(ENVIAR_CITACION_TERMINO_PROBATORIO);
-  const [enviarNotificacionResolucion]    = useMutation(ENVIAR_NOTIFICACION_RESOLUCION);
-  const [enviarNotificacionResolucionApelacion] = useMutation(ENVIAR_NOTIFICACION_RESOLUCION_APELACION);
-  const [enviarNotificacionSubsanacion] = useMutation(ENVIAR_NOTIFICACION_SUBSANACION);
-  const { data: dataSalas }  = useQuery(GET_SALAS_TRIBUNAL);
+  const { data: dataSalas }    = useQuery(GET_SALAS_TRIBUNAL);
+  const { data: dataTiposAud } = useQuery(GET_TIPOS_AUDIENCIA);
+  const { data: dataSalasAud } = useQuery(GET_SALAS_AUDIENCIA);
+  const [eliminarAudiencia]    = useMutation(ELIMINAR_AUDIENCIA);
 
-  // ✅ Siempre desde data, nunca desde denuncia (que aún no está definida)
   const { data: dataHistorial, loading: loadingHistorial } = useQuery(
     GET_HISTORIAL_POR_EXPEDIENTE,
     {
-      variables: {
-        idExpediente: Number(data?.denunciaById?.expediente?.idExpediente ?? 0),
-      },
-      skip: !data?.denunciaById?.expediente?.idExpediente,
+      variables: { idExpediente: Number(denuncia?.expediente?.idExpediente ?? 0) },
+      skip: !denuncia?.expediente?.idExpediente,
     }
   );
 
   const historial = dataHistorial?.historialPorExpediente ?? [];
   const salas     = (dataSalas?.allSalasTribunal ?? []).filter((s: any) => s.activa);
+  const audiencias = denuncia?.expediente?.audiencias ?? [];
+  const partes      = denuncia?.expediente?.partes ?? [];
+  const tiposAud    = dataTiposAud?.allTiposAudiencia ?? [];
+  const salasAud    = (dataSalasAud?.allSalasAudiencia ?? []).filter((s: any) => s.activa);
+
+
+  const documentos = denuncia?.expediente?.documentos ?? [];
+  const conformaciones = denuncia?.expediente?.conformaciones ?? [];
+
   const { toast } = useCrudNotifications("Denuncia");
-
-
-  const denuncia = data?.denunciaById;
 
   const getEstadoInfo = (estado: string) => {
     if (ESTADOS_TERMINALES[estado]) {
@@ -148,6 +253,16 @@ export default function DenunciaDetailPage() {
         if (datosAdicionales.fechaApelacion)        input.fechaApelacion = datosAdicionales.fechaApelacion;
         if (datosAdicionales.resolucionApelacion)   input.resolucionApelacion = datosAdicionales.resolucionApelacion;
         if (datosAdicionales.fechaRemisionSuperior) input.fechaRemisionSuperior = datosAdicionales.fechaRemisionSuperior;
+        if (datosAdicionales.aclaracionEnmienda)         input.aclaracionEnmienda = datosAdicionales.aclaracionEnmienda;
+        if (datosAdicionales.fechaSolicitudAclaracion)   input.fechaSolicitudAclaracion = datosAdicionales.fechaSolicitudAclaracion;
+        if (datosAdicionales.fechaNotificacionResolucion) input.fechaNotificacionResolucion = datosAdicionales.fechaNotificacionResolucion;
+        if (datosAdicionales.medidasPrecautorias)        input.medidasPrecautorias = datosAdicionales.medidasPrecautorias;
+        if (datosAdicionales.fechaMedidasPrecautorias)   input.fechaMedidasPrecautorias = datosAdicionales.fechaMedidasPrecautorias;
+        if (datosAdicionales.fechaFallecimientoDenunciado) input.fechaFallecimientoDenunciado = datosAdicionales.fechaFallecimientoDenunciado;
+        if (datosAdicionales.fechaDesistimiento)         input.fechaDesistimiento = datosAdicionales.fechaDesistimiento;
+        if (datosAdicionales.motivoDesistimiento)        input.motivoDesistimiento = datosAdicionales.motivoDesistimiento;
+        if (datosAdicionales.fechaCompulsa)              input.fechaCompulsa = datosAdicionales.fechaCompulsa;
+        if (datosAdicionales.resolucionCompulsa)         input.resolucionCompulsa = datosAdicionales.resolucionCompulsa;
       }
 
       await actualizarDenuncia({
@@ -187,30 +302,21 @@ export default function DenunciaDetailPage() {
       });
 
       if (res?.admitirDenuncia?.ok) {
-        toast.success(
-          `${res.admitirDenuncia.mensaje} — N° ${res.admitirDenuncia.numeroExpediente}`
-        );
+        toast.success(`${res.admitirDenuncia.mensaje} — N° ${res.admitirDenuncia.numeroExpediente}`);
         await refetch();
 
-        // ── Enviar citación al denunciado (Art. 44 + Art. 58a) ──
         try {
           const { data: citacion } = await enviarCitacionAdmision({
             variables: { idDenuncia: Number(id), idUsuario: Number(usuario?.idUsuario) },
           });
           if (citacion?.enviarCitacionAdmision?.ok) {
-            toast.success(
-              `Citación enviada al denunciado: ${citacion.enviarCitacionAdmision.emailEnviado}`
-            );
+            toast.success(`Citación enviada al denunciado: ${citacion.enviarCitacionAdmision.emailEnviado}`);
           } else {
-            // No bloquea el flujo — la admisión ya fue exitosa
-            toast.error(
-              `Denuncia admitida pero no se pudo enviar la citación: ${citacion?.enviarCitacionAdmision?.mensaje}`
-            );
+            toast.error(`Denuncia admitida pero no se pudo enviar la citación: ${citacion?.enviarCitacionAdmision?.mensaje}`);
           }
         } catch {
           toast.error("Denuncia admitida pero hubo un error al enviar la citación por email.");
         }
-
       } else {
         toast.error(res?.admitirDenuncia?.mensaje ?? "Error al admitir la denuncia.");
       }
@@ -240,7 +346,7 @@ export default function DenunciaDetailPage() {
           variables: { idDenuncia: Number(id), idUsuario: Number(usuario?.idUsuario) },
         });
         if (notif?.enviarNotificacionSubsanacion?.ok) {
-          toast.success(`Notificación de subsanación enviada al denunciante`);
+          toast.success("Notificación de subsanación enviada al denunciante");
         } else {
           toast.error(`Estado actualizado pero no se pudo notificar: ${notif?.enviarNotificacionSubsanacion?.mensaje}`);
         }
@@ -254,12 +360,10 @@ export default function DenunciaDetailPage() {
     }
   };
 
-
   const handleAbrirPruebas = async () => {
     if (saving) return;
     setSaving(true);
     try {
-      // 1. Cambiar estado a PRUEBAS
       await actualizarDenuncia({
         variables: {
           id: Number(id),
@@ -270,24 +374,18 @@ export default function DenunciaDetailPage() {
       await refetch();
       toast.success("Período probatorio abierto (Art. 60)");
 
-      // 2. Enviar citación a ambas partes (Art. 60 II)
       try {
         const { data: citacion } = await enviarCitacionTerminoProbatorio({
           variables: { idDenuncia: Number(id), idUsuario: Number(usuario?.idUsuario) },
         });
         if (citacion?.enviarCitacionTerminoProbatorio?.ok) {
-          toast.success(
-            `Notificaciones enviadas a ${citacion.enviarCitacionTerminoProbatorio.enviados} parte(s)`
-          );
+          toast.success(`Notificaciones enviadas a ${citacion.enviarCitacionTerminoProbatorio.enviados} parte(s)`);
         } else {
-          toast.error(
-            `Pruebas abiertas pero no se pudo notificar: ${citacion?.enviarCitacionTerminoProbatorio?.mensaje}`
-          );
+          toast.error(`Pruebas abiertas pero no se pudo notificar: ${citacion?.enviarCitacionTerminoProbatorio?.mensaje}`);
         }
       } catch {
         toast.error("Período probatorio abierto pero hubo un error al enviar las notificaciones.");
       }
-
     } catch (error: any) {
       toast.error(error.message || "Error al abrir el período probatorio");
     } finally {
@@ -296,60 +394,52 @@ export default function DenunciaDetailPage() {
   };
 
   const handleEmitirResolucion = async (
-      resolucion: string,
-      fecha: string,
-      tipo: string,
-      tipoSancion?: string,
-      detalleSancion?: string
-    ) => {
-      if (saving) return;
-      setSaving(true);
-      try {
-        // 1. Cambiar estado a RESUELTA y guardar datos de la resolución
-        await actualizarDenuncia({
-          variables: {
-            id: Number(id),
-            input: {
-              estado: "RESUELTA",
-              resolucion,
-              fechaResolucion: fecha,
-              tipoResolucion: tipo,
-              ...(tipoSancion    && { tipoSancion }),
-              ...(detalleSancion && { detalleSancion }),
-            },
-            idUsuario: usuario?.idUsuario ? Number(usuario.idUsuario) : null,
+    resolucion: string,
+    fecha: string,
+    tipo: string,
+    tipoSancion?: string,
+    detalleSancion?: string
+  ) => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await actualizarDenuncia({
+        variables: {
+          id: Number(id),
+          input: {
+            estado: "RESUELTA",
+            resolucion,
+            fechaResolucion: fecha,
+            tipoResolucion: tipo,
+            ...(tipoSancion    && { tipoSancion }),
+            ...(detalleSancion && { detalleSancion }),
           },
+          idUsuario: usuario?.idUsuario ? Number(usuario.idUsuario) : null,
+        },
+      });
+      await refetch();
+      toast.success("Resolución definitiva emitida (Art. 75)");
+
+      try {
+        const { data: notif } = await enviarNotificacionResolucion({
+          variables: { idDenuncia: Number(id), idUsuario: Number(usuario?.idUsuario) },
         });
-        await refetch();
-        toast.success("Resolución definitiva emitida (Art. 75)");
-
-        // 2. Notificar a ambas partes (Art. 45 + Art. 46)
-        try {
-          const { data: notif } = await enviarNotificacionResolucion({
-            variables: { idDenuncia: Number(id), idUsuario: Number(usuario?.idUsuario) },
-          });
-          if (notif?.enviarNotificacionResolucion?.ok) {
-            toast.success(
-              `Resolución notificada a ${notif.enviarNotificacionResolucion.enviados} parte(s)`
-            );
-          } else {
-            toast.error(
-              `Resolución emitida pero no se pudo notificar: ${notif?.enviarNotificacionResolucion?.mensaje}`
-            );
-          }
-        } catch {
-          toast.error("Resolución emitida pero hubo un error al enviar las notificaciones.");
+        if (notif?.enviarNotificacionResolucion?.ok) {
+          toast.success(`Resolución notificada a ${notif.enviarNotificacionResolucion.enviados} parte(s)`);
+        } else {
+          toast.error(`Resolución emitida pero no se pudo notificar: ${notif?.enviarNotificacionResolucion?.mensaje}`);
         }
-
-      } catch (error: any) {
-        toast.error(error.message || "Error al emitir la resolución");
-      } finally {
-        setSaving(false);
+      } catch {
+        toast.error("Resolución emitida pero hubo un error al enviar las notificaciones.");
       }
-    };
+    } catch (error: any) {
+      toast.error(error.message || "Error al emitir la resolución");
+    } finally {
+      setSaving(false);
+    }
+  };
 
-
-    const handleResolverApelacion = async (datos: { resolucionApelacion: string }) => {
+  const handleResolverApelacion = async (datos: { resolucionApelacion: string }) => {
     if (saving) return;
     setSaving(true);
     try {
@@ -381,7 +471,7 @@ export default function DenunciaDetailPage() {
       setSaving(false);
     }
   };
-  
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -404,7 +494,6 @@ export default function DenunciaDetailPage() {
 
   const estadoActual = getEstadoInfo(denuncia.estado);
   const EstadoIcon = estadoActual.icon;
-  const esTerminal = Object.keys(ESTADOS_TERMINALES).includes(denuncia.estado);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -435,44 +524,43 @@ export default function DenunciaDetailPage() {
         </div>
       </div>
 
-      {/* TIMELINE — solo si no es terminal lateral */}
-      {!["RETIRADA", "CONCILIADA", "ARCHIVADA"].includes(denuncia.estado) && (
+      {!["RETIRADA", "CONCILIADA", "ARCHIVADA", "FALLECIDO", "DESISTIDA", "PRESCRITA"].includes(denuncia.estado) && (
         <TimelineDenuncia estadoActual={denuncia.estado} estados={ESTADOS} />
       )}
 
-      {/* LAYOUT PRINCIPAL */}
       <div className="flex gap-6 items-start">
 
-        {/* SIDEBAR TABS */}
         <nav className="w-44 shrink-0 bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
           {TABS.map(tab => {
             const Icon = tab.icon;
             const activa = tabActiva === tab.id;
+            const bloqueado = tab.requiereExpediente && !denuncia.expediente;
             return (
               <button
                 key={tab.id}
-                onClick={() => setTabActiva(tab.id)}
+                onClick={() => { if (!bloqueado) setTabActiva(tab.id); }}
+                title={bloqueado ? "Disponible una vez que la denuncia sea admitida" : tab.label}
                 className={`w-full flex items-center gap-2.5 px-4 py-3 text-sm font-medium transition-all border-l-2 ${
-                  activa
-                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
-                    : "border-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700/50"
+                  bloqueado
+                    ? "border-transparent text-gray-300 dark:text-gray-600 cursor-not-allowed opacity-50"
+                    : activa
+                      ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                      : "border-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700/50"
                 }`}
               >
                 <Icon className="w-4 h-4 shrink-0" />
                 <span className="flex-1 text-left">{tab.label}</span>
+                {bloqueado && <Lock className="w-3 h-3 shrink-0" />}
               </button>
             );
           })}
         </nav>
 
-        {/* PANEL CONTENIDO */}
         <div className="flex-1 min-w-0 bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm p-6">
 
           {/* ── TAB GENERAL ── */}
           {tabActiva === "general" && (
             <div className="space-y-6">
-
-              {/* Datos principales */}
               <div className="bg-gray-50 dark:bg-slate-800/60 rounded-2xl p-5">
                 <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-4">
                   Datos de la Denuncia
@@ -509,6 +597,33 @@ export default function DenunciaDetailPage() {
                           {denuncia.expediente.numeroExpediente}
                         </span>
                       </div>
+                      <button
+                        onClick={() => navigate(`/expedientes/${denuncia.expediente.idExpediente}`)}
+                        className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 text-xs font-semibold hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                      >
+                        <FolderOpen className="w-3.5 h-3.5" />
+                        Ver expediente completo
+                      </button>
+                      {denuncia.expediente.conformaciones?.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Vocales asignados</p>
+                          {denuncia.expediente.conformaciones.map((c: any) => (
+                            <div key={c.idConformacion} className="flex items-center gap-3 p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/40">
+                              <div className="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center shrink-0">
+                                <User className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-gray-800 dark:text-white">
+                                  {c.idVocal?.idPersona?.nombre} {c.idVocal?.idPersona?.primerApellido}
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                  {c.rolEnCaso} · {c.idVocal?.cargo}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -518,7 +633,6 @@ export default function DenunciaDetailPage() {
                 </div>
               </div>
 
-              {/* Resolución */}
               {denuncia.resolucion && (
                 <div className="bg-gray-50 dark:bg-slate-800/60 rounded-2xl p-5">
                   <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -552,7 +666,6 @@ export default function DenunciaDetailPage() {
                 </div>
               )}
 
-              {/* Retiro */}
               {denuncia.estado === "RETIRADA" && (
                 <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-2xl p-5 border border-yellow-200 dark:border-yellow-800">
                   <h3 className="text-xs font-bold text-yellow-700 dark:text-yellow-400 uppercase tracking-widest mb-3">
@@ -567,7 +680,6 @@ export default function DenunciaDetailPage() {
                 </div>
               )}
 
-              {/* Conciliación */}
               {denuncia.estado === "CONCILIADA" && (
                 <div className="bg-teal-50 dark:bg-teal-900/20 rounded-2xl p-5 border border-teal-200 dark:border-teal-800">
                   <h3 className="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-widest mb-3">
@@ -582,7 +694,6 @@ export default function DenunciaDetailPage() {
                 </div>
               )}
 
-              {/* Apelación */}
               {(denuncia.estado === "APELADA" || denuncia.resolucionApelacion) && (
                 <div className="bg-orange-50 dark:bg-orange-900/20 rounded-2xl p-5 border border-orange-200 dark:border-orange-800">
                   <h3 className="text-xs font-bold text-orange-700 dark:text-orange-400 uppercase tracking-widest mb-3">
@@ -604,6 +715,94 @@ export default function DenunciaDetailPage() {
                 </div>
               )}
 
+
+
+              {denuncia.resolucionCompulsa && (
+                <div className="bg-fuchsia-50 dark:bg-fuchsia-900/20 rounded-2xl p-5 border border-fuchsia-200 dark:border-fuchsia-800">
+                  <h3 className="text-xs font-bold text-fuchsia-700 dark:text-fuchsia-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <Scale className="w-4 h-4" />
+                    Compulsa (Art. 83)
+                  </h3>
+                  <p className="text-sm text-fuchsia-700 dark:text-fuchsia-300 leading-relaxed">
+                    {denuncia.resolucionCompulsa}
+                  </p>
+                  {denuncia.fechaCompulsa && (
+                    <p className="text-xs text-fuchsia-500 mt-2">
+                      Fecha: {fmtFecha(denuncia.fechaCompulsa)}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {denuncia.medidasPrecautorias && (
+                <div className="bg-rose-50 dark:bg-rose-900/20 rounded-2xl p-5 border border-rose-200 dark:border-rose-800">
+                  <h3 className="text-xs font-bold text-rose-700 dark:text-rose-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4" />
+                    Medidas precautorias vigentes (Art. 61)
+                  </h3>
+                  <p className="text-sm text-rose-700 dark:text-rose-300 leading-relaxed">
+                    {denuncia.medidasPrecautorias}
+                  </p>
+                  {denuncia.fechaMedidasPrecautorias && (
+                    <p className="text-xs text-rose-500 mt-2">
+                      Dispuestas el: {fmtFecha(denuncia.fechaMedidasPrecautorias)}
+                    </p>
+                  )}
+                </div>
+              )}
+
+
+              {denuncia.fechaFallecimientoDenunciado && (
+                <div className="bg-gray-100 dark:bg-gray-800/40 rounded-2xl p-5 border border-gray-300 dark:border-gray-700">
+                  <h3 className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                    <XCircle className="w-4 h-4" />
+                    Fallecimiento del denunciado (Art. 80)
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    Fecha: {fmtFecha(denuncia.fechaFallecimientoDenunciado)}
+                  </p>
+                </div>
+              )}
+
+
+              {denuncia.fechaDesistimiento && (
+                <div className="bg-orange-50 dark:bg-orange-900/20 rounded-2xl p-5 border border-orange-200 dark:border-orange-800">
+                  <h3 className="text-xs font-bold text-orange-700 dark:text-orange-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <XCircle className="w-4 h-4" />
+                    Desistimiento (Art. 23)
+                  </h3>
+                  {denuncia.motivoDesistimiento && (
+                    <p className="text-sm text-orange-700 dark:text-orange-300 leading-relaxed">
+                      {denuncia.motivoDesistimiento}
+                    </p>
+                  )}
+                  <p className="text-xs text-orange-500 mt-2">
+                    Fecha: {fmtFecha(denuncia.fechaDesistimiento)}
+                  </p>
+                </div>
+              )}
+
+
+              {denuncia.estado === "PRESCRITA" && (
+                <div className="bg-slate-50 dark:bg-slate-800/40 rounded-2xl p-5 border border-slate-300 dark:border-slate-600">
+                  <h3 className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    Prescripción declarada (Art. 8 / Art. 81)
+                  </h3>
+                  {denuncia.resolucion && (
+                    <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                      {denuncia.resolucion}
+                    </p>
+                  )}
+                  {denuncia.fechaResolucion && (
+                    <p className="text-xs text-slate-500 mt-2">
+                      Fecha: {fmtFecha(denuncia.fechaResolucion)}
+                    </p>
+                  )}
+                </div>
+              )}
+
+
             </div>
           )}
 
@@ -611,43 +810,92 @@ export default function DenunciaDetailPage() {
           {tabActiva === "etapas" && (
             <div className="space-y-4">
 
+              {/* Indicador de etapa actual */}
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-slate-800/60 border border-gray-200 dark:border-slate-700">
+                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                  ["EJECUTADA","ARCHIVADA","RETIRADA","CONCILIADA","FALLECIDO","DESISTIDA","PRESCRITA"].includes(denuncia.estado)
+                    ? "bg-gray-400"
+                    : "bg-blue-500 animate-pulse"
+                }`} />
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Estado actual: <span className="font-semibold text-gray-800 dark:text-white">{getEstadoInfo(denuncia.estado).label}</span>
+                </p>
+              </div>
+
+              {/* ── REGISTRADA: Admisión + Retiro ── */}
               {denuncia.estado === "REGISTRADA" && (
-                <EtapaAdmision
-                  denuncia={denuncia}
-                  onAvanzar={(nuevoEstado) => avanzarEtapa(nuevoEstado)}
-                  onRechazar={() => avanzarEtapa("ARCHIVADA")}
-                  onSolicitarSubsanacion={handleSolicitarSubsanacion}
-                  onRetirar={() => setTabActiva("etapas")}
-                  onAdmitir={handleAdmitir}
-                  salas={salas}
-                  saving={saving}
-                />
+                <>
+                  <EtapaAdmision
+                    denuncia={denuncia}
+                    onAvanzar={(nuevoEstado) => avanzarEtapa(nuevoEstado)}
+                    onRechazar={() => avanzarEtapa("ARCHIVADA")}
+                    onSolicitarSubsanacion={handleSolicitarSubsanacion}
+                    onRetirar={() => {}}
+                    onAdmitir={handleAdmitir}
+                    salas={salas}
+                    saving={saving}
+                  />
+                  <EtapaRetiro
+                    denuncia={denuncia}
+                    onRetirar={(datos) => avanzarEtapa("RETIRADA", datos)}
+                    saving={saving}
+                  />
+
+                  <EtapaPrescripcion
+                    denuncia={denuncia}
+                    onRegistrar={(datos) => avanzarEtapa("PRESCRITA", datos)}
+                    saving={saving}
+                  />
+                </>
               )}
 
+              {/* ── SUBSANACION: Admisión (vuelve a intentar) + Retiro ── */}
               {denuncia.estado === "SUBSANACION" && (
-                <EtapaAdmision
-                  denuncia={denuncia}
-                  onAvanzar={(nuevoEstado) => avanzarEtapa(nuevoEstado)}
-                  onRechazar={() => avanzarEtapa("ARCHIVADA")}
-                  onSolicitarSubsanacion={handleSolicitarSubsanacion}
-                  onRetirar={() => setTabActiva("etapas")}
-                  onAdmitir={handleAdmitir}
-                  salas={salas}
-                  saving={saving}
-                />
+                <>
+                  <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-sm text-amber-700 dark:text-amber-400 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold">Denuncia en subsanación (Art. 56)</p>
+                      <p className="text-xs mt-1 text-amber-600 dark:text-amber-500">
+                        El denunciante tiene 3 días hábiles para subsanar los defectos. Una vez subsanada, podés proceder a admitirla.
+                      </p>
+                    </div>
+                  </div>
+                  <EtapaAdmision
+                    denuncia={denuncia}
+                    onAvanzar={(nuevoEstado) => avanzarEtapa(nuevoEstado)}
+                    onRechazar={() => avanzarEtapa("ARCHIVADA")}
+                    onSolicitarSubsanacion={handleSolicitarSubsanacion}
+                    onRetirar={() => {}}
+                    onAdmitir={handleAdmitir}
+                    salas={salas}
+                    saving={saving}
+                  />
+                  <EtapaRetiro
+                    denuncia={denuncia}
+                    onRetirar={(datos) => avanzarEtapa("RETIRADA", datos)}
+                    saving={saving}
+                  />
+                  <EtapaPrescripcion
+                    denuncia={denuncia}
+                    onRegistrar={(datos) => avanzarEtapa("PRESCRITA", datos)}
+                    saving={saving}
+                  />
+                </>
               )}
 
-              {/* Retiro — disponible antes de la citación (estado REGISTRADA o SUBSANACION) */}
-              {(denuncia.estado === "REGISTRADA" || denuncia.estado === "SUBSANACION") && (
-                <EtapaRetiro
-                  denuncia={denuncia}
-                  onRetirar={(datos) => avanzarEtapa("RETIRADA", datos)}
-                  saving={saving}
-                />
-              )}
-
+              {/* ── ADMITIDA: Declaración informativa + Conciliación ── */}
               {denuncia.estado === "ADMITIDA" && (
                 <>
+                  <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-sm text-blue-700 dark:text-blue-400 flex items-start gap-2">
+                    <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold">Denuncia admitida — Expediente {denuncia.expediente?.numeroExpediente}</p>
+                      <p className="text-xs mt-1 text-blue-600 dark:text-blue-500">
+                        El denunciado fue citado y tiene 10 días hábiles para asumir su defensa (Art. 58 inc. a). Registrá la declaración informativa cuando se presente o venza el plazo.
+                      </p>
+                    </div>
+                  </div>
                   <EtapaDeclaracionInformativa
                     denuncia={denuncia}
                     onRegistrarDeclaracion={(datos) => avanzarEtapa("DECLARACION_INFORMATIVA", datos)}
@@ -658,11 +906,42 @@ export default function DenunciaDetailPage() {
                     onConciliar={(datos) => avanzarEtapa("CONCILIADA", datos)}
                     saving={saving}
                   />
+                  <EtapaMedidasPrecautorias
+                    denuncia={denuncia}
+                    onRegistrar={(datos) => avanzarEtapa(denuncia.estado, datos)}
+                    saving={saving}
+                  />
+                  <EtapaFallecimiento
+                    denuncia={denuncia}
+                    onRegistrar={(datos) => avanzarEtapa("FALLECIDO", datos)}
+                    saving={saving}
+                  />
+                  <EtapaDesistimiento
+                    denuncia={denuncia}
+                    onRegistrar={(datos) => avanzarEtapa("DESISTIDA", datos)}
+                    saving={saving}
+                  />
+
+                  <EtapaPrescripcion
+                    denuncia={denuncia}
+                    onRegistrar={(datos) => avanzarEtapa("PRESCRITA", datos)}
+                    saving={saving}
+                  />
                 </>
               )}
 
+              {/* ── DECLARACION_INFORMATIVA: Abrir pruebas + Conciliación ── */}
               {denuncia.estado === "DECLARACION_INFORMATIVA" && (
                 <>
+                  <div className="p-4 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 text-sm text-indigo-700 dark:text-indigo-400 flex items-start gap-2">
+                    <MessageSquare className="w-4 h-4 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold">Declaración informativa registrada (Art. 58)</p>
+                      <p className="text-xs mt-1 text-indigo-600 dark:text-indigo-500">
+                        Podés abrir el período probatorio de 30 días hábiles (Art. 60), o registrar una conciliación si las partes llegaron a un acuerdo (Art. 59).
+                      </p>
+                    </div>
+                  </div>
                   <EtapaPruebas
                     denuncia={denuncia}
                     onAbrirPruebas={handleAbrirPruebas}
@@ -673,50 +952,163 @@ export default function DenunciaDetailPage() {
                     onConciliar={(datos) => avanzarEtapa("CONCILIADA", datos)}
                     saving={saving}
                   />
+                  <EtapaMedidasPrecautorias
+                    denuncia={denuncia}
+                    onRegistrar={(datos) => avanzarEtapa(denuncia.estado, datos)}
+                    saving={saving}
+                  />
+                  <EtapaFallecimiento
+                    denuncia={denuncia}
+                    onRegistrar={(datos) => avanzarEtapa("FALLECIDO", datos)}
+                    saving={saving}
+                  />
+                  <EtapaDesistimiento
+                    denuncia={denuncia}
+                    onRegistrar={(datos) => avanzarEtapa("DESISTIDA", datos)}
+                    saving={saving}
+                  />
+                  <EtapaPrescripcion
+                    denuncia={denuncia}
+                    onRegistrar={(datos) => avanzarEtapa("PRESCRITA", datos)}
+                    saving={saving}
+                  />
                 </>
               )}
 
+              {/* ── PRUEBAS: Solo cerrar pruebas ── */}
               {denuncia.estado === "PRUEBAS" && (
-                <EtapaPruebas
-                  denuncia={denuncia}
-                  onCerrarPruebas={() => avanzarEtapa("CONCLUSION")}
-                  saving={saving}
-                />
+                <>
+                  <div className="p-4 rounded-xl bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 text-sm text-purple-700 dark:text-purple-400 flex items-start gap-2">
+                    <ClipboardList className="w-4 h-4 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold">Período probatorio abierto (Art. 60)</p>
+                      <p className="text-xs mt-1 text-purple-600 dark:text-purple-500">
+                        Plazo de 30 días hábiles para recepcionar pruebas de cargo y descargo. Las partes tienen 5 días hábiles desde la notificación para ratificar sus pruebas. Usá el tab Documentos para adjuntar las pruebas presentadas.
+                      </p>
+                    </div>
+                  </div>
+                  <EtapaPruebas
+                    denuncia={denuncia}
+                    onCerrarPruebas={() => avanzarEtapa("CONCLUSION")}
+                    saving={saving}
+                  />
+                </>
               )}
 
+              {/* ── CONCLUSION: Solo emitir resolución ── */}
               {denuncia.estado === "CONCLUSION" && (
-                <EtapaResolucion
-                  denuncia={denuncia}
-                  onEmitirResolucion={handleEmitirResolucion}
-                  saving={saving}
-                />
+                <>
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-400 flex items-start gap-2">
+                    <Clock className="w-4 h-4 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold">Clausura probatoria (Art. 74)</p>
+                      <p className="text-xs mt-1 text-slate-500 dark:text-slate-500">
+                        El período probatorio fue cerrado. El Tribunal tiene 15 días hábiles para dictar la resolución final motivada (Art. 75).
+                      </p>
+                    </div>
+                  </div>
+                  <EtapaResolucion
+                    denuncia={denuncia}
+                    onEmitirResolucion={handleEmitirResolucion}
+                    saving={saving}
+                  />
+                </>
               )}
 
+              {/* ── RESUELTA: Apelar o ejecutar ── */}
               {denuncia.estado === "RESUELTA" && (
-                <EtapaApelacion
-                  denuncia={denuncia}
-                  onApelar={(datos) => avanzarEtapa("APELADA", datos)}
-                  onEjecutar={() => avanzarEtapa("EJECUTADA")}
-                  saving={saving}
-                />
+                <>
+                  <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-sm text-emerald-700 dark:text-emerald-400 flex items-start gap-2">
+                    <Gavel className="w-4 h-4 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold">Resolución definitiva emitida (Art. 75)</p>
+                      <p className="text-xs mt-1 text-emerald-600 dark:text-emerald-500">
+                        Las partes tienen 5 días hábiles para interponer recurso de apelación (Art. 82). Si no hay apelación, ejecutá el fallo directamente.
+                      </p>
+                    </div>
+                  </div>
+                  <EtapaAclaracion
+                    denuncia={denuncia}
+                    onRegistrar={(datos) => avanzarEtapa("RESUELTA", datos)}
+                    saving={saving}
+                  />
+                  <EtapaNotificacionResolucion
+                    denuncia={denuncia}
+                    onRegistrar={(datos) => avanzarEtapa("RESUELTA", datos)}
+                    saving={saving}
+                  />
+                  <EtapaMedidasPrecautorias
+                    denuncia={denuncia}
+                    onRegistrar={(datos) => avanzarEtapa(denuncia.estado, datos)}
+                    saving={saving}
+                  />
+                  <EtapaFallecimiento
+                    denuncia={denuncia}
+                    onRegistrar={(datos) => avanzarEtapa("FALLECIDO", datos)}
+                    saving={saving}
+                  />
+                  <EtapaDesistimiento
+                    denuncia={denuncia}
+                    onRegistrar={(datos) => avanzarEtapa("DESISTIDA", datos)}
+                    saving={saving}
+                  />
+                  <EtapaPrescripcion
+                    denuncia={denuncia}
+                    onRegistrar={(datos) => avanzarEtapa("PRESCRITA", datos)}
+                    saving={saving}
+                  />
+                  <EtapaApelacion
+                    denuncia={denuncia}
+                    onApelar={(datos) => avanzarEtapa("APELADA", datos)}
+                    onEjecutar={() => avanzarEtapa("EJECUTADA")}
+                    saving={saving}
+                  />
+                </>
               )}
 
+              {/* ── APELADA: Remitir al superior y registrar resolución ── */}
               {denuncia.estado === "APELADA" && (
-                <EtapaApelacion
-                  denuncia={denuncia}
-                  onRemitirSuperior={(datos) => avanzarEtapa("APELADA", datos)}
-                  onResolverApelacion={handleResolverApelacion}
-                  saving={saving}
-                />
+                <>
+                  <div className="p-4 rounded-xl bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 text-sm text-orange-700 dark:text-orange-400 flex items-start gap-2">
+                    <Send className="w-4 h-4 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold">Recurso de apelación interpuesto (Art. 82)</p>
+                      <p className="text-xs mt-1 text-orange-600 dark:text-orange-500">
+                        Debés remitir el expediente al Tribunal Superior en 3 días hábiles (Art. 86). Una vez recibida la resolución del Superior, registrala aquí para ejecutar el fallo.
+                      </p>
+                    </div>
+                  </div>
+                  <EtapaApelacion
+                    denuncia={denuncia}
+                    onRemitirSuperior={(datos) => avanzarEtapa("APELADA", datos)}
+                    onResolverApelacion={handleResolverApelacion}
+                    saving={saving}
+                  />
+                  <EtapaCompulsa
+                    denuncia={denuncia}
+                    onRegistrar={(datos) => avanzarEtapa("APELADA", datos)}
+                    saving={saving}
+                  />
+                  <EtapaPrescripcion
+                    denuncia={denuncia}
+                    onRegistrar={(datos) => avanzarEtapa("PRESCRITA", datos)}
+                    saving={saving}
+                  />
+              
+                </>
               )}
 
+              {/* ── ESTADOS TERMINALES ── */}
               {denuncia.estado === "EJECUTADA" && (
                 <div className="bg-green-50 dark:bg-green-900/20 rounded-2xl border border-green-200 dark:border-green-800 p-6 text-center">
                   <FileCheck className="w-12 h-12 mx-auto text-green-500 mb-3" />
                   <h3 className="text-lg font-semibold text-green-700 dark:text-green-400">Proceso Concluido</h3>
                   <p className="text-sm text-green-600 dark:text-green-300 mt-1">
-                    Esta denuncia ha sido ejecutada y el proceso ha finalizado.
+                    Esta denuncia ha sido ejecutada y el proceso ha finalizado correctamente.
                   </p>
+                  {denuncia.resolucion && (
+                    <p className="text-xs text-green-500 mt-3 italic">"{denuncia.resolucion.slice(0, 120)}{denuncia.resolucion.length > 120 ? "..." : ""}"</p>
+                  )}
                 </div>
               )}
 
@@ -725,7 +1117,7 @@ export default function DenunciaDetailPage() {
                   <XCircle className="w-12 h-12 mx-auto text-red-500 mb-3" />
                   <h3 className="text-lg font-semibold text-red-700 dark:text-red-400">Denuncia Archivada</h3>
                   <p className="text-sm text-red-600 dark:text-red-300 mt-1">
-                    Esta denuncia fue rechazada o archivada y no continuará su tramitación.
+                    Esta denuncia fue rechazada o archivada (Art. 57). No continuará su tramitación.
                   </p>
                 </div>
               )}
@@ -733,12 +1125,15 @@ export default function DenunciaDetailPage() {
               {denuncia.estado === "RETIRADA" && (
                 <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-2xl border border-yellow-200 dark:border-yellow-800 p-6 text-center">
                   <XCircle className="w-12 h-12 mx-auto text-yellow-500 mb-3" />
-                  <h3 className="text-lg font-semibold text-yellow-700 dark:text-yellow-400">Denuncia Retirada</h3>
+                  <h3 className="text-lg font-semibold text-yellow-700 dark:text-yellow-400">Denuncia Retirada (Art. 22)</h3>
                   <p className="text-sm text-yellow-600 dark:text-yellow-300 mt-1">
-                    El denunciante retiró la denuncia antes de la citación (Art. 22).
+                    El denunciante retiró la denuncia antes de la citación. Se tiene por no presentada.
                   </p>
                   {denuncia.motivoRetiro && (
-                    <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-2 font-medium">{denuncia.motivoRetiro}</p>
+                    <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-3 font-medium">{denuncia.motivoRetiro}</p>
+                  )}
+                  {denuncia.fechaRetiro && (
+                    <p className="text-xs text-yellow-500 mt-1">Fecha: {fmtFecha(denuncia.fechaRetiro)}</p>
                   )}
                 </div>
               )}
@@ -746,45 +1141,541 @@ export default function DenunciaDetailPage() {
               {denuncia.estado === "CONCILIADA" && (
                 <div className="bg-teal-50 dark:bg-teal-900/20 rounded-2xl border border-teal-200 dark:border-teal-800 p-6 text-center">
                   <CheckCircle className="w-12 h-12 mx-auto text-teal-500 mb-3" />
-                  <h3 className="text-lg font-semibold text-teal-700 dark:text-teal-400">Proceso Conciliado</h3>
+                  <h3 className="text-lg font-semibold text-teal-700 dark:text-teal-400">Proceso Conciliado (Art. 59)</h3>
                   <p className="text-sm text-teal-600 dark:text-teal-300 mt-1">
-                    Las partes llegaron a un acuerdo (Art. 59). Se elaboró acta de conciliación.
+                    Las partes llegaron a un acuerdo. Se elaboró acta de conciliación y se archivaron los obrados.
                   </p>
+                  {denuncia.actaConciliacion && (
+                    <p className="text-sm text-teal-700 dark:text-teal-300 mt-3 italic">"{denuncia.actaConciliacion.slice(0, 120)}{denuncia.actaConciliacion.length > 120 ? "..." : ""}"</p>
+                  )}
+                  {denuncia.fechaConciliacion && (
+                    <p className="text-xs text-teal-500 mt-1">Fecha: {fmtFecha(denuncia.fechaConciliacion)}</p>
+                  )}
+                </div>
+              )}
+              {denuncia.estado === "FALLECIDO" && (
+                <div className="bg-gray-100 dark:bg-gray-800/40 rounded-2xl border border-gray-300 dark:border-gray-700 p-6 text-center">
+                  <XCircle className="w-12 h-12 mx-auto text-gray-400 mb-3" />
+                  <h3 className="text-lg font-semibold text-gray-600 dark:text-gray-400">
+                    Proceso archivado — Fallecimiento (Art. 80)
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    La acción disciplinaria se extinguió por fallecimiento del denunciado.
+                    El expediente fue archivado de conformidad con el Art. 80 del Reglamento.
+                  </p>
+                  {denuncia.fechaFallecimientoDenunciado && (
+                    <p className="text-xs text-gray-400 mt-3">
+                      Fecha de fallecimiento: {fmtFecha(denuncia.fechaFallecimientoDenunciado)}
+                    </p>
+                  )}
+                </div>
+              )}
+
+
+              {denuncia.estado === "DESISTIDA" && (
+                <div className="bg-orange-50 dark:bg-orange-900/20 rounded-2xl border border-orange-200 dark:border-orange-800 p-6 text-center">
+                  <XCircle className="w-12 h-12 mx-auto text-orange-400 mb-3" />
+                  <h3 className="text-lg font-semibold text-orange-700 dark:text-orange-400">
+                    Proceso archivado — Desistimiento (Art. 23)
+                  </h3>
+                  <p className="text-sm text-orange-600 dark:text-orange-300 mt-1">
+                    El denunciante desistió de la acción. El proceso fue archivado y no puede
+                    reiniciarse por los mismos hechos (Art. 23 par. I).
+                  </p>
+                  {denuncia.motivoDesistimiento && (
+                    <p className="text-sm text-orange-700 dark:text-orange-300 mt-3 font-medium">
+                      {denuncia.motivoDesistimiento}
+                    </p>
+                  )}
+                  {denuncia.fechaDesistimiento && (
+                    <p className="text-xs text-orange-400 mt-1">
+                      Fecha: {fmtFecha(denuncia.fechaDesistimiento)}
+                    </p>
+                  )}
+                </div>
+              )}
+
+
+              {denuncia.estado === "PRESCRITA" && (
+                <div className="bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-300 dark:border-slate-600 p-6 text-center">
+                  <Clock className="w-12 h-12 mx-auto text-slate-400 mb-3" />
+                  <h3 className="text-lg font-semibold text-slate-600 dark:text-slate-400">
+                    Acción prescrita (Art. 8 / Art. 81)
+                  </h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    La acción disciplinaria fue declarada prescrita por resolución fundada
+                    del Tribunal (Art. 81). El plazo de 2 años desde los hechos fue superado
+                    sin resolución definitiva (Art. 8).
+                  </p>
+                  {denuncia.resolucion && (
+                    <p className="text-xs text-slate-400 mt-3 italic">
+                      "{denuncia.resolucion.slice(0, 120)}{denuncia.resolucion.length > 120 ? "..." : ""}"
+                    </p>
+                  )}
+                  {denuncia.fechaResolucion && (
+                    <p className="text-xs text-slate-400 mt-2">
+                      Fecha: {fmtFecha(denuncia.fechaResolucion)}
+                    </p>
+                  )}
                 </div>
               )}
 
             </div>
           )}
 
-          {/* ── TAB DOCUMENTOS ── */}
-          {tabActiva === "documentos" && (
-            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-              <FolderOpen className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
-              <p>No hay documentos asociados a esta denuncia</p>
-              <label className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm cursor-pointer transition-colors">
-                <Plus className="w-4 h-4" />
-                Subir documento
-                <input
-                  type="file"
-                  className="hidden"
-                  accept=".pdf,.doc,.docx,.jpg,.png"
-                  onChange={e => {
-                    const archivo = e.target.files?.[0];
-                    if (archivo) {
-                      alert(`Archivo seleccionado: ${archivo.name}\n\nFuncionalidad de subida pendiente de implementar.`);
-                    }
-                  }}
-                />
-              </label>
+          {/* ── TAB AUDIENCIAS ── */}
+          {tabActiva === "audiencias" && (
+            <div className="space-y-4">
+              {!denuncia.expediente && (
+                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                  <Calendar className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+                  <p className="text-sm">Las audiencias estarán disponibles una vez que la denuncia sea admitida.</p>
+                </div>
+              )}
+
+              {denuncia.expediente && (
+                <>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+                      {audiencias.length} audiencia{audiencias.length !== 1 ? "s" : ""}
+                    </p>
+                    {!showFormAud && (
+                      <button
+                        onClick={() => { setEditandoAud(null); setShowFormAud(true); }}
+                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold transition-all shadow-sm"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Programar audiencia
+                      </button>
+                    )}
+                  </div>
+
+                  {showFormAud && (
+                    <FormAudienciaDenuncia
+                      idExpediente={denuncia.expediente.idExpediente}
+                      editando={editandoAud}
+                      tiposAud={tiposAud}
+                      salasAud={salasAud}
+                      onSaved={() => { setShowFormAud(false); setEditandoAud(null); refetch(); }}
+                      onCancel={() => { setShowFormAud(false); setEditandoAud(null); }}
+                    />
+                  )}
+
+                  {audiencias.length === 0 && !showFormAud && (
+                    <div className="flex flex-col items-center gap-4 py-10 text-gray-400 dark:text-gray-600">
+                      <Calendar className="w-10 h-10" />
+                      <p className="text-sm">Sin audiencias programadas</p>
+                      <button
+                        onClick={() => { setEditandoAud(null); setShowFormAud(true); }}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold"
+                      >
+                        <Plus className="w-4 h-4" /> Programar primera audiencia
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    {audiencias.map((a: any) => (
+                      <div key={a.idAudiencia}
+                        className="p-4 rounded-xl border bg-gray-50 dark:bg-slate-800/60 border-gray-200 dark:border-slate-700 space-y-3">
+
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                              <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-gray-800 dark:text-white">
+                                {a.idTipoAudiencia?.nombre}
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {new Date(a.fechaHoraProgramada).toLocaleString("es-BO", {
+                                  day: "2-digit", month: "short", year: "numeric",
+                                  hour: "2-digit", minute: "2-digit"
+                                })}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${
+                              a.estadoAudiencia === "PROGRAMADA" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
+                              a.estadoAudiencia === "REALIZADA"  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
+                              a.estadoAudiencia === "SUSPENDIDA" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+                              a.estadoAudiencia === "EN_CURSO"   ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400" :
+                              "bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-gray-300"
+                            }`}>
+                              {a.estadoAudiencia}
+                            </span>
+
+                            <button
+                              onClick={() => setCitacionAud(a)}
+                              title="Enviar citaciones por email"
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              onClick={() => setAsistenciaAud(a)}
+                              title="Tomar asistencia"
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
+                            >
+                              <ClipboardList className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              onClick={() => { setEditandoAud(a); setShowFormAud(true); }}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              onClick={async () => {
+                                if (!confirm("¿Eliminar esta audiencia?")) return;
+                                setEliminandoAudId(a.idAudiencia);
+                                try {
+                                  await eliminarAudiencia({ variables: { id: Number(a.idAudiencia) } });
+                                  await refetch();
+                                } finally {
+                                  setEliminandoAudId(null);
+                                }
+                              }}
+                              disabled={eliminandoAudId === a.idAudiencia}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-40"
+                            >
+                              {eliminandoAudId === a.idAudiencia
+                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                : <XCircle className="w-3.5 h-3.5" />
+                              }
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 text-xs">
+                          <div>
+                            <p className="text-gray-400 dark:text-gray-500">Sala</p>
+                            <p className="text-gray-700 dark:text-gray-300 font-medium">{a.idSalaAud?.nombreSala ?? "—"}</p>
+                          </div>
+                          {a.linkVideoconferencia && (
+                            <div>
+                              <p className="text-gray-400 dark:text-gray-500">Enlace</p>
+                              <a href={a.linkVideoconferencia} target="_blank" rel="noreferrer"
+                                className="text-blue-500 hover:underline font-medium">
+                                Videoconferencia
+                              </a>
+                            </div>
+                          )}
+                          {a.motivoSuspension && (
+                            <div className="col-span-2">
+                              <p className="text-gray-400 dark:text-gray-500">Motivo suspensión</p>
+                              <p className="text-amber-600 dark:text-amber-400 font-medium">{a.motivoSuspension}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {citacionAud && (
+                    <ModalCitacionesDenuncia
+                      audiencia={citacionAud}
+                      partes={partes.filter((p: any) => p.activo)}
+                      onClose={() => setCitacionAud(null)}
+                    />
+                  )}
+                  {asistenciaAud && (
+                    <ModalAsistenciaDenuncia
+                      audiencia={asistenciaAud}
+                      partes={partes.filter((p: any) => p.activo)}
+                      onClose={() => setAsistenciaAud(null)}
+                    />
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── TAB VOCALES ── */}
+          {tabActiva === "vocales" && (
+            <div className="space-y-4">
+              {!denuncia.expediente ? (
+                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                  <Lock className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+                  <p className="text-sm">Los vocales estarán disponibles una vez que la denuncia sea admitida.</p>
+                </div>
+              ) : (
+                <>
+                  {/* Header con botón agregar */}
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+                      {conformaciones.length} vocal{conformaciones.length !== 1 ? "es" : ""} asignado{conformaciones.length !== 1 ? "s" : ""}
+                    </p>
+                    {!showFormVocal && (
+                      <button
+                        onClick={() => { setShowFormVocal(true); setFormVocal({ idVocal: 0, vocalLabel: "", rolEnCaso: "" }); setErrVocal(""); }}
+                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-semibold transition-all shadow-sm"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Asignar vocal
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Formulario inline de asignación */}
+                  {showFormVocal && (() => {
+                    const vocalesDisponibles = (dataVocales?.allVocales ?? []).filter(
+                      (v: any) => v.activo && !conformaciones.some((c: any) => Number(c.idVocal?.idVocal ?? c.idVocal) === Number(v.idVocal))
+                    );
+                    const opcionesVocal = vocalesDisponibles.map((v: any) => ({
+                      id: v.idVocal,
+                      titulo: `${v.idPersona?.nombre} ${v.idPersona?.primerApellido}`,
+                      subtitulo: v.cargo,
+                      extra: v.idSala?.nombreSala,
+                    }));
+
+                    const guardarVocal = async () => {
+                      if (!formVocal.idVocal || !formVocal.rolEnCaso.trim()) {
+                        setErrVocal("Vocal y rol son obligatorios."); return;
+                      }
+                      setSavingVocal(true); setErrVocal("");
+                      try {
+                        await crearConformacion({
+                          variables: {
+                            idExpediente: Number(denuncia.expediente.idExpediente),
+                            idVocal: Number(formVocal.idVocal),
+                            rolEnCaso: formVocal.rolEnCaso.trim(),
+                          },
+                        });
+                        setShowFormVocal(false);
+                        setFormVocal({ idVocal: 0, vocalLabel: "", rolEnCaso: "" });
+                        await refetch();
+                        toast.success("Vocal asignado correctamente");
+                      } catch (e: any) {
+                        setErrVocal(e.message ?? "Error al asignar vocal.");
+                      } finally {
+                        setSavingVocal(false);
+                      }
+                    };
+
+                    return (
+                      <>
+                        <div className="rounded-2xl border-2 border-indigo-200 dark:border-indigo-800/60 bg-indigo-50/60 dark:bg-indigo-900/10 p-5 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-lg bg-indigo-500 flex items-center justify-center">
+                                <UserCheck className="w-4 h-4 text-white" />
+                              </div>
+                              <p className="text-sm font-bold text-gray-800 dark:text-white">Asignar vocal</p>
+                            </div>
+                            <button
+                              onClick={() => setShowFormVocal(false)}
+                              disabled={savingVocal}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+                            >
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          <div className="space-y-3">
+                            {/* Selector de vocal */}
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                                Vocal <span className="text-red-500">*</span>
+                              </label>
+                              {formVocal.vocalLabel ? (
+                                <div className="flex items-center gap-2 p-2.5 rounded-xl border bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-800">
+                                  <span className="flex-1 text-sm text-gray-800 dark:text-white truncate">{formVocal.vocalLabel}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setFormVocal(p => ({ ...p, idVocal: 0, vocalLabel: "" }))}
+                                    className="p-1 rounded-lg text-gray-500 hover:bg-indigo-200 dark:hover:bg-indigo-800 transition-colors"
+                                  >
+                                    <XCircle className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setModalVocal(true)}
+                                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition-all"
+                                >
+                                  <Plus className="w-4 h-4" /> Buscar vocal activo
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Rol en el caso */}
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                                Rol en el caso <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="Ej: Vocal Relator, Presidente de Sala..."
+                                value={formVocal.rolEnCaso}
+                                onChange={e => setFormVocal(p => ({ ...p, rolEnCaso: e.target.value }))}
+                                disabled={savingVocal}
+                                className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-600 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                              />
+                            </div>
+                          </div>
+
+                          {errVocal && (
+                            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 text-red-600 dark:text-red-400 text-sm">
+                              <AlertCircle className="w-4 h-4 shrink-0" />{errVocal}
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-end gap-2 pt-1">
+                            <button
+                              onClick={() => setShowFormVocal(false)}
+                              disabled={savingVocal}
+                              className="px-4 py-2 rounded-xl border border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 text-sm font-medium transition-colors"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              onClick={guardarVocal}
+                              disabled={savingVocal || !formVocal.idVocal || !formVocal.rolEnCaso.trim()}
+                              className="px-4 py-2 rounded-xl bg-indigo-500 hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors flex items-center gap-1.5 shadow-sm"
+                            >
+                              {savingVocal ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />}
+                              {savingVocal ? "Guardando..." : "Asignar"}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Modal buscador de vocales */}
+                        {modalVocal && (
+                          <div
+                            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+                            onClick={() => setModalVocal(false)}
+                          >
+                            <div
+                              className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col"
+                              onClick={e => e.stopPropagation()}
+                            >
+                              <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between">
+                                <h3 className="text-base font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                                  <UserCheck className="w-5 h-5 text-indigo-500" /> Seleccionar vocal activo
+                                </h3>
+                                <button onClick={() => setModalVocal(false)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+                                  <XCircle className="w-5 h-5" />
+                                </button>
+                              </div>
+                              <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                                {opcionesVocal.length === 0 ? (
+                                  <div className="text-center py-10 text-gray-400">
+                                    <UserCheck className="w-10 h-10 mx-auto mb-2" />
+                                    <p className="text-sm">No hay vocales activos disponibles para asignar</p>
+                                  </div>
+                                ) : (
+                                  opcionesVocal.map((v: any) => (
+                                    <button
+                                      key={v.id}
+                                      onClick={() => {
+                                        const label = v.extra ? `${v.titulo} — ${v.extra}` : v.titulo;
+                                        setFormVocal(p => ({ ...p, idVocal: v.id, vocalLabel: label }));
+                                        setModalVocal(false);
+                                      }}
+                                      className="w-full text-left p-4 rounded-xl bg-gray-50 dark:bg-slate-900/50 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all border border-gray-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700"
+                                    >
+                                      <div className="flex justify-between items-center">
+                                        <div>
+                                          <p className="font-semibold text-gray-800 dark:text-white">{v.titulo}</p>
+                                          {v.subtitulo && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{v.subtitulo}</p>}
+                                          {v.extra && <p className="text-xs text-indigo-500 dark:text-indigo-400 mt-0.5">{v.extra}</p>}
+                                        </div>
+                                        <Plus className="w-5 h-5 text-indigo-500 shrink-0 ml-3" />
+                                      </div>
+                                    </button>
+                                  ))
+                                )}
+                              </div>
+                              <div className="px-6 py-4 border-t border-gray-200 dark:border-slate-700">
+                                <button onClick={() => setModalVocal(false)} className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium">
+                                  Cancelar
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+
+                  {/* Lista de vocales asignados */}
+                  {conformaciones.length === 0 && !showFormVocal && (
+                    <div className="flex flex-col items-center gap-4 py-10 text-gray-400 dark:text-gray-600">
+                      <Building2 className="w-10 h-10" />
+                      <p className="text-sm">Sin vocales asignados a este proceso</p>
+                      <button
+                        onClick={() => { setShowFormVocal(true); setFormVocal({ idVocal: 0, vocalLabel: "", rolEnCaso: "" }); setErrVocal(""); }}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-semibold"
+                      >
+                        <Plus className="w-4 h-4" /> Asignar primer vocal
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    {conformaciones.map((c: any) => (
+                      <div
+                        key={c.idConformacion}
+                        className="flex items-center justify-between gap-3 p-4 rounded-xl border bg-gray-50 dark:bg-slate-800/60 border-gray-200 dark:border-slate-700"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center shrink-0">
+                            <UserCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-800 dark:text-white">
+                              {c.idVocal?.idPersona?.nombre} {c.idVocal?.idPersona?.primerApellido}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {c.idVocal?.cargo}
+                              {c.idVocal?.idSala?.nombreSala && ` · ${c.idVocal.idSala.nombreSala}`}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400">
+                            {c.rolEnCaso}
+                          </span>
+                          <button
+                            disabled={eliminandoVocalId === c.idConformacion}
+                            onClick={async () => {
+                              if (!confirm(`¿Quitar al vocal ${c.idVocal?.idPersona?.nombre} de este proceso?`)) return;
+                              setEliminandoVocalId(c.idConformacion);
+                              try {
+                                await eliminarConformacion({ variables: { id: Number(c.idConformacion) } });
+                                await refetch();
+                                toast.success("Vocal quitado del proceso");
+                              } catch (e: any) {
+                                toast.error(e.message ?? "Error al quitar el vocal");
+                              } finally {
+                                setEliminandoVocalId(null);
+                              }
+                            }}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-40"
+                          >
+                            {eliminandoVocalId === c.idConformacion
+                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              : <Trash2 className="w-3.5 h-3.5" />
+                            }
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
           {/* ── TAB HISTORIAL ── */}
-          {/* ── TAB HISTORIAL ── */}
           {tabActiva === "historial" && (
             <div className="space-y-3">
-
-              {/* Sin expediente todavía */}
               {!denuncia.expediente && (
                 <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                   <History className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
@@ -792,14 +1683,12 @@ export default function DenunciaDetailPage() {
                 </div>
               )}
 
-              {/* Cargando */}
               {denuncia.expediente && loadingHistorial && (
                 <div className="flex justify-center py-12">
                   <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
                 </div>
               )}
 
-              {/* Sin entradas */}
               {denuncia.expediente && !loadingHistorial && historial.length === 0 && (
                 <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                   <History className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
@@ -807,10 +1696,8 @@ export default function DenunciaDetailPage() {
                 </div>
               )}
 
-              {/* Lista de entradas */}
               {historial.length > 0 && (
                 <>
-                  {/* Cabecera con número de expediente */}
                   <div className="flex items-center gap-2 mb-4">
                     <FolderOpen className="w-4 h-4 text-blue-500" />
                     <span className="text-xs text-gray-500 dark:text-gray-400">
@@ -821,9 +1708,7 @@ export default function DenunciaDetailPage() {
                     </span>
                   </div>
 
-                  {/* Línea de tiempo */}
                   <div className="relative">
-                    {/* Línea vertical */}
                     <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-gray-200 dark:bg-slate-700" />
 
                     <div className="space-y-4">
@@ -833,7 +1718,6 @@ export default function DenunciaDetailPage() {
                         )
                         .map((entrada: any, i: number) => (
                           <div key={entrada.idHistorial} className="relative flex gap-4 pl-2">
-                            {/* Dot en la línea */}
                             <div className={`relative z-10 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center mt-0.5 ${
                               i === 0
                                 ? "bg-blue-500 shadow-md shadow-blue-200 dark:shadow-blue-900"
@@ -845,14 +1729,11 @@ export default function DenunciaDetailPage() {
                               }
                             </div>
 
-                            {/* Contenido */}
                             <div className={`flex-1 rounded-xl p-4 border ${
                               i === 0
                                 ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
                                 : "bg-gray-50 dark:bg-slate-800/60 border-gray-200 dark:border-slate-700"
                             }`}>
-
-                              {/* Transición de estados */}
                               <div className="flex items-center gap-2 flex-wrap">
                                 {entrada.idEstadoAnterior ? (
                                   <>
@@ -871,14 +1752,12 @@ export default function DenunciaDetailPage() {
                                 </span>
                               </div>
 
-                              {/* Motivo */}
                               {entrada.motivo && (
                                 <p className="text-sm text-gray-700 dark:text-gray-300 mt-2 leading-relaxed">
                                   {entrada.motivo}
                                 </p>
                               )}
 
-                              {/* Metadata */}
                               <div className="flex items-center gap-3 mt-2 flex-wrap">
                                 <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">
                                   {new Date(entrada.fechaCambio).toLocaleString("es-BO", {
@@ -905,9 +1784,86 @@ export default function DenunciaDetailPage() {
               )}
             </div>
           )}
+
+
+
+          {/* ── TAB DOCUMENTOS ── */}
+          {tabActiva === "documentos" && (
+            <div className="space-y-4">
+              {!denuncia.expediente && (
+                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                  <FolderOpen className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+                  <p className="text-sm">Los documentos estarán disponibles una vez que la denuncia sea admitida.</p>
+                </div>
+              )}
+
+              {denuncia.expediente && (
+                <>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+                      {documentos.length} documento{documentos.length !== 1 ? "s" : ""}
+                    </p>
+                    {!showFormDoc && (
+                      <button
+                        onClick={() => setShowFormDoc(true)}
+                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold transition-all shadow-sm"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Registrar documento
+                      </button>
+                    )}
+                  </div>
+
+                  {showFormDoc && (
+                    <>
+                   
+                      <FormDocumentoDenuncia
+                        idExpediente={denuncia.expediente.idExpediente}
+                        onSaved={() => { setShowFormDoc(false); refetch(); }}
+                        onCancel={() => setShowFormDoc(false)}
+                      />
+                    </>
+                  )}
+                 
+                  {documentos.length === 0 && !showFormDoc && (
+                    <div className="flex flex-col items-center gap-4 py-10 text-gray-400 dark:text-gray-600">
+                      <FolderOpen className="w-10 h-10" />
+                      <p className="text-sm">Sin documentos registrados</p>
+                      <button
+                        onClick={() => setShowFormDoc(true)}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold"
+                      >
+                        <Plus className="w-4 h-4" /> Registrar primer documento
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    {documentos.map((doc: any) => (
+                      <TarjetaDocumentoDenuncia
+                        key={doc.idDocumento}
+                        doc={doc}
+                        idExpediente={denuncia.expediente.idExpediente}
+                        eliminandoId={eliminandoDocId}
+                        onEliminar={async () => {
+                          if (!confirm(`¿Eliminar el documento "${doc.titulo}"?`)) return;
+                          setEliminandoDocId(doc.idDocumento);
+                          try {
+                            await eliminarDocumento({ variables: { id: Number(doc.idDocumento) } });
+                            await refetch();
+                          } finally {
+                            setEliminandoDocId(null);
+                          }
+                        }}
+                        onArchivoSubido={() => refetch()}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* COLUMNA DERECHA */}
         <div className="w-80 shrink-0 space-y-5">
           <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
@@ -950,6 +1906,14 @@ export default function DenunciaDetailPage() {
               <p>Art. 82 - Recurso de apelación</p>
               <p>Art. 86 - Remisión al Superior</p>
               <p>Art. 90 - Ejecución de fallos</p>
+              <p>Art. 8  - Prescripción (2 años)</p>
+              <p>Art. 23 - Desistimiento</p>
+              <p>Art. 46 - Notificación personal</p>
+              <p>Art. 61 - Medidas precautorias</p>
+              <p>Art. 77 - Aclaración/enmienda</p>
+              <p>Art. 80 - Fallecimiento</p>
+              <p>Art. 81 - Resolución de prescripción</p>
+              <p>Art. 83 - Compulsa</p>
             </div>
           </div>
         </div>

@@ -325,3 +325,5 @@ export const CREAR_NOTIFICACION_TABLON = gql`
     }
   }
 `;
+
+
