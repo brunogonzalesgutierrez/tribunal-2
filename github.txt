@@ -25,28 +25,9 @@ git reset HEAD~1
 
 git rm -r --cached .gitignore
 
-conectar cuenta
-
-git config --global user.name "Nombre"
-git config --global user.email "correo@gmail.com"
-
-verificar conexion:
-git remote -v
-
-
-
-
-para vincularme:
-
-git remote add origin https://github.com/brunogonzalesgutierrez/sepulturero-juan.git
-
-
-para desvincularme:
-git remote remove origin
-
 
 Clonar proyecto
-git clone https://github.com/edumejia2105/tribunal
+git clone https://github.com/brunogonzalesgutierrez/tribunal-2
 
 
 primera subida de un proyecto:
@@ -55,6 +36,6 @@ git init
 git add .
 git commit -m "Primer commit"
 git branch -M main
-git remote add origin https://github.com/brunogonzalesgutierrez/sepulturero-juan.git
+git remote add origin https://github.com/brunogonzalesgutierrez/tribunal-2.git
 git push -u origin main
 
