@@ -39,6 +39,14 @@ const DENUNCIA_FIELDS = `
   resolucionCompulsa
   # Art. 46
   fechaNotificacionResolucion
+  # Art. 16 + Art. 90 par. II — Ejecución al Rectorado
+  fechaRemisionRectorado
+  fechaResolucionRectoral
+  numeroResolucionRectoral
+  observacionesEjecucion
+  # Art. 7 — Gaceta Universitaria
+  fechaRegistroGaceta
+  numeroGaceta
   expediente {
     idExpediente
     numeroExpediente
@@ -80,6 +88,16 @@ const DENUNCIA_FIELDS = `
       tamanoKb
       firmadoDigitalmente
       idTipoDoc { idTipoDoc codigo nombre esPublico requiereFirma }
+    }
+    actuaciones {
+      idActuacion
+      folioInicio
+      folioFin
+      esPublica
+      fechaActuacion
+      descripcion
+      idTipoActuacion { idTipoActuacion codigo nombre }
+      usuario { idUsuario nombres paterno }
     }
   }
 `;
@@ -273,6 +291,16 @@ export const ENVIAR_NOTIFICACION_RESOLUCION_APELACION = gql`
 export const ENVIAR_NOTIFICACION_SUBSANACION = gql`
   mutation EnviarNotificacionSubsanacion($idDenuncia: Int!, $idUsuario: Int!) {
     enviarNotificacionSubsanacion(idDenuncia: $idDenuncia, idUsuario: $idUsuario) {
+      ok
+      mensaje
+      emailEnviado
+    }
+  }
+`;
+
+export const ENVIAR_NOTIFICACION_EJECUCION = gql`
+  mutation EnviarNotificacionEjecucion($idDenuncia: Int!, $idUsuario: Int!) {
+    enviarNotificacionEjecucion(idDenuncia: $idDenuncia, idUsuario: $idUsuario) {
       ok
       mensaje
       emailEnviado

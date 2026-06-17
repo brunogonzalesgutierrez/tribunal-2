@@ -1468,7 +1468,7 @@ export default function ExpedienteDetallePage() {
 
   const generarPdf = async (resolucion: any) => {
     setGenerandoPdf(resolucion.idResolucion);
-    try { await generarPdfResolucion({ expediente: exp, resolucion, partes, vocales }); }
+    try { await generarPdfResolucion({ expediente: exp, resolucion, partes, vocales, denuncia: denunciaVinculada }); }
     catch (e) { console.error("Error generando PDF:", e); }
     finally { setGenerandoPdf(null); }
   };

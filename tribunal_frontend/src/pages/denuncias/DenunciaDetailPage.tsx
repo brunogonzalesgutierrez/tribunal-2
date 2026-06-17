@@ -10,6 +10,7 @@ import {
   ENVIAR_NOTIFICACION_RESOLUCION,
   ENVIAR_NOTIFICACION_RESOLUCION_APELACION,
   ENVIAR_NOTIFICACION_SUBSANACION,
+  ENVIAR_NOTIFICACION_EJECUCION,
 } from "../../graphql/denuncias";
 import { GET_SALAS_TRIBUNAL } from "../../graphql/tribunal";
 import { GET_TIPOS_AUDIENCIA, GET_SALAS_AUDIENCIA, ELIMINAR_AUDIENCIA } from "../../graphql/audiencias";
@@ -52,6 +53,26 @@ const ELIMINAR_CONFORMACION_DEN = gql`
     }
   }
 `;
+
+
+const REGISTRAR_RATIFICACION_PRUEBAS = gql`
+  mutation RegistrarRatificacionPruebas($idDenuncia: Int!, $idUsuario: Int!) {
+    registrarRatificacionPruebas(idDenuncia: $idDenuncia, idUsuario: $idUsuario) {
+      ok
+      mensaje
+    }
+  }
+`;
+
+const REGISTRAR_TRASLADO_APELACION = gql`
+  mutation RegistrarTrasladoApelacion($idDenuncia: Int!, $idUsuario: Int!) {
+    registrarTrasladoApelacion(idDenuncia: $idDenuncia, idUsuario: $idUsuario) {
+      ok
+      mensaje
+    }
+  }
+`;
+
 import { useCrudNotifications } from "../../hooks/useCrudNotifications";
 import {
   EtapaAdmision,
@@ -68,6 +89,9 @@ import {
   EtapaDesistimiento,
   EtapaPrescripcion,
   EtapaCompulsa,
+  EtapaRatificacionPruebas,
+  EtapaTrasladoApelacion,
+  EtapaEjecucionRectorado,
   TimelineDenuncia
 } from "./DenunciaEtapas";
 import {
@@ -195,11 +219,15 @@ export default function DenunciaDetailPage() {
   const [actualizarDenuncia] = useMutation(ACTUALIZAR_DENUNCIA);
   const [admitirDenuncia]    = useMutation(ADMITIR_DENUNCIA);
 
+  const [registrarRatificacion] = useMutation(REGISTRAR_RATIFICACION_PRUEBAS);
+  const [registrarTrasladoApelacion] = useMutation(REGISTRAR_TRASLADO_APELACION);
+
   const [enviarCitacionAdmision]                 = useMutation(ENVIAR_CITACION_ADMISION);
   const [enviarCitacionTerminoProbatorio]        = useMutation(ENVIAR_CITACION_TERMINO_PROBATORIO);
   const [enviarNotificacionResolucion]           = useMutation(ENVIAR_NOTIFICACION_RESOLUCION);
   const [enviarNotificacionResolucionApelacion]  = useMutation(ENVIAR_NOTIFICACION_RESOLUCION_APELACION);
   const [enviarNotificacionSubsanacion]          = useMutation(ENVIAR_NOTIFICACION_SUBSANACION);
+  const [enviarNotificacionEjecucion]            = useMutation(ENVIAR_NOTIFICACION_EJECUCION);
 
   const { data: dataSalas }    = useQuery(GET_SALAS_TRIBUNAL);
   const { data: dataTiposAud } = useQuery(GET_TIPOS_AUDIENCIA);
@@ -251,6 +279,7 @@ export default function DenunciaDetailPage() {
         if (datosAdicionales.actaConciliacion)      input.actaConciliacion = datosAdicionales.actaConciliacion;
         if (datosAdicionales.fechaConciliacion)     input.fechaConciliacion = datosAdicionales.fechaConciliacion;
         if (datosAdicionales.fechaApelacion)        input.fechaApelacion = datosAdicionales.fechaApelacion;
+        if (datosAdicionales.idRecurrenteParte) input.idRecurrenteParte = datosAdicionales.idRecurrenteParte;
         if (datosAdicionales.resolucionApelacion)   input.resolucionApelacion = datosAdicionales.resolucionApelacion;
         if (datosAdicionales.fechaRemisionSuperior) input.fechaRemisionSuperior = datosAdicionales.fechaRemisionSuperior;
         if (datosAdicionales.aclaracionEnmienda)         input.aclaracionEnmienda = datosAdicionales.aclaracionEnmienda;
@@ -467,6 +496,60 @@ export default function DenunciaDetailPage() {
       }
     } catch (error: any) {
       toast.error(error.message || "Error al registrar la resolución de apelación");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRatificacionPruebas = async () => {
+    setSaving(true);
+    try {
+      const { data } = await registrarRatificacion({
+        variables: { idDenuncia: Number(denuncia.idDenuncia), idUsuario: Number(usuario?.idUsuario) }
+      });
+      if (data.registrarRatificacionPruebas.ok) {
+        toast.success("Ratificación de pruebas registrada en el expediente.");
+      } else {
+        toast.error(data.registrarRatificacionPruebas.mensaje);
+      }
+    } catch {
+      toast.error("Error al registrar la ratificación.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEnviarNotificacionEjecucion = async () => {
+    setSaving(true);
+    try {
+      const { data } = await enviarNotificacionEjecucion({
+        variables: { idDenuncia: Number(denuncia.idDenuncia), idUsuario: Number(usuario?.idUsuario) }
+      });
+      if (data.enviarNotificacionEjecucion.ok) {
+        toast.success(`Notificación de ejecución enviada: ${data.enviarNotificacionEjecucion.emailEnviado}`);
+      } else {
+        toast.error(data.enviarNotificacionEjecucion.mensaje);
+      }
+    } catch {
+      toast.error("Error al enviar la notificación de ejecución.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTrasladoApelacion = async () => {
+    setSaving(true);
+    try {
+      const { data } = await registrarTrasladoApelacion({
+        variables: { idDenuncia: Number(denuncia.idDenuncia), idUsuario: Number(usuario?.idUsuario) }
+      });
+      if (data.registrarTrasladoApelacion.ok) {
+        toast.success("Traslado de apelación registrado en el expediente.");
+      } else {
+        toast.error(data.registrarTrasladoApelacion.mensaje);
+      }
+    } catch {
+      toast.error("Error al registrar el traslado.");
     } finally {
       setSaving(false);
     }
@@ -694,6 +777,53 @@ export default function DenunciaDetailPage() {
                 </div>
               )}
 
+              {(denuncia.fechaRemisionRectorado || denuncia.fechaResolucionRectoral || denuncia.fechaRegistroGaceta) && (
+                <div className="bg-green-50 dark:bg-green-900/20 rounded-2xl p-5 border border-green-200 dark:border-green-800">
+                  <h3 className="text-xs font-bold text-green-700 dark:text-green-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <FileCheck className="w-4 h-4" />
+                    Ejecución de Fallo — Rectorado y Gaceta (Art. 16 + Art. 90 + Art. 7)
+                  </h3>
+                  <div className="space-y-3 text-sm">
+                    {denuncia.fechaRemisionRectorado && (
+                      <div className="flex justify-between items-start border-b border-green-100 dark:border-green-800/40 pb-2">
+                        <span className="text-gray-500 dark:text-gray-400">Remisión al Rectorado (Art. 16)</span>
+                        <span className="font-medium text-gray-800 dark:text-white">{fmtFecha(denuncia.fechaRemisionRectorado)}</span>
+                      </div>
+                    )}
+                    {denuncia.numeroResolucionRectoral && (
+                      <div className="flex justify-between items-start border-b border-green-100 dark:border-green-800/40 pb-2">
+                        <span className="text-gray-500 dark:text-gray-400">N° Resolución rectoral</span>
+                        <span className="font-mono text-sm font-medium text-gray-800 dark:text-white">{denuncia.numeroResolucionRectoral}</span>
+                      </div>
+                    )}
+                    {denuncia.fechaResolucionRectoral && (
+                      <div className="flex justify-between items-start border-b border-green-100 dark:border-green-800/40 pb-2">
+                        <span className="text-gray-500 dark:text-gray-400">Resolución rectoral (Art. 90 par. II)</span>
+                        <span className="font-medium text-gray-800 dark:text-white">{fmtFecha(denuncia.fechaResolucionRectoral)}</span>
+                      </div>
+                    )}
+                    {denuncia.fechaRegistroGaceta && (
+                      <div className="flex justify-between items-start border-b border-green-100 dark:border-green-800/40 pb-2">
+                        <span className="text-gray-500 dark:text-gray-400">Registro en Gaceta (Art. 7)</span>
+                        <span className="font-medium text-gray-800 dark:text-white">{fmtFecha(denuncia.fechaRegistroGaceta)}</span>
+                      </div>
+                    )}
+                    {denuncia.numeroGaceta && (
+                      <div className="flex justify-between items-start">
+                        <span className="text-gray-500 dark:text-gray-400">N° Gaceta Universitaria</span>
+                        <span className="font-mono text-sm font-medium text-gray-800 dark:text-white">{denuncia.numeroGaceta}</span>
+                      </div>
+                    )}
+                    {denuncia.observacionesEjecucion && (
+                      <div className="pt-2">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Observaciones</p>
+                        <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{denuncia.observacionesEjecucion}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {(denuncia.estado === "APELADA" || denuncia.resolucionApelacion) && (
                 <div className="bg-orange-50 dark:bg-orange-900/20 rounded-2xl p-5 border border-orange-200 dark:border-orange-800">
                   <h3 className="text-xs font-bold text-orange-700 dark:text-orange-400 uppercase tracking-widest mb-3">
@@ -896,6 +1026,52 @@ export default function DenunciaDetailPage() {
                       </p>
                     </div>
                   </div>
+                  {/* Alerta de audiencia de declaración informativa */}
+                  {(() => {
+                    const tieneAudDeclaracion = audiencias.some(
+                      (a: any) =>
+                        a.idTipoAudiencia?.nombre?.toLowerCase().includes("declaraci") ||
+                        a.idTipoAudiencia?.nombre?.toLowerCase().includes("informativa")
+                    );
+                    const audRealizada = audiencias.some(
+                      (a: any) =>
+                        (a.idTipoAudiencia?.nombre?.toLowerCase().includes("declaraci") ||
+                         a.idTipoAudiencia?.nombre?.toLowerCase().includes("informativa")) &&
+                        (a.estadoAudiencia === "REALIZADA" || a.estadoAudiencia === "FINALIZADA")
+                    );
+                    if (audRealizada) return null;
+                    return (
+                      <div className={`flex items-start gap-3 p-4 rounded-xl border ${
+                        tieneAudDeclaracion
+                          ? "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800"
+                          : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
+                      }`}>
+                        <AlertTriangle className={`w-5 h-5 shrink-0 mt-0.5 ${tieneAudDeclaracion ? "text-amber-500" : "text-red-500"}`} />
+                        <div className="flex-1">
+                          <p className={`text-sm font-bold ${tieneAudDeclaracion ? "text-amber-700 dark:text-amber-400" : "text-red-700 dark:text-red-400"}`}>
+                            {tieneAudDeclaracion
+                              ? "Audiencia programada — pendiente de realización (Art. 58 inc. b)"
+                              : "⚠ Audiencia de Declaración Informativa no programada (Art. 58 inc. b)"
+                            }
+                          </p>
+                          <p className={`text-xs mt-1 ${tieneAudDeclaracion ? "text-amber-600 dark:text-amber-500" : "text-red-600 dark:text-red-400"}`}>
+                            {tieneAudDeclaracion
+                              ? "El Tribunal señaló fecha y hora para la declaración informativa. Realizala y marcala como REALIZADA antes de registrar la declaración. El proceso puede avanzar igualmente si el denunciado no se presenta (Art. 58 inc. a)."
+                              : "El Tribunal debe señalar fecha y hora para la recepción de la declaración informativa del denunciado (Art. 58 inc. b). Programá la audiencia en el tab Audiencias antes de registrar la declaración. Si el denunciado no se presenta, el proceso continúa igual (Art. 58 inc. a)."
+                            }
+                          </p>
+                          {!tieneAudDeclaracion && (
+                            <button
+                              onClick={() => setTabActiva("audiencias")}
+                              className="mt-2 text-xs font-semibold text-red-700 dark:text-red-400 underline hover:no-underline"
+                            >
+                              → Ir al tab Audiencias para programarla
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <EtapaDeclaracionInformativa
                     denuncia={denuncia}
                     onRegistrarDeclaracion={(datos) => avanzarEtapa("DECLARACION_INFORMATIVA", datos)}
@@ -987,9 +1163,71 @@ export default function DenunciaDetailPage() {
                       </p>
                     </div>
                   </div>
+                  {/* Alerta de audiencias testificales durante pruebas */}
+                  {(() => {
+                    const audPruebas = audiencias.filter(
+                      (a: any) =>
+                        a.idTipoAudiencia?.nombre?.toLowerCase().includes("testif") ||
+                        a.idTipoAudiencia?.nombre?.toLowerCase().includes("prueba") ||
+                        a.idTipoAudiencia?.nombre?.toLowerCase().includes("probat")
+                    );
+                    if (audPruebas.length === 0) {
+                      return (
+                        <div className="flex items-start gap-3 p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                          <AlertCircle className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold text-blue-700 dark:text-blue-400">
+                              Audiencias testificales (Art. 70) — no programadas
+                            </p>
+                            <p className="text-xs text-blue-600 dark:text-blue-500 mt-1">
+                              Si hay prueba testifical, la declaración de cada testigo se recibe en audiencia (Art. 70).
+                              Podés programar audiencias de testigos en el tab Audiencias. Si no hay testigos, podés cerrar el período probatorio directamente.
+                            </p>
+                            <button
+                              onClick={() => setTabActiva("audiencias")}
+                              className="mt-2 text-xs font-semibold text-blue-700 dark:text-blue-400 underline hover:no-underline"
+                            >
+                              → Ir al tab Audiencias
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+                    const pendientes = audPruebas.filter(
+                      (a: any) => a.estadoAudiencia === "PROGRAMADA" || a.estadoAudiencia === "EN_CURSO"
+                    );
+                    if (pendientes.length > 0) {
+                      return (
+                        <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                          <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+                              Hay {pendientes.length} audiencia{pendientes.length !== 1 ? "s" : ""} testifical{pendientes.length !== 1 ? "es" : ""} pendiente{pendientes.length !== 1 ? "s" : ""} (Art. 70)
+                            </p>
+                            <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
+                              Realizalas antes de cerrar el período probatorio. El acta de cada audiencia queda en el expediente (Art. 73).
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="flex items-center gap-2 p-3 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                        <CheckCircle className="w-4 h-4 text-green-500" />
+                        <p className="text-xs text-green-700 dark:text-green-400">
+                          Todas las audiencias testificales realizadas. Podés cerrar el período probatorio.
+                        </p>
+                      </div>
+                    );
+                  })()}
                   <EtapaPruebas
                     denuncia={denuncia}
                     onCerrarPruebas={() => avanzarEtapa("CONCLUSION")}
+                    saving={saving}
+                  />
+                  <EtapaRatificacionPruebas
+                    denuncia={denuncia}
+                    onRegistrar={handleRatificacionPruebas}
                     saving={saving}
                   />
                 </>
@@ -1059,7 +1297,18 @@ export default function DenunciaDetailPage() {
                   />
                   <EtapaApelacion
                     denuncia={denuncia}
-                    onApelar={(datos) => avanzarEtapa("APELADA", datos)}
+                    onApelar={(datos) => {
+                      const rolBuscado = datos.idRecurrente === "DENUNCIANTE" ? "Denunciante" : "Denunciado";
+                      const parteRecurrente = partes.find(
+                        (p: any) => p.idRol?.nombreRol === rolBuscado && p.activo
+                      );
+                      avanzarEtapa("APELADA", {
+                        fechaApelacion: datos.fechaApelacion,
+                        idRecurrenteParte: parteRecurrente?.idParte
+                          ? Number(parteRecurrente.idParte)
+                          : undefined,
+                      });
+                    }}
                     onEjecutar={() => avanzarEtapa("EJECUTADA")}
                     saving={saving}
                   />
@@ -1078,6 +1327,12 @@ export default function DenunciaDetailPage() {
                       </p>
                     </div>
                   </div>
+  
+                  <EtapaTrasladoApelacion
+                    denuncia={denuncia}
+                    onRegistrar={handleTrasladoApelacion}
+                    saving={saving}
+                  />
                   <EtapaApelacion
                     denuncia={denuncia}
                     onRemitirSuperior={(datos) => avanzarEtapa("APELADA", datos)}
@@ -1100,16 +1355,26 @@ export default function DenunciaDetailPage() {
 
               {/* ── ESTADOS TERMINALES ── */}
               {denuncia.estado === "EJECUTADA" && (
-                <div className="bg-green-50 dark:bg-green-900/20 rounded-2xl border border-green-200 dark:border-green-800 p-6 text-center">
-                  <FileCheck className="w-12 h-12 mx-auto text-green-500 mb-3" />
-                  <h3 className="text-lg font-semibold text-green-700 dark:text-green-400">Proceso Concluido</h3>
-                  <p className="text-sm text-green-600 dark:text-green-300 mt-1">
-                    Esta denuncia ha sido ejecutada y el proceso ha finalizado correctamente.
-                  </p>
-                  {denuncia.resolucion && (
-                    <p className="text-xs text-green-500 mt-3 italic">"{denuncia.resolucion.slice(0, 120)}{denuncia.resolucion.length > 120 ? "..." : ""}"</p>
-                  )}
-                </div>
+                <>
+                  <div className="p-4 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-sm text-green-700 dark:text-green-400 flex items-start gap-2">
+                    <FileCheck className="w-4 h-4 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold">Fallo ejecutoriado (Art. 90)</p>
+                      <p className="text-xs mt-1 text-green-600 dark:text-green-500">
+                        El proceso disciplinario concluyó. Registrá la remisión al Rectorado,
+                        la resolución rectoral y el registro en Gaceta Universitaria.
+                      </p>
+                    </div>
+                  </div>
+                  <EtapaEjecucionRectorado
+                    denuncia={denuncia}
+                    onRegistrarRemision={(datos) => avanzarEtapa("EJECUTADA", datos)}
+                    onRegistrarResolucionRectoral={(datos) => avanzarEtapa("EJECUTADA", datos)}
+                    onRegistrarGaceta={(datos) => avanzarEtapa("EJECUTADA", datos)}
+                    onEnviarNotificacion={handleEnviarNotificacionEjecucion}
+                    saving={saving}
+                  />
+                </>
               )}
 
               {denuncia.estado === "ARCHIVADA" && (
@@ -1236,9 +1501,23 @@ export default function DenunciaDetailPage() {
               {denuncia.expediente && (
                 <>
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
-                      {audiencias.length} audiencia{audiencias.length !== 1 ? "s" : ""}
-                    </p>
+                    <div>
+                      <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+                        {audiencias.length} audiencia{audiencias.length !== 1 ? "s" : ""}
+                      </p>
+                      {denuncia.estado === "ADMITIDA" && (
+                        <p className="text-xs text-red-500 dark:text-red-400 mt-0.5 flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" />
+                          Programar audiencia de declaración informativa (Art. 58 inc. b)
+                        </p>
+                      )}
+                      {denuncia.estado === "PRUEBAS" && (
+                        <p className="text-xs text-blue-500 dark:text-blue-400 mt-0.5 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          Período probatorio activo — audiencias testificales (Art. 70)
+                        </p>
+                      )}
+                    </div>
                     {!showFormAud && (
                       <button
                         onClick={() => { setEditandoAud(null); setShowFormAud(true); }}
@@ -1914,6 +2193,9 @@ export default function DenunciaDetailPage() {
               <p>Art. 80 - Fallecimiento</p>
               <p>Art. 81 - Resolución de prescripción</p>
               <p>Art. 83 - Compulsa</p>
+              <p>Art. 7  - Registro en Gaceta</p>
+              <p>Art. 16 - Remisión a autoridad</p>
+              <p>Art. 90 - Resolución rectoral</p>
             </div>
           </div>
         </div>

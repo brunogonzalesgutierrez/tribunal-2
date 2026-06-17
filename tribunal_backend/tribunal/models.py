@@ -681,9 +681,38 @@ class Denuncia(models.Model):
     )
 
     # ── Registro de notificación personal de resolución (Art. 45/46)
+    # ── Registro de notificación personal de resolución (Art. 45/46)
     fecha_notificacion_resolucion = models.DateField(
         blank=True, null=True,
         help_text="Fecha en que se practicó la notificación personal de la resolución definitiva (Art. 46 — máx. 5 días hábiles)"
+    )
+
+    # ── Ejecución de fallo al Rectorado (Art. 16 + Art. 90 par. II)
+    fecha_remision_rectorado = models.DateField(
+        blank=True, null=True,
+        help_text="Fecha en que el Tribunal remitió el expediente al Rectorado (Art. 16 — 3 días hábiles desde ejecutoria)"
+    )
+    fecha_resolucion_rectoral = models.DateField(
+        blank=True, null=True,
+        help_text="Fecha en que el Rector emitió la resolución administrativa (Art. 90 par. II — 5 días hábiles)"
+    )
+    numero_resolucion_rectoral = models.CharField(
+        max_length=100, blank=True, null=True,
+        help_text="Número de la resolución administrativa emitida por el Rector"
+    )
+    observaciones_ejecucion = models.TextField(
+        blank=True, null=True,
+        help_text="Observaciones sobre la ejecución del fallo y cumplimiento por el Rectorado"
+    )
+
+    # ── Registro en Gaceta Universitaria (Art. 7)
+    fecha_registro_gaceta = models.DateField(
+        blank=True, null=True,
+        help_text="Fecha de registro de la resolución sancionatoria en la Gaceta Universitaria (Art. 7 — 5 días hábiles)"
+    )
+    numero_gaceta = models.CharField(
+        max_length=100, blank=True, null=True,
+        help_text="Número o referencia de la Gaceta Universitaria donde se publicó la resolución"
     )
 
     expediente = models.ForeignKey(

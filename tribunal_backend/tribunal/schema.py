@@ -472,6 +472,7 @@ class ActualizarDenunciaInput(graphene.InputObjectType):
     fecha_apelacion          = graphene.String()
     resolucion_apelacion     = graphene.String()
     fecha_remision_superior  = graphene.String()
+    id_recurrente_parte      = graphene.Int()   # ← idParteProcesal del recurrente
     # Aclaración/enmienda (Art. 77)
     fecha_solicitud_aclaracion = graphene.String()
     aclaracion_enmienda        = graphene.String()
@@ -488,6 +489,16 @@ class ActualizarDenunciaInput(graphene.InputObjectType):
     resolucion_compulsa = graphene.String()
     # Notificación personal resolución (Art. 46)
     fecha_notificacion_resolucion = graphene.String()
+    # Notificación personal resolución (Art. 46)
+    fecha_notificacion_resolucion = graphene.String()
+    # Ejecución al Rectorado (Art. 16 + Art. 90 par. II)
+    fecha_remision_rectorado      = graphene.String()
+    fecha_resolucion_rectoral     = graphene.String()
+    numero_resolucion_rectoral    = graphene.String()
+    observaciones_ejecucion       = graphene.String()
+    # Gaceta Universitaria (Art. 7)
+    fecha_registro_gaceta         = graphene.String()
+    numero_gaceta                 = graphene.String()
 
 # DESPUÉS
 class CrearResolucionAntiguaInput(graphene.InputObjectType):
@@ -5061,6 +5072,284 @@ class CrearNotificacionTablonType(graphene.ObjectType):
     notificacion  = graphene.Field(NotificacionType)
 
 
+class EnviarNotificacionEjecucionType(graphene.ObjectType):
+    ok            = graphene.Boolean()
+    mensaje       = graphene.String()
+    email_enviado = graphene.String()
+
+
+class EnviarNotificacionEjecucion(graphene.Mutation):
+    """
+    Notifica al Rectorado que debe emitir resolución administrativa en 5 días
+    hábiles (Art. 90 par. II) para ejecutar el fallo del Tribunal.
+    También notifica a ambas partes que el fallo fue ejecutoriado.
+    """
+    class Arguments:
+        id_denuncia = graphene.Int(required=True)
+        id_usuario  = graphene.Int(required=True)
+
+    Output = EnviarNotificacionEjecucionType
+
+    def mutate(self, info, id_denuncia, id_usuario):
+        try:
+            denuncia = Denuncia.objects.select_related(
+                'denunciado', 'denunciante', 'expediente'
+            ).get(id=id_denuncia)
+        except Denuncia.DoesNotExist:
+            return EnviarNotificacionEjecucionType(
+                ok=False, mensaje="Denuncia no encontrada.", email_enviado=None
+            )
+
+        if denuncia.estado != "EJECUTADA":
+            return EnviarNotificacionEjecucionType(
+                ok=False,
+                mensaje="La denuncia debe estar en estado EJECUTADA para enviar esta notificación.",
+                email_enviado=None
+            )
+
+        numero_expediente = denuncia.expediente.numero_expediente if denuncia.expediente else "—"
+
+        denunciado = denuncia.denunciado
+        nombre_denunciado = f"{denunciado.nombre} {denunciado.primer_apellido}"
+        if denunciado.segundo_apellido:
+            nombre_denunciado += f" {denunciado.segundo_apellido}"
+
+        tipo_sancion_label = denuncia.tipo_sancion or "—"
+        detalle_sancion_label = denuncia.detalle_sancion or "—"
+        resolucion_texto = denuncia.resolucion or "—"
+
+        from django.utils.timezone import localtime
+        from datetime import date
+        ahora = localtime(timezone.now())
+        fecha_hoy = date.today()
+        fecha_larga = f"{fecha_hoy.day} de {MESES_ES[fecha_hoy.month - 1]} de {fecha_hoy.year}"
+        hora_str = ahora.strftime("%H:%M")
+
+        asunto = (
+            f"EJECUCIÓN DE FALLO — Expediente {numero_expediente} — "
+            f"Denuncia {denuncia.numero_denuncia} — Acción requerida del Rectorado"
+        )
+
+        html_body = f"""<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 0;">
+  <tr><td align="center">
+  <table width="650" cellpadding="0" cellspacing="0"
+         style="background:#ffffff;border:1px solid #d1d5db;border-radius:4px;">
+    <tr><td style="padding:32px 40px;">
+
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="text-align:center;padding-bottom:20px;">
+            <p style="margin:0;font-size:13px;font-weight:bold;color:#111827;line-height:1.45;">
+              UNIVERSIDAD AUTÓNOMA "GABRIEL RENÉ MORENO"<br/>
+              TRIBUNAL DE JUSTICIA UNIVERSITARIA<br/>
+              DE PRIMERA INSTANCIA
+            </p>
+          </td>
+        </tr>
+      </table>
+
+      <p style="margin:0 0 24px;text-align:center;font-size:15px;font-weight:bold;
+                color:#111827;letter-spacing:0.5px;border-top:1px solid #e5e7eb;padding-top:20px;">
+        REMISIÓN DE EXPEDIENTE — EJECUCIÓN DE FALLO (Art. 16 + Art. 90 par. II)
+      </p>
+
+      <div style="font-size:13.5px;color:#1f2937;line-height:1.9;">
+
+        <p style="margin:0 0 14px;">
+          Expediente Nro. <strong>{numero_expediente}</strong> —
+          Denuncia <strong>{denuncia.numero_denuncia}</strong>
+        </p>
+
+        <p style="margin:0 0 14px;">
+          En la ciudad de Santa Cruz a horas <strong>{hora_str}</strong> del día
+          <strong>{fecha_larga}</strong>.
+        </p>
+
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;
+                    padding:16px 20px;margin:0 0 16px;">
+          <p style="margin:0 0 8px;font-weight:bold;color:#991b1b;">
+            EJECUCIÓN DE FALLO — Acción requerida del Rectorado (Art. 90 par. II)
+          </p>
+          <p style="margin:0 0 8px;color:#7f1d1d;line-height:1.7;">
+            El Tribunal de Justicia Universitaria remite el presente expediente para que
+            el <strong>Sr. Rector</strong> emita la correspondiente <strong>resolución
+            administrativa</strong> en el plazo <strong>improrrogable de cinco (5) días
+            hábiles</strong> desde la recepción de este oficio, disponiendo la ejecución
+            de la sanción impuesta (Art. 90 par. II del Reglamento de Justicia
+            Universitaria — Res. ICU 048-2018).
+          </p>
+          <table width="100%" cellpadding="0" cellspacing="0"
+                 style="border-top:1px solid #fca5a5;margin-top:10px;padding-top:10px;">
+            <tr>
+              <td style="font-size:12px;color:#7f1d1d;padding:4px 0;width:40%;">
+                <strong>Denunciado:</strong>
+              </td>
+              <td style="font-size:12px;color:#7f1d1d;padding:4px 0;">
+                {nombre_denunciado}
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size:12px;color:#7f1d1d;padding:4px 0;">
+                <strong>Tipo de sanción:</strong>
+              </td>
+              <td style="font-size:12px;color:#7f1d1d;padding:4px 0;">
+                {tipo_sancion_label}
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size:12px;color:#7f1d1d;padding:4px 0;vertical-align:top;">
+                <strong>Detalle:</strong>
+              </td>
+              <td style="font-size:12px;color:#7f1d1d;padding:4px 0;">
+                {detalle_sancion_label}
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size:12px;color:#7f1d1d;padding:4px 0;vertical-align:top;">
+                <strong>Parte dispositiva:</strong>
+              </td>
+              <td style="font-size:12px;color:#7f1d1d;padding:4px 0;">
+                {resolucion_texto[:300]}{'...' if len(resolucion_texto) > 300 else ''}
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;
+                    padding:14px 18px;margin:0 0 16px;">
+          <p style="margin:0;font-size:12px;color:#92400e;line-height:1.6;">
+            ⚠ <strong>Plazo legal:</strong> El expediente fue remitido conforme al
+            Art. 16 del Reglamento (remisión en 3 días hábiles desde la ejecutoria).
+            El Rectorado debe emitir resolución administrativa en
+            <strong>5 días hábiles</strong> (Art. 90 par. II).
+            Asimismo, la resolución sancionatoria definitiva debe registrarse en la
+            <strong>Gaceta Universitaria en 5 días hábiles</strong> (Art. 7).
+          </p>
+        </div>
+
+        <p style="margin:0;font-size:13px;color:#1f2937;line-height:1.6;">
+          <strong>Abg. {SECRETARIO_NOMBRE}</strong><br/>
+          {SECRETARIO_CARGO}<br/>
+          Tribunal de Justicia Universitaria<br/>
+          U.A.G.R.M.
+        </p>
+      </div>
+
+      <p style="margin:28px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;
+                font-size:11px;color:#9ca3af;">
+        Este mensaje fue generado automáticamente por el Sistema de Gestión Judicial.
+        Por favor no responda a este correo electrónico.
+      </p>
+
+    </td></tr>
+  </table>
+  </td></tr>
+</table>
+</body></html>"""
+
+        texto_plano = f"""REMISIÓN DE EXPEDIENTE — EJECUCIÓN DE FALLO (Art. 16 + Art. 90 par. II)
+Tribunal de Justicia Universitaria — U.A.G.R.M.
+
+Expediente: {numero_expediente}
+Denuncia: {denuncia.numero_denuncia}
+Fecha: {fecha_larga} — {hora_str} hrs.
+
+El Tribunal remite el expediente al Rectorado para que emita resolución administrativa
+en el plazo improrrogable de CINCO (5) DÍAS HÁBILES (Art. 90 par. II).
+
+Denunciado: {nombre_denunciado}
+Tipo de sanción: {tipo_sancion_label}
+Detalle: {detalle_sancion_label}
+
+NOTA: La resolución sancionatoria debe registrarse en la Gaceta Universitaria
+en 5 días hábiles (Art. 7).
+
+Abg. {SECRETARIO_NOMBRE}
+{SECRETARIO_CARGO}
+Tribunal de Justicia Universitaria — U.A.G.R.M.
+"""
+
+        # Buscar email del denunciante para enviarle copia de la ejecución
+        contacto_denunciante = (
+            ContactoPersona.objects.filter(
+                id_persona=denuncia.denunciante,
+                tipo_contacto__iexact="EMAIL",
+                es_principal=True,
+            ).first()
+            or
+            ContactoPersona.objects.filter(
+                id_persona=denuncia.denunciante,
+                tipo_contacto__iexact="EMAIL",
+            ).first()
+        )
+
+        emails_destino = []
+        if contacto_denunciante:
+            emails_destino.append(contacto_denunciante.valor.strip())
+
+        # Buscar email del denunciado
+        contacto_denunciado = (
+            ContactoPersona.objects.filter(
+                id_persona=denuncia.denunciado,
+                tipo_contacto__iexact="EMAIL",
+                es_principal=True,
+            ).first()
+            or
+            ContactoPersona.objects.filter(
+                id_persona=denuncia.denunciado,
+                tipo_contacto__iexact="EMAIL",
+            ).first()
+        )
+        if contacto_denunciado:
+            emails_destino.append(contacto_denunciado.valor.strip())
+
+        if not emails_destino:
+            return EnviarNotificacionEjecucionType(
+                ok=False,
+                mensaje="Ninguna de las partes tiene email registrado.",
+                email_enviado=None
+            )
+
+        try:
+            msg = EmailMultiAlternatives(
+                subject=asunto,
+                body=texto_plano,
+                from_email=django_settings.DEFAULT_FROM_EMAIL,
+                to=emails_destino,
+            )
+            msg.attach_alternative(html_body, "text/html")
+            msg.send(fail_silently=False)
+
+            usuario_obj = Usuario.objects.filter(id_usuario=id_usuario).first()
+            if usuario_obj and denuncia.expediente:
+                for persona in [denuncia.denunciante, denuncia.denunciado]:
+                    try:
+                        _registrar_notificacion_envio(
+                            expediente=denuncia.expediente,
+                            persona=persona,
+                            tipo_documento_codigo='EJE-FAL',
+                            titulo_documento=f"Ejecución de Fallo — Denuncia {denuncia.numero_denuncia}",
+                            usuario=usuario_obj,
+                        )
+                    except Exception:
+                        pass
+
+            return EnviarNotificacionEjecucionType(
+                ok=True,
+                mensaje=f"Notificación de ejecución enviada a: {', '.join(emails_destino)}.",
+                email_enviado=", ".join(emails_destino)
+            )
+        except Exception as e:
+            return EnviarNotificacionEjecucionType(
+                ok=False,
+                mensaje=f"Error al enviar la notificación: {str(e)}",
+                email_enviado=None
+            )
+
 class CrearNotificacionTablon(graphene.Mutation):
     """
     Crea una notificación en tablero (Art. 47) sin necesidad de
@@ -5251,10 +5540,133 @@ def _registrar_actuacion_automatica(expediente, estado_nuevo: str, usuario_id=No
             es_publica=True,
             descripcion=descripcion,
         )
-    except Exception:
-        pass  # No romper el flujo principal si falla el registro automático
+    except Exception as e:
+        print(f"❌ ERROR en _registrar_actuacion_automatica: {e}")
+        import traceback
+        traceback.print_exc()
 
+def _sincronizar_resolucion_expediente(denuncia, tipo_evento: str = "RESUELTA"):
+    """
+    Crea registros Resolucion en el expediente para todos los eventos
+    que generan una resolución formal según el reglamento.
+    """
+    if not denuncia.expediente:
+        return
 
+    CONFIGS = {
+        "RESUELTA": {
+            "numero":        f"RES-{denuncia.numero_denuncia}",
+            "tipo_codigo":   "RDF",
+            "tipo_nombre":   "Resolución Definitiva Primera Instancia",
+            "dispositiva":   denuncia.resolucion or "",
+            "fundamentacion": denuncia.detalle_sancion or "",
+            "fecha":         denuncia.fecha_resolucion,
+            "es_recurrible": True,
+            "plazo_dias":    5,
+            "estado":        "VIGENTE",
+        },
+        "EJECUTADA": {
+            "numero":        f"RES-APE-{denuncia.numero_denuncia}",
+            "tipo_codigo":   "RDS",
+            "tipo_nombre":   "Resolución Segunda Instancia",
+            "dispositiva":   denuncia.resolucion_apelacion or "",
+            "fundamentacion": "",
+            "fecha":         denuncia.fecha_apelacion,
+            "es_recurrible": False,
+            "plazo_dias":    0,
+            "estado":        "VIGENTE",
+        },
+        "CONCILIADA": {
+            "numero":        f"RES-CON-{denuncia.numero_denuncia}",
+            "tipo_codigo":   "RCN",
+            "tipo_nombre":   "Acta de Conciliación",
+            "dispositiva":   denuncia.acta_conciliacion or "",
+            "fundamentacion": "",
+            "fecha":         denuncia.fecha_conciliacion,
+            "es_recurrible": False,
+            "plazo_dias":    0,
+            "estado":        "VIGENTE",
+        },
+        "PRESCRITA": {
+            "numero":        f"RES-PRS-{denuncia.numero_denuncia}",
+            "tipo_codigo":   "RPR",
+            "tipo_nombre":   "Resolución de Prescripción",
+            "dispositiva":   denuncia.resolucion or "",
+            "fundamentacion": "",
+            "fecha":         denuncia.fecha_resolucion,
+            "es_recurrible": False,
+            "plazo_dias":    0,
+            "estado":        "VIGENTE",
+        },
+        "ARCHIVADA": {
+            "numero":        f"RES-ARC-{denuncia.numero_denuncia}",
+            "tipo_codigo":   "RAR",
+            "tipo_nombre":   "Resolución de Archivo",
+            "dispositiva":   f"Denuncia {denuncia.numero_denuncia} archivada (Art. 57).",
+            "fundamentacion": "",
+            "fecha":         None,
+            "es_recurrible": False,
+            "plazo_dias":    0,
+            "estado":        "VIGENTE",
+        },
+        "FALLECIDO": {
+            "numero":        f"RES-FAL-{denuncia.numero_denuncia}",
+            "tipo_codigo":   "RAF",
+            "tipo_nombre":   "Resolución de Archivo por Fallecimiento",
+            "dispositiva":   f"Proceso archivado por fallecimiento del denunciado (Art. 80). Fecha: {denuncia.fecha_fallecimiento_denunciado}.",
+            "fundamentacion": "",
+            "fecha":         denuncia.fecha_fallecimiento_denunciado,
+            "es_recurrible": False,
+            "plazo_dias":    0,
+            "estado":        "VIGENTE",
+        },
+        "DESISTIDA": {
+            "numero":        f"RES-DES-{denuncia.numero_denuncia}",
+            "tipo_codigo":   "RDE",
+            "tipo_nombre":   "Resolución de Archivo por Desistimiento",
+            "dispositiva":   denuncia.motivo_desistimiento or f"Desistimiento del denunciante (Art. 23).",
+            "fundamentacion": "",
+            "fecha":         denuncia.fecha_desistimiento,
+            "es_recurrible": False,
+            "plazo_dias":    0,
+            "estado":        "VIGENTE",
+        },
+    }
+
+    config = CONFIGS.get(tipo_evento)
+    if not config:
+        return
+
+    # No duplicar
+    if Resolucion.objects.filter(
+        id_expediente=denuncia.expediente,
+        numero_resolucion=config["numero"]
+    ).exists():
+        return
+
+    try:
+        from datetime import date as date_cls
+        tipo_res, _ = TipoResolucion.objects.get_or_create(
+            codigo=config["tipo_codigo"],
+            defaults={
+                "nombre":           config["tipo_nombre"],
+                "nivel_jerarquico": 1,
+            }
+        )
+
+        Resolucion.objects.create(
+            id_expediente     = denuncia.expediente,
+            id_tipo_res       = tipo_res,
+            numero_resolucion = config["numero"],
+            fecha_resolucion  = config["fecha"] or date_cls.today(),
+            parte_dispositiva = config["dispositiva"],
+            fundamentacion    = config["fundamentacion"],
+            estado            = config["estado"],
+            es_recurrible     = config["es_recurrible"],
+            plazo_recurso_dias= config["plazo_dias"],
+        )
+    except Exception as e:
+        print(f"❌ ERROR en _sincronizar_resolucion_expediente ({tipo_evento}): {e}")
 
 
 class CrearDenuncia(graphene.Mutation):
@@ -5509,6 +5921,8 @@ def _sincronizar_estado_expediente(denuncia, usuario_id=None):
 
 
 
+
+
 class ActualizarDenuncia(graphene.Mutation):
     class Arguments:
         id         = graphene.Int(required=True)
@@ -5550,6 +5964,7 @@ class ActualizarDenuncia(graphene.Mutation):
         if input.get('fecha_apelacion'):         denuncia.fecha_apelacion = parse_fecha(input.fecha_apelacion)
         if input.get('resolucion_apelacion'):    denuncia.resolucion_apelacion = input.resolucion_apelacion
         if input.get('fecha_remision_superior'): denuncia.fecha_remision_superior = parse_fecha(input.fecha_remision_superior)
+        id_recurrente_parte = input.get('id_recurrente_parte')
 
         if input.get('fecha_solicitud_aclaracion'):    denuncia.fecha_solicitud_aclaracion = parse_fecha(input.fecha_solicitud_aclaracion)
         if input.get('aclaracion_enmienda'):           denuncia.aclaracion_enmienda = input.aclaracion_enmienda
@@ -5561,6 +5976,37 @@ class ActualizarDenuncia(graphene.Mutation):
         if input.get('fecha_compulsa'):                denuncia.fecha_compulsa = parse_fecha(input.fecha_compulsa)
         if input.get('resolucion_compulsa'):           denuncia.resolucion_compulsa = input.resolucion_compulsa
         if input.get('fecha_notificacion_resolucion'): denuncia.fecha_notificacion_resolucion = parse_fecha(input.fecha_notificacion_resolucion)
+        if input.get('fecha_remision_rectorado'):      denuncia.fecha_remision_rectorado = parse_fecha(input.fecha_remision_rectorado)
+        if input.get('fecha_resolucion_rectoral'):     denuncia.fecha_resolucion_rectoral = parse_fecha(input.fecha_resolucion_rectoral)
+        if input.get('numero_resolucion_rectoral'):    denuncia.numero_resolucion_rectoral = input.numero_resolucion_rectoral
+        if input.get('observaciones_ejecucion'):       denuncia.observaciones_ejecucion = input.observaciones_ejecucion
+        if input.get('fecha_registro_gaceta'):         denuncia.fecha_registro_gaceta = parse_fecha(input.fecha_registro_gaceta)
+        if input.get('numero_gaceta'):                 denuncia.numero_gaceta = input.numero_gaceta
+
+
+    # ── Validar plazo de apelación ANTES de guardar (Art. 82 par. IV) ──
+        if input.get('estado') == "APELADA" and input.estado != estado_anterior:
+            from datetime import date as date_cls
+            fecha_notif = denuncia.fecha_notificacion_resolucion
+            if fecha_notif:
+                hoy = date_cls.today()
+                fecha_ape = (
+                    datetime.strptime(input.get('fecha_apelacion'), '%Y-%m-%d').date()
+                    if input.get('fecha_apelacion') else hoy
+                )
+                dias_habiles = 0
+                cursor = fecha_notif
+                while cursor < fecha_ape:
+                    cursor += timedelta(days=1)
+                    if cursor.weekday() < 5:
+                        dias_habiles += 1
+                if dias_habiles > 5:
+                    raise GraphQLError(
+                        f"Apelación extemporánea (Art. 82 par. IV): transcurrieron {dias_habiles} días hábiles "
+                        f"desde la notificación del {fecha_notif.strftime('%d/%m/%Y')}. "
+                        f"El plazo perentorio de 5 días hábiles ya venció. "
+                        f"El Tribunal debe rechazar el recurso y declarar la ejecutoria de la resolución."
+                    )
 
         denuncia.save()
 
@@ -5568,6 +6014,35 @@ class ActualizarDenuncia(graphene.Mutation):
             _sincronizar_estado_expediente(denuncia, usuario_id=id_usuario)
             if denuncia.expediente:
                 _registrar_actuacion_automatica(denuncia.expediente, input.estado, usuario_id=id_usuario)
+                if input.estado in ("RESUELTA", "EJECUTADA", "CONCILIADA", "PRESCRITA", "ARCHIVADA", "FALLECIDO", "DESISTIDA"):
+                    _sincronizar_resolucion_expediente(denuncia, tipo_evento=input.estado)
+
+                if input.estado == "APELADA" and id_recurrente_parte:
+                    try:
+                        resolucion_impugnada = Resolucion.objects.filter(
+                            id_expediente=denuncia.expediente,
+                            numero_resolucion=f"RES-{denuncia.numero_denuncia}"
+                        ).first()
+                        parte_recurrente = ParteProcesal.objects.get(
+                            id_parte=id_recurrente_parte
+                        )
+                        tipo_recurso, _ = TipoRecurso.objects.get_or_create(
+                            nombre="Apelación",
+                            defaults={"descripcion": "Recurso de apelación (Art. 82)"}
+                        )
+                        if resolucion_impugnada and not Recurso.objects.filter(
+                            id_resolucion_impugnada=resolucion_impugnada,
+                            id_recurrente=parte_recurrente
+                        ).exists():
+                            Recurso.objects.create(
+                                id_resolucion_impugnada=resolucion_impugnada,
+                                id_tipo_recurso=tipo_recurso,
+                                id_recurrente=parte_recurrente,
+                                estado_recurso="PENDIENTE",
+                                fundamentos=f"Recurso de apelación interpuesto el {denuncia.fecha_apelacion} (Art. 82)",
+                            )
+                    except Exception as e:
+                        print(f"⚠ No se pudo crear el Recurso automáticamente: {e}")
 
         return ActualizarDenuncia(denuncia=denuncia)
 
@@ -5661,6 +6136,132 @@ class EliminarResolucionAntigua(graphene.Mutation):
             return EliminarResolucionAntigua(ok=True, mensaje="Resolución eliminada")
         except ResolucionAntigua.DoesNotExist:
             return EliminarResolucionAntigua(ok=False, mensaje="Resolución no encontrada")
+
+
+
+class RegistrarActuacionDenunciaType(graphene.ObjectType):
+    ok        = graphene.Boolean()
+    mensaje   = graphene.String()
+    actuacion = graphene.Field(ActuacionProcesalType)
+
+
+class RegistrarRatificacionPruebas(graphene.Mutation):
+    """
+    Registra la actuación de ratificación de pruebas (Art. 60 par. II).
+    El secretario la dispara manualmente cuando las partes ratifican
+    dentro de los 5 días hábiles desde la notificación del auto de apertura.
+    Solo válido en estado PRUEBAS.
+    """
+    class Arguments:
+        id_denuncia = graphene.Int(required=True)
+        id_usuario  = graphene.Int(required=True)
+
+    Output = RegistrarActuacionDenunciaType
+
+    def mutate(self, info, id_denuncia, id_usuario):
+        try:
+            denuncia = Denuncia.objects.select_related('expediente').get(id=id_denuncia)
+        except Denuncia.DoesNotExist:
+            return RegistrarActuacionDenunciaType(ok=False, mensaje="Denuncia no encontrada.", actuacion=None)
+
+        if denuncia.estado != "PRUEBAS":
+            return RegistrarActuacionDenunciaType(
+                ok=False,
+                mensaje=f"Solo se puede registrar la ratificación de pruebas en estado 'PRUEBAS'. Estado actual: '{denuncia.estado}'.",
+                actuacion=None
+            )
+
+        if not denuncia.expediente:
+            return RegistrarActuacionDenunciaType(ok=False, mensaje="La denuncia no tiene expediente asociado.", actuacion=None)
+
+        try:
+            tipo = TipoActuacion.objects.get(codigo='RAP')
+        except TipoActuacion.DoesNotExist:
+            return RegistrarActuacionDenunciaType(ok=False, mensaje="Tipo de actuación RAP no encontrado. Ejecutá el script de seed.", actuacion=None)
+
+        try:
+            usuario = Usuario.objects.get(id_usuario=id_usuario)
+        except Usuario.DoesNotExist:
+            return RegistrarActuacionDenunciaType(ok=False, mensaje="Usuario no encontrado.", actuacion=None)
+
+        expediente = denuncia.expediente
+        ultima = ActuacionProcesal.objects.filter(id_expediente=expediente).order_by('-folio_fin').first()
+        folio_inicio = (ultima.folio_fin + 1) if ultima else 1
+
+        actuacion = ActuacionProcesal.objects.create(
+            id_expediente=expediente,
+            id_tipo_actuacion=tipo,
+            usuario=usuario,
+            folio_inicio=folio_inicio,
+            folio_fin=folio_inicio,
+            es_publica=True,
+            descripcion=(
+                f"Ratificación de pruebas de cargo y descargo — "
+                f"5 días hábiles desde notificación del Auto de Apertura (Art. 60 par. II) — "
+                f"Denuncia {denuncia.numero_denuncia}"
+            ),
+        )
+
+        return RegistrarActuacionDenunciaType(ok=True, mensaje="Ratificación de pruebas registrada.", actuacion=actuacion)
+
+
+class RegistrarTrasladoApelacion(graphene.Mutation):
+    """
+    Registra el traslado de la apelación a la contraparte (Art. 82 par. III).
+    La contraparte tiene 5 días hábiles para contestar. El secretario
+    la dispara manualmente cuando corre el traslado. Solo válido en estado APELADA.
+    """
+    class Arguments:
+        id_denuncia = graphene.Int(required=True)
+        id_usuario  = graphene.Int(required=True)
+
+    Output = RegistrarActuacionDenunciaType
+
+    def mutate(self, info, id_denuncia, id_usuario):
+        try:
+            denuncia = Denuncia.objects.select_related('expediente').get(id=id_denuncia)
+        except Denuncia.DoesNotExist:
+            return RegistrarActuacionDenunciaType(ok=False, mensaje="Denuncia no encontrada.", actuacion=None)
+
+        if denuncia.estado != "APELADA":
+            return RegistrarActuacionDenunciaType(
+                ok=False,
+                mensaje=f"Solo se puede registrar el traslado de apelación en estado 'APELADA'. Estado actual: '{denuncia.estado}'.",
+                actuacion=None
+            )
+
+        if not denuncia.expediente:
+            return RegistrarActuacionDenunciaType(ok=False, mensaje="La denuncia no tiene expediente asociado.", actuacion=None)
+
+        try:
+            tipo = TipoActuacion.objects.get(codigo='TAP')
+        except TipoActuacion.DoesNotExist:
+            return RegistrarActuacionDenunciaType(ok=False, mensaje="Tipo de actuación TAP no encontrado. Ejecutá el script de seed.", actuacion=None)
+
+        try:
+            usuario = Usuario.objects.get(id_usuario=id_usuario)
+        except Usuario.DoesNotExist:
+            return RegistrarActuacionDenunciaType(ok=False, mensaje="Usuario no encontrado.", actuacion=None)
+
+        expediente = denuncia.expediente
+        ultima = ActuacionProcesal.objects.filter(id_expediente=expediente).order_by('-folio_fin').first()
+        folio_inicio = (ultima.folio_fin + 1) if ultima else 1
+
+        actuacion = ActuacionProcesal.objects.create(
+            id_expediente=expediente,
+            id_tipo_actuacion=tipo,
+            usuario=usuario,
+            folio_inicio=folio_inicio,
+            folio_fin=folio_inicio,
+            es_publica=True,
+            descripcion=(
+                f"Traslado del recurso de apelación a la contraparte — "
+                f"5 días hábiles para contestar (Art. 82 par. III) — "
+                f"Denuncia {denuncia.numero_denuncia}"
+            ),
+        )
+
+        return RegistrarActuacionDenunciaType(ok=True, mensaje="Traslado de apelación registrado.", actuacion=actuacion)
 
 
 # ============================================================
@@ -5816,7 +6417,11 @@ class Mutation(graphene.ObjectType):
     crear_resolucion_antigua = CrearResolucionAntigua.Field()
     actualizar_resolucion_antigua = ActualizarResolucionAntigua.Field()
     eliminar_resolucion_antigua = EliminarResolucionAntigua.Field()
-    
+
+
+    registrar_ratificacion_pruebas  = RegistrarRatificacionPruebas.Field()
+    registrar_traslado_apelacion    = RegistrarTrasladoApelacion.Field()
+    enviar_notificacion_ejecucion   = EnviarNotificacionEjecucion.Field()
 
 
 schema = graphene.Schema(query=Query, mutation=Mutation)

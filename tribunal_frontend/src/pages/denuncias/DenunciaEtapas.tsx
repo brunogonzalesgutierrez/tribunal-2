@@ -6,6 +6,37 @@ import {
   Clock, AlertTriangle, FileText, Plus, X, Handshake
 } from "lucide-react";
 
+
+function calcularDiasHabiles(desde: string, hasta: Date = new Date()): number {
+  const inicio = new Date(desde);
+  inicio.setHours(0, 0, 0, 0);
+  const fin = new Date(hasta);
+  fin.setHours(0, 0, 0, 0);
+  let dias = 0;
+  const cursor = new Date(inicio);
+  while (cursor < fin) {
+    cursor.setDate(cursor.getDate() + 1);
+    const dow = cursor.getDay();
+    if (dow !== 0 && dow !== 6) dias++;
+  }
+  return dias;
+}
+
+function calcularFechaLimiteHabiles(desde: string, diasHabiles: number): Date {
+  const fecha = new Date(desde);
+  let contados = 0;
+  while (contados < diasHabiles) {
+    fecha.setDate(fecha.getDate() + 1);
+    const dow = fecha.getDay();
+    if (dow !== 0 && dow !== 6) contados++;
+  }
+  return fecha;
+}
+
+
+
+
+
 // ─────────────────────────────────────────────────────────────
 // TYPES
 // ─────────────────────────────────────────────────────────────
@@ -40,6 +71,14 @@ interface Denuncia {
   fechaCompulsa?: string;
   resolucionCompulsa?: string;
   fechaNotificacionResolucion?: string;
+  // Art. 16 + Art. 90 par. II
+  fechaRemisionRectorado?: string;
+  fechaResolucionRectoral?: string;
+  numeroResolucionRectoral?: string;
+  observacionesEjecucion?: string;
+  // Art. 7
+  fechaRegistroGaceta?: string;
+  numeroGaceta?: string;
   expediente?: { idExpediente: number; numeroExpediente: string };
 }
 
@@ -614,23 +653,55 @@ export function EtapaResolucion({ onEmitirResolucion, saving }: EtapaResolucionP
   );
 }
 
+
 // ─────────────────────────────────────────────────────────────
-// 8. ETAPA APELACIÓN
+// 8. ETAPA APELACIÓN  — con control de plazo (Art. 82 par. IV)
 // ─────────────────────────────────────────────────────────────
 interface EtapaApelacionProps {
   denuncia: Denuncia;
-  onApelar?: (datos: { fechaApelacion: string }) => void;
+  onApelar?: (datos: { fechaApelacion: string; idRecurrente: string }) => void;
   onEjecutar?: () => void;
   onRemitirSuperior?: (datos: { fechaRemisionSuperior: string }) => void;
   onResolverApelacion?: (datos: { resolucionApelacion: string }) => void;
   saving: boolean;
 }
 
-export function EtapaApelacion({ denuncia, onApelar, onEjecutar, onRemitirSuperior, onResolverApelacion, saving }: EtapaApelacionProps) {
-  const [fechaApelacion, setFechaApelacion] = useState(new Date().toISOString().slice(0, 10));
-  const [fechaRemision, setFechaRemision] = useState(new Date().toISOString().slice(0, 10));
+export function EtapaApelacion({
+  denuncia,
+  onApelar,
+  onEjecutar,
+  onRemitirSuperior,
+  onResolverApelacion,
+  saving,
+}: EtapaApelacionProps) {
+  const [fechaApelacion, setFechaApelacion] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
+  const [recurrente, setRecurrente] = useState<"DENUNCIANTE" | "DENUNCIADO" | "">("");
+  const [fechaRemision, setFechaRemision] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
   const [resolucionApelacion, setResolucionApelacion] = useState("");
   const esApelada = denuncia.estado === "APELADA";
+
+  // ── Calcular estado del plazo de apelación ──────────────────
+  const fechaNotif = denuncia.fechaNotificacionResolucion;
+
+  // Si hay fecha de notificación, calculamos cuántos días hábiles
+  // han pasado desde ella hasta hoy, y cuándo vence el plazo.
+  const diasHabilesTranscurridos = fechaNotif
+    ? calcularDiasHabiles(fechaNotif)
+    : null;
+
+  const fechaLimite = fechaNotif
+    ? calcularFechaLimiteHabiles(fechaNotif, 5)
+    : null;
+
+  const plazoVencido   = diasHabilesTranscurridos !== null && diasHabilesTranscurridos > 5;
+  const plazoInminente = diasHabilesTranscurridos !== null && diasHabilesTranscurridos >= 4 && !plazoVencido;
+
+  const fmtFecha = (d: Date) =>
+    d.toLocaleDateString("es-BO", { day: "2-digit", month: "short", year: "numeric" });
 
   return (
     <div className="bg-orange-50 dark:bg-orange-900/20 rounded-2xl border border-orange-200 dark:border-orange-800 p-6">
@@ -639,88 +710,262 @@ export function EtapaApelacion({ denuncia, onApelar, onEjecutar, onRemitirSuperi
         Recurso de Apelación (Art. 82)
       </h3>
 
+      {/* Info general del plazo */}
       <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4 mb-4">
         <p className="text-sm text-gray-600 dark:text-gray-300">
-          Plazo perentorio de <span className="font-bold text-orange-600">5 días hábiles</span> para interponer apelación.
-          Una vez admitida, se remite al Tribunal Superior en <span className="font-bold text-orange-600">3 días hábiles</span>.
+          Plazo perentorio de{" "}
+          <span className="font-bold text-orange-600">5 días hábiles</span> para
+          interponer apelación desde la notificación personal de la resolución (Art. 82
+          par. II). Una vez admitida, se remite al Tribunal Superior en{" "}
+          <span className="font-bold text-orange-600">3 días hábiles</span>.
         </p>
         <p className="text-xs text-gray-400 mt-1">Arts. 82 y 86 del Reglamento</p>
       </div>
 
-      {/* Estado RESUELTA — decidir si apelar o ejecutar */}
-      {!esApelada && onApelar && onEjecutar && (
-        <div className="space-y-4">
-          <div className="mb-2">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Fecha de interposición de apelación
-            </label>
-            <input type="date" value={fechaApelacion} onChange={(e) => setFechaApelacion(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-orange-500 outline-none"
-              disabled={saving} />
-          </div>
-          <div className="flex gap-3 justify-end">
-            <button onClick={onEjecutar} disabled={saving}
-              className="px-4 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white font-semibold transition-colors flex items-center gap-2">
-              <FileCheck className="w-4 h-4" /> Ejecutar fallo (sin apelación)
-            </button>
-            <button onClick={() => onApelar({ fechaApelacion })} disabled={saving}
-              className="px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold transition-colors flex items-center gap-2">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              Interponer Apelación
-            </button>
-          </div>
+      {/* ── Banner de estado del plazo (solo en estado RESUELTA) ── */}
+      {!esApelada && fechaNotif && (
+        <>
+          {plazoVencido && (
+            <div className="mb-4 flex items-start gap-3 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+              <XCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-bold text-red-700 dark:text-red-400">
+                  Plazo de apelación vencido (Art. 82 par. IV)
+                </p>
+                <p className="text-xs text-red-600 dark:text-red-300 mt-1">
+                  Han transcurrido <strong>{diasHabilesTranscurridos} días hábiles</strong> desde
+                  la notificación del {new Date(fechaNotif).toLocaleDateString("es-BO")}. El plazo
+                  perentorio de 5 días hábiles ya expiró (venció el{" "}
+                  <strong>{fechaLimite ? fmtFecha(fechaLimite) : "—"}</strong>). Si se intenta
+                  interponer apelación, el sistema la rechazará y el Tribunal debe declarar
+                  la ejecutoria de la resolución.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {plazoInminente && (
+            <div className="mb-4 flex items-start gap-3 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-bold text-amber-700 dark:text-amber-400">
+                  Plazo por vencer — quedan{" "}
+                  {5 - (diasHabilesTranscurridos ?? 0)} día
+                  {5 - (diasHabilesTranscurridos ?? 0) !== 1 ? "s" : ""} hábil
+                  {5 - (diasHabilesTranscurridos ?? 0) !== 1 ? "es" : ""}
+                </p>
+                <p className="text-xs text-amber-600 dark:text-amber-300 mt-1">
+                  Notificado el{" "}
+                  {new Date(fechaNotif).toLocaleDateString("es-BO")}. El plazo vence el{" "}
+                  <strong>{fechaLimite ? fmtFecha(fechaLimite) : "—"}</strong>.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {!plazoVencido && !plazoInminente && (
+            <div className="mb-4 flex items-start gap-3 p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+              <Clock className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-blue-700 dark:text-blue-400">
+                  Plazo vigente — {diasHabilesTranscurridos} de 5 días hábiles transcurridos
+                </p>
+                <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">
+                  Notificado el{" "}
+                  {new Date(fechaNotif).toLocaleDateString("es-BO")}. Vence el{" "}
+                  <strong>{fechaLimite ? fmtFecha(fechaLimite) : "—"}</strong>.
+                </p>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Aviso si no hay fecha de notificación registrada */}
+      {!esApelada && !fechaNotif && (
+        <div className="mb-4 flex items-start gap-3 p-3 rounded-xl bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800">
+          <AlertCircle className="w-4 h-4 text-sky-500 shrink-0 mt-0.5" />
+          <p className="text-xs text-sky-700 dark:text-sky-400">
+            No se registró la fecha de notificación personal (Art. 46). Para controlar el
+            plazo de apelación, registrala primero en la sección "Notificación personal de
+            resolución" de arriba.
+          </p>
         </div>
       )}
 
-      {/* Estado APELADA — registrar remisión y resolución del superior */}
+      {/* ── Estado RESUELTA — decidir si apelar o ejecutar ── */}
+      {!esApelada && onApelar && onEjecutar && (
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Fecha de interposición de apelación
+            </label>
+            <input
+              type="date"
+              value={fechaApelacion}
+              onChange={(e) => setFechaApelacion(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-orange-500 outline-none"
+              disabled={saving}
+            />
+            {/* Advertencia dinámica según la fecha seleccionada */}
+            {fechaNotif && fechaApelacion && (() => {
+              const diasSel = calcularDiasHabiles(fechaNotif, new Date(fechaApelacion + "T23:59:59"));
+              if (diasSel > 5) {
+                return (
+                  <p className="mt-1.5 text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+                    <XCircle className="w-3.5 h-3.5 shrink-0" />
+                    Con esta fecha habrán transcurrido <strong>{diasSel} días hábiles</strong> — el sistema rechazará la apelación (Art. 82 par. IV).
+                  </p>
+                );
+              }
+              if (diasSel === 5) {
+                return (
+                  <p className="mt-1.5 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    Último día hábil del plazo perentorio.
+                  </p>
+                );
+              }
+              return null;
+            })()}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Parte que interpone el recurso <span className="text-red-500">*</span>
+            </label>
+            <div className="flex gap-3">
+              {(["DENUNCIANTE", "DENUNCIADO"] as const).map((opcion) => (
+                <button
+                  key={opcion}
+                  type="button"
+                  onClick={() => setRecurrente(opcion)}
+                  disabled={saving}
+                  className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${
+                    recurrente === opcion
+                      ? "border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400"
+                      : "border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-400 hover:border-orange-300 dark:hover:border-orange-700"
+                  }`}
+                >
+                  {opcion === "DENUNCIANTE" ? "Denunciante" : "Denunciado"}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              Art. 82 — cualquiera de las partes puede apelar dentro del plazo
+            </p>
+          </div>
+
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={onEjecutar}
+              disabled={saving}
+              className="px-4 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white font-semibold transition-colors flex items-center gap-2"
+            >
+              <FileCheck className="w-4 h-4" /> Ejecutar fallo (sin apelación)
+            </button>
+            <button
+              onClick={() => {
+                if (!recurrente) return;
+                onApelar({ fechaApelacion, idRecurrente: recurrente });
+              }}
+              disabled={saving || !recurrente}
+              title={plazoVencido ? "El plazo ya venció — el sistema rechazará esta apelación (Art. 82 par. IV)" : undefined}
+              className={`px-4 py-2.5 rounded-xl text-white font-semibold transition-colors flex items-center gap-2 disabled:opacity-50 ${
+                plazoVencido
+                  ? "bg-red-500 hover:bg-red-600"
+                  : "bg-orange-500 hover:bg-orange-600"
+              }`}
+            >
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+              {plazoVencido ? "Intentar apelación (fuera de plazo)" : "Interponer Apelación"}
+            </button>
+          </div>
+
+          {/* Advertencia final si plazo vencido */}
+          {plazoVencido && (
+            <p className="text-xs text-red-600 dark:text-red-400 text-right">
+              ⚠ Si el plazo ya venció, usá "Ejecutar fallo" directamente (Art. 82 par. IV).
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* ── Estado APELADA — remisión y resolución del superior ── */}
       {esApelada && (
         <div className="space-y-4">
-          {/* Remisión al Superior — solo si no se registró aún */}
           {!denuncia.fechaRemisionSuperior && onRemitirSuperior && (
             <div className="border border-orange-200 dark:border-orange-700 rounded-xl p-4">
               <p className="text-sm font-medium text-orange-700 dark:text-orange-400 mb-3">
                 Paso 1 — Remitir expediente al Tribunal Superior (Art. 86)
               </p>
-              <p className="text-xs text-gray-500 mb-3">Plazo: 3 días hábiles desde la admisión del recurso.</p>
+              <p className="text-xs text-gray-500 mb-3">
+                Plazo: 3 días hábiles desde la admisión del recurso.
+              </p>
               <div className="mb-3">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Fecha de remisión
                 </label>
-                <input type="date" value={fechaRemision} onChange={(e) => setFechaRemision(e.target.value)}
+                <input
+                  type="date"
+                  value={fechaRemision}
+                  onChange={(e) => setFechaRemision(e.target.value)}
                   className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-orange-500 outline-none"
-                  disabled={saving} />
+                  disabled={saving}
+                />
               </div>
-              <button onClick={() => onRemitirSuperior({ fechaRemisionSuperior: fechaRemision })} disabled={saving}
-                className="px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold transition-colors flex items-center gap-2">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              <button
+                onClick={() => onRemitirSuperior({ fechaRemisionSuperior: fechaRemision })}
+                disabled={saving}
+                className="px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold transition-colors flex items-center gap-2"
+              >
+                {saving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
                 Registrar Remisión al Superior
               </button>
             </div>
           )}
 
-          {/* Resolución del Superior */}
           {onResolverApelacion && (
             <div className="border border-orange-200 dark:border-orange-700 rounded-xl p-4">
               <p className="text-sm font-medium text-orange-700 dark:text-orange-400 mb-3">
-                {denuncia.fechaRemisionSuperior ? "Paso 2 —" : ""} Resolución del Tribunal Superior (Art. 86)
+                {denuncia.fechaRemisionSuperior ? "Paso 2 —" : ""} Resolución del Tribunal
+                Superior (Art. 86)
               </p>
               <p className="text-xs text-gray-500 mb-3">
-                  Registre aquí el fallo recibido del Tribunal Superior (Art. 86). El Superior tiene 15 días hábiles para resolver desde el decreto de radicatoria.
+                El Superior tiene 15 días hábiles para resolver desde el decreto de
+                radicatoria. Registrá aquí el fallo recibido (Art. 86).
               </p>
               <div className="mb-3">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Resolución de segunda instancia
                 </label>
-                <textarea value={resolucionApelacion} onChange={(e) => setResolucionApelacion(e.target.value)} rows={5}
+                <textarea
+                  value={resolucionApelacion}
+                  onChange={(e) => setResolucionApelacion(e.target.value)}
+                  rows={5}
                   className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all outline-none"
                   placeholder="Confirma, revoca o anula la resolución de primera instancia..."
-                  disabled={saving} />
+                  disabled={saving}
+                />
               </div>
               <button
                 onClick={() => onResolverApelacion({ resolucionApelacion })}
                 disabled={saving || !resolucionApelacion.trim()}
-                className="px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold transition-colors flex items-center gap-2">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileCheck className="w-4 h-4" />}
+                className="px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold transition-colors flex items-center gap-2"
+              >
+                {saving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <FileCheck className="w-4 h-4" />
+                )}
                 Registrar Fallo Recibido y Ejecutar
               </button>
             </div>
@@ -730,7 +975,6 @@ export function EtapaApelacion({ denuncia, onApelar, onEjecutar, onRemitirSuperi
     </div>
   );
 }
-
 // ─────────────────────────────────────────────────────────────
 // 10. ACLARACIÓN / COMPLEMENTACIÓN / ENMIENDA (Art. 77)
 // ─────────────────────────────────────────────────────────────
@@ -1536,6 +1780,450 @@ export function EtapaCompulsa({
           Registrar compulsa
         </button>
       </div>
+    </div>
+  );
+}
+
+
+// ─────────────────────────────────────────────────────────────
+// 17. RATIFICACIÓN DE PRUEBAS (Art. 60 par. II)
+// ─────────────────────────────────────────────────────────────
+interface EtapaRatificacionPruebasProps {
+  denuncia: Denuncia;
+  onRegistrar: () => void;
+  saving: boolean;
+}
+
+export function EtapaRatificacionPruebas({
+  denuncia, onRegistrar, saving
+}: EtapaRatificacionPruebasProps) {
+  const [confirmando, setConfirmando] = useState(false);
+
+  if (!confirmando) {
+    return (
+      <div className="bg-purple-50 dark:bg-purple-900/20 rounded-2xl border border-purple-200 dark:border-purple-800 p-5">
+        <h3 className="text-sm font-semibold text-purple-700 dark:text-purple-400 mb-2 flex items-center gap-2">
+          <ClipboardList className="w-4 h-4" />
+          Ratificación de Pruebas (Art. 60 par. II)
+        </h3>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          Las partes tienen <span className="font-semibold text-purple-600">5 días hábiles</span>{" "}
+          desde la notificación del Auto de Apertura para ratificar las pruebas presentadas.
+          Registrá esta actuación cuando ambas partes hayan ratificado o vencido el plazo.
+        </p>
+        <button
+          onClick={() => setConfirmando(true)}
+          disabled={saving}
+          className="px-4 py-2 rounded-xl bg-purple-500 hover:bg-purple-600 text-white text-sm font-semibold transition-colors flex items-center gap-2"
+        >
+          <ClipboardList className="w-4 h-4" /> Registrar ratificación
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-purple-50 dark:bg-purple-900/20 rounded-2xl border-2 border-purple-300 dark:border-purple-700 p-5">
+      <h3 className="text-sm font-semibold text-purple-700 dark:text-purple-400 mb-3 flex items-center gap-2">
+        <ClipboardList className="w-4 h-4" />
+        Confirmar ratificación de pruebas (Art. 60 par. II)
+      </h3>
+      <div className="bg-purple-100 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-xl p-3 mb-4">
+        <p className="text-xs text-purple-700 dark:text-purple-400">
+          Se registrará una actuación procesal en el expediente{" "}
+          <span className="font-semibold">{denuncia.expediente?.numeroExpediente}</span>{" "}
+          con la ratificación de pruebas de cargo y descargo.
+        </p>
+      </div>
+      <div className="flex gap-3 justify-end">
+        <button
+          onClick={() => setConfirmando(false)}
+          disabled={saving}
+          className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={() => { onRegistrar(); setConfirmando(false); }}
+          disabled={saving}
+          className="px-4 py-2.5 rounded-xl bg-purple-500 hover:bg-purple-600 text-white font-semibold text-sm transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+          Confirmar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+// ─────────────────────────────────────────────────────────────
+// 18. TRASLADO DE APELACIÓN A LA CONTRAPARTE (Art. 82 par. III)
+// ─────────────────────────────────────────────────────────────
+interface EtapaTrasladoApelacionProps {
+  denuncia: Denuncia;
+  onRegistrar: () => void;
+  saving: boolean;
+}
+
+export function EtapaTrasladoApelacion({
+  denuncia, onRegistrar, saving
+}: EtapaTrasladoApelacionProps) {
+  const [confirmando, setConfirmando] = useState(false);
+
+  if (!confirmando) {
+    return (
+      <div className="bg-orange-50 dark:bg-orange-900/20 rounded-2xl border border-orange-200 dark:border-orange-800 p-5">
+        <h3 className="text-sm font-semibold text-orange-700 dark:text-orange-400 mb-2 flex items-center gap-2">
+          <Send className="w-4 h-4" />
+          Traslado de Apelación a la Contraparte (Art. 82 par. III)
+        </h3>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          Una vez interpuesta la apelación, debe correrse traslado a la contraparte.
+          Ésta tiene <span className="font-semibold text-orange-600">5 días hábiles</span>{" "}
+          para contestar. Recién después se remite el expediente al Tribunal Superior
+          en <span className="font-semibold text-orange-600">3 días hábiles</span> (Art. 82 par. III).
+        </p>
+        <button
+          onClick={() => setConfirmando(true)}
+          disabled={saving}
+          className="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold transition-colors flex items-center gap-2"
+        >
+          <Send className="w-4 h-4" /> Registrar traslado
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-orange-50 dark:bg-orange-900/20 rounded-2xl border-2 border-orange-300 dark:border-orange-700 p-5">
+      <h3 className="text-sm font-semibold text-orange-700 dark:text-orange-400 mb-3 flex items-center gap-2">
+        <Send className="w-4 h-4" />
+        Confirmar traslado de apelación (Art. 82 par. III)
+      </h3>
+      <div className="bg-orange-100 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-xl p-3 mb-4">
+        <p className="text-xs text-orange-700 dark:text-orange-400">
+          Se registrará en el expediente{" "}
+          <span className="font-semibold">{denuncia.expediente?.numeroExpediente}</span>{" "}
+          que se corrió traslado del recurso de apelación a la contraparte.
+          El plazo de 5 días hábiles para contestar empieza desde hoy.
+        </p>
+      </div>
+      <div className="flex gap-3 justify-end">
+        <button
+          onClick={() => setConfirmando(false)}
+          disabled={saving}
+          className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={() => { onRegistrar(); setConfirmando(false); }}
+          disabled={saving}
+          className="px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold text-sm transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+          Confirmar traslado
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// 19. EJECUCIÓN AL RECTORADO (Art. 16 + Art. 90 par. II)
+// ─────────────────────────────────────────────────────────────
+interface EtapaEjecucionRectoradoProps {
+  denuncia: Denuncia;
+  onRegistrarRemision: (datos: { fechaRemisionRectorado: string; observacionesEjecucion?: string }) => void;
+  onRegistrarResolucionRectoral: (datos: {
+    fechaResolucionRectoral: string;
+    numeroResolucionRectoral: string;
+    observacionesEjecucion?: string;
+  }) => void;
+  onRegistrarGaceta: (datos: { fechaRegistroGaceta: string; numeroGaceta: string }) => void;
+  onEnviarNotificacion: () => void;
+  saving: boolean;
+}
+
+export function EtapaEjecucionRectorado({
+  denuncia,
+  onRegistrarRemision,
+  onRegistrarResolucionRectoral,
+  onRegistrarGaceta,
+  onEnviarNotificacion,
+  saving,
+}: EtapaEjecucionRectoradoProps) {
+  const [fechaRemision, setFechaRemision] = useState(
+    denuncia.fechaRemisionRectorado ?? new Date().toISOString().slice(0, 10)
+  );
+  const [obsRemision, setObsRemision] = useState(denuncia.observacionesEjecucion ?? "");
+
+  const [fechaRectoral, setFechaRectoral] = useState(
+    denuncia.fechaResolucionRectoral ?? new Date().toISOString().slice(0, 10)
+  );
+  const [numRectoral, setNumRectoral] = useState(denuncia.numeroResolucionRectoral ?? "");
+  const [obsRectoral, setObsRectoral] = useState(denuncia.observacionesEjecucion ?? "");
+
+  const [fechaGaceta, setFechaGaceta] = useState(
+    denuncia.fechaRegistroGaceta ?? new Date().toISOString().slice(0, 10)
+  );
+  const [numGaceta, setNumGaceta] = useState(denuncia.numeroGaceta ?? "");
+
+  const paso1Completo = !!denuncia.fechaRemisionRectorado;
+  const paso2Completo = !!denuncia.fechaResolucionRectoral;
+  const paso3Completo = !!denuncia.fechaRegistroGaceta;
+
+  return (
+    <div className="bg-green-50 dark:bg-green-900/20 rounded-2xl border border-green-200 dark:border-green-800 p-6 space-y-5">
+      <h3 className="text-lg font-semibold text-green-700 dark:text-green-400 flex items-center gap-2">
+        <FileCheck className="w-5 h-5" />
+        Ejecución de Fallo al Rectorado (Art. 16 + Art. 90 par. II)
+      </h3>
+
+      <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4">
+        <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+          El fallo ejecutoriado debe ser remitido a la autoridad responsable en{" "}
+          <span className="font-bold text-green-600">3 días hábiles</span> (Art. 16).
+          El Rector emite resolución administrativa en{" "}
+          <span className="font-bold text-green-600">5 días hábiles</span> (Art. 90 par. II).
+          La resolución sancionatoria debe registrarse en la{" "}
+          <span className="font-bold text-green-600">Gaceta Universitaria en 5 días hábiles</span> (Art. 7).
+        </p>
+      </div>
+
+      {/* ── Paso 1: Remisión al Rectorado ── */}
+      <div className={`rounded-xl border p-4 ${paso1Completo ? "border-green-300 dark:border-green-700 bg-green-50/60 dark:bg-green-900/10" : "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/40"}`}>
+        <div className="flex items-center gap-2 mb-3">
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${paso1Completo ? "bg-green-500 text-white" : "bg-gray-200 dark:bg-slate-600 text-gray-600 dark:text-gray-300"}`}>
+            {paso1Completo ? <CheckCircle className="w-4 h-4" /> : "1"}
+          </div>
+          <p className="text-sm font-semibold text-gray-800 dark:text-white">
+            Remisión del expediente al Rectorado (Art. 16)
+          </p>
+        </div>
+
+        {paso1Completo ? (
+          <div className="text-xs text-green-700 dark:text-green-400 space-y-1 pl-8">
+            <p>✓ Remitido el: <span className="font-semibold">{denuncia.fechaRemisionRectorado}</span></p>
+            {denuncia.observacionesEjecucion && (
+              <p>Obs: {denuncia.observacionesEjecucion}</p>
+            )}
+          </div>
+        ) : (
+          <div className="pl-8 space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Fecha de remisión <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={fechaRemision}
+                onChange={e => setFechaRemision(e.target.value)}
+                disabled={saving}
+                className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-green-500 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Observaciones (opcional)
+              </label>
+              <textarea
+                value={obsRemision}
+                onChange={e => setObsRemision(e.target.value)}
+                rows={2}
+                disabled={saving}
+                placeholder="Ej: Expediente remitido con oficio N° 123/2025..."
+                className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-green-500 outline-none"
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => onRegistrarRemision({ fechaRemisionRectorado: fechaRemision, observacionesEjecucion: obsRemision || undefined })}
+                disabled={saving || !fechaRemision}
+                className="px-4 py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-semibold transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                Registrar remisión
+              </button>
+              <button
+                onClick={onEnviarNotificacion}
+                disabled={saving}
+                title="Enviar email al Rectorado y a las partes"
+                className="px-4 py-2 rounded-xl border border-green-300 dark:border-green-700 text-green-700 dark:text-green-400 text-sm font-medium hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors flex items-center gap-2"
+              >
+                <Send className="w-4 h-4" /> Enviar notificación por email
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Paso 2: Resolución Rectoral ── */}
+      <div className={`rounded-xl border p-4 ${paso2Completo ? "border-green-300 dark:border-green-700 bg-green-50/60 dark:bg-green-900/10" : !paso1Completo ? "border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/20 opacity-60" : "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/40"}`}>
+        <div className="flex items-center gap-2 mb-3">
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${paso2Completo ? "bg-green-500 text-white" : "bg-gray-200 dark:bg-slate-600 text-gray-600 dark:text-gray-300"}`}>
+            {paso2Completo ? <CheckCircle className="w-4 h-4" /> : "2"}
+          </div>
+          <p className="text-sm font-semibold text-gray-800 dark:text-white">
+            Resolución administrativa del Rector (Art. 90 par. II)
+          </p>
+        </div>
+
+        {paso2Completo ? (
+          <div className="text-xs text-green-700 dark:text-green-400 space-y-1 pl-8">
+            <p>✓ Resolución rectoral: <span className="font-semibold">{denuncia.numeroResolucionRectoral}</span></p>
+            <p>✓ Fecha: <span className="font-semibold">{denuncia.fechaResolucionRectoral}</span></p>
+            {denuncia.observacionesEjecucion && (
+              <p>Obs: {denuncia.observacionesEjecucion}</p>
+            )}
+          </div>
+        ) : paso1Completo ? (
+          <div className="pl-8 space-y-3">
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3">
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                El Rector tiene <strong>5 días hábiles</strong> desde la recepción del expediente para emitir resolución administrativa (Art. 90 par. II).
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  N° Resolución rectoral <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={numRectoral}
+                  onChange={e => setNumRectoral(e.target.value)}
+                  disabled={saving}
+                  placeholder="Ej: R-RECT-0123/2025"
+                  className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  Fecha de emisión <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={fechaRectoral}
+                  onChange={e => setFechaRectoral(e.target.value)}
+                  disabled={saving}
+                  className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Observaciones sobre la ejecución (opcional)
+              </label>
+              <textarea
+                value={obsRectoral}
+                onChange={e => setObsRectoral(e.target.value)}
+                rows={2}
+                disabled={saving}
+                placeholder="Ej: Sanción ejecutada, denunciado notificado por Rectorado..."
+                className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-green-500 outline-none"
+              />
+            </div>
+            <button
+              onClick={() => onRegistrarResolucionRectoral({
+                fechaResolucionRectoral: fechaRectoral,
+                numeroResolucionRectoral: numRectoral,
+                observacionesEjecucion: obsRectoral || undefined,
+              })}
+              disabled={saving || !numRectoral.trim() || !fechaRectoral}
+              className="px-4 py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-semibold transition-colors flex items-center gap-2 disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+              Registrar resolución rectoral
+            </button>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400 dark:text-gray-500 pl-8">
+            Disponible una vez registrada la remisión al Rectorado.
+          </p>
+        )}
+      </div>
+
+      {/* ── Paso 3: Registro en Gaceta ── */}
+      <div className={`rounded-xl border p-4 ${paso3Completo ? "border-green-300 dark:border-green-700 bg-green-50/60 dark:bg-green-900/10" : !paso2Completo ? "border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/20 opacity-60" : "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/40"}`}>
+        <div className="flex items-center gap-2 mb-3">
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${paso3Completo ? "bg-green-500 text-white" : "bg-gray-200 dark:bg-slate-600 text-gray-600 dark:text-gray-300"}`}>
+            {paso3Completo ? <CheckCircle className="w-4 h-4" /> : "3"}
+          </div>
+          <p className="text-sm font-semibold text-gray-800 dark:text-white">
+            Registro en Gaceta Universitaria (Art. 7)
+          </p>
+        </div>
+
+        {paso3Completo ? (
+          <div className="text-xs text-green-700 dark:text-green-400 space-y-1 pl-8">
+            <p>✓ N° Gaceta: <span className="font-semibold">{denuncia.numeroGaceta}</span></p>
+            <p>✓ Fecha de registro: <span className="font-semibold">{denuncia.fechaRegistroGaceta}</span></p>
+          </div>
+        ) : paso2Completo ? (
+          <div className="pl-8 space-y-3">
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
+              <p className="text-xs text-blue-700 dark:text-blue-400">
+                Las resoluciones definitivas sancionatorias deben registrarse en la{" "}
+                <strong>Gaceta Universitaria en 5 días hábiles</strong> desde su emisión (Art. 7).
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  N° de Gaceta <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={numGaceta}
+                  onChange={e => setNumGaceta(e.target.value)}
+                  disabled={saving}
+                  placeholder="Ej: GU-2025-045"
+                  className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  Fecha de registro <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={fechaGaceta}
+                  onChange={e => setFechaGaceta(e.target.value)}
+                  disabled={saving}
+                  className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                />
+              </div>
+            </div>
+            <button
+              onClick={() => onRegistrarGaceta({ fechaRegistroGaceta: fechaGaceta, numeroGaceta: numGaceta })}
+              disabled={saving || !numGaceta.trim() || !fechaGaceta}
+              className="px-4 py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-semibold transition-colors flex items-center gap-2 disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+              Registrar en Gaceta
+            </button>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400 dark:text-gray-500 pl-8">
+            Disponible una vez registrada la resolución rectoral.
+          </p>
+        )}
+      </div>
+
+      {/* Resumen final */}
+      {paso1Completo && paso2Completo && paso3Completo && (
+        <div className="bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700 rounded-xl p-4 text-center">
+          <CheckCircle className="w-8 h-8 mx-auto text-green-500 mb-2" />
+          <p className="text-sm font-bold text-green-700 dark:text-green-400">
+            Proceso completamente ejecutado
+          </p>
+          <p className="text-xs text-green-600 dark:text-green-300 mt-1">
+            Expediente remitido, resolución rectoral emitida y resolución registrada en Gaceta Universitaria.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
