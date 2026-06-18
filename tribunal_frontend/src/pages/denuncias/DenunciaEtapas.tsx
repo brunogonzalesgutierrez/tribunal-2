@@ -7,8 +7,13 @@ import {
 } from "lucide-react";
 
 
+export function parseFechaLocal(fechaStr: string): Date {
+  const [y, m, d] = fechaStr.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 function calcularDiasHabiles(desde: string, hasta: Date = new Date()): number {
-  const inicio = new Date(desde);
+  const inicio = parseFechaLocal(desde);
   inicio.setHours(0, 0, 0, 0);
   const fin = new Date(hasta);
   fin.setHours(0, 0, 0, 0);
@@ -23,7 +28,7 @@ function calcularDiasHabiles(desde: string, hasta: Date = new Date()): number {
 }
 
 function calcularFechaLimiteHabiles(desde: string, diasHabiles: number): Date {
-  const fecha = new Date(desde);
+  const fecha = parseFechaLocal(desde);
   let contados = 0;
   while (contados < diasHabiles) {
     fecha.setDate(fecha.getDate() + 1);
@@ -416,9 +421,11 @@ interface EtapaDeclaracionInformativaProps {
   denuncia: Denuncia;
   onRegistrarDeclaracion: (datos: { declaracion: string; fechaDeclaracion: string }) => void;
   saving: boolean;
+  disabled?: boolean;  // ← agregar esto
 }
 
-export function EtapaDeclaracionInformativa({ onRegistrarDeclaracion, saving }: EtapaDeclaracionInformativaProps) {
+
+export function EtapaDeclaracionInformativa({ onRegistrarDeclaracion, saving, disabled }: EtapaDeclaracionInformativaProps) {
   const [declaracion, setDeclaracion] = useState("");
   const [fechaDeclaracion, setFechaDeclaracion] = useState(new Date().toISOString().slice(0, 16));
 
@@ -448,8 +455,9 @@ export function EtapaDeclaracionInformativa({ onRegistrarDeclaracion, saving }: 
       </div>
       <div className="flex justify-end">
         <button onClick={() => onRegistrarDeclaracion({ declaracion, fechaDeclaracion })}
-          disabled={saving || !declaracion.trim()}
-          className="px-4 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white font-semibold transition-colors flex items-center gap-2">
+          disabled={saving || !declaracion.trim() || !!disabled}
+          title={disabled ? "Primero programá la audiencia de declaración informativa en el tab Audiencias (Art. 58 inc. b)" : undefined}
+          className="px-4 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white font-semibold transition-colors flex items-center gap-2 disabled:opacity-50">
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
           Registrar y continuar
         </button>
@@ -734,7 +742,7 @@ export function EtapaApelacion({
                 </p>
                 <p className="text-xs text-red-600 dark:text-red-300 mt-1">
                   Han transcurrido <strong>{diasHabilesTranscurridos} días hábiles</strong> desde
-                  la notificación del {new Date(fechaNotif).toLocaleDateString("es-BO")}. El plazo
+                  la notificación del {parseFechaLocal(fechaNotif).toLocaleDateString("es-BO")}. El plazo
                   perentorio de 5 días hábiles ya expiró (venció el{" "}
                   <strong>{fechaLimite ? fmtFecha(fechaLimite) : "—"}</strong>). Si se intenta
                   interponer apelación, el sistema la rechazará y el Tribunal debe declarar
@@ -756,7 +764,7 @@ export function EtapaApelacion({
                 </p>
                 <p className="text-xs text-amber-600 dark:text-amber-300 mt-1">
                   Notificado el{" "}
-                  {new Date(fechaNotif).toLocaleDateString("es-BO")}. El plazo vence el{" "}
+                    {new Date(fechaNotif).toLocaleDateString("es-BO")}. Vence el{" "}
                   <strong>{fechaLimite ? fmtFecha(fechaLimite) : "—"}</strong>.
                 </p>
               </div>
@@ -772,7 +780,7 @@ export function EtapaApelacion({
                 </p>
                 <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">
                   Notificado el{" "}
-                  {new Date(fechaNotif).toLocaleDateString("es-BO")}. Vence el{" "}
+                    {new Date(fechaNotif).toLocaleDateString("es-BO")}. Vence el{" "}
                   <strong>{fechaLimite ? fmtFecha(fechaLimite) : "—"}</strong>.
                 </p>
               </div>
@@ -1546,7 +1554,7 @@ export function EtapaPrescripcion({
   const [confirmando, setConfirmando] = useState(false);
 
   // Calcular si hay prescripción inminente (referencial, no bloqueante)
-  const fechaHecho = denuncia.fechaHecho ? new Date(denuncia.fechaHecho) : null;
+  const fechaHecho = denuncia.fechaHecho ? parseFechaLocal(denuncia.fechaHecho) : null;
   const diasTranscurridos = fechaHecho
     ? Math.floor((Date.now() - fechaHecho.getTime()) / (1000 * 60 * 60 * 24))
     : null;
@@ -1933,15 +1941,55 @@ export function EtapaTrasladoApelacion({
 // ─────────────────────────────────────────────────────────────
 // 19. EJECUCIÓN AL RECTORADO (Art. 16 + Art. 90 par. II)
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// 19. EJECUCIÓN AL RECTORADO (Art. 16 + Art. 90)
+// Destinatario varía según tipo_denunciado (Art. 90 par. II-IV)
+// ─────────────────────────────────────────────────────────────
+
+function getDestinatarioEjecucion(tipoDenunciado?: string): {
+  label: string;
+  descripcion: string;
+  articulo: string;
+  plazo: string;
+} {
+  switch (tipoDenunciado) {
+    case "AUTORIDAD":
+      return {
+        label: "Ilustre Consejo Universitario (I.C.U.)",
+        descripcion:
+          "Cuando el sancionado es una autoridad electa del cogobierno (Rector, Vicerrector, Decanos, etc.), la resolución es ejecutada por resolución del I.C.U. o del Consejo Facultativo según corresponda.",
+        articulo: "Art. 90 par. III-IV",
+        plazo: "5 días hábiles",
+      };
+    case "DOCENTE":
+    case "ADMINISTRATIVO":
+    case "ESTUDIANTE":
+    default:
+      return {
+        label: "Rectorado",
+        descripcion:
+          "El Rector emite resolución administrativa para hacer efectiva la sanción.",
+        articulo: "Art. 90 par. II",
+        plazo: "5 días hábiles",
+      };
+  }
+}
+
 interface EtapaEjecucionRectoradoProps {
   denuncia: Denuncia;
-  onRegistrarRemision: (datos: { fechaRemisionRectorado: string; observacionesEjecucion?: string }) => void;
+  onRegistrarRemision: (datos: {
+    fechaRemisionRectorado: string;
+    observacionesEjecucion?: string;
+  }) => void;
   onRegistrarResolucionRectoral: (datos: {
     fechaResolucionRectoral: string;
     numeroResolucionRectoral: string;
     observacionesEjecucion?: string;
   }) => void;
-  onRegistrarGaceta: (datos: { fechaRegistroGaceta: string; numeroGaceta: string }) => void;
+  onRegistrarGaceta: (datos: {
+    fechaRegistroGaceta: string;
+    numeroGaceta: string;
+  }) => void;
   onEnviarNotificacion: () => void;
   saving: boolean;
 }
@@ -1954,17 +2002,23 @@ export function EtapaEjecucionRectorado({
   onEnviarNotificacion,
   saving,
 }: EtapaEjecucionRectoradoProps) {
+  const destinatario = getDestinatarioEjecucion(denuncia.tipoDenunciado);
+
   const [fechaRemision, setFechaRemision] = useState(
     denuncia.fechaRemisionRectorado ?? new Date().toISOString().slice(0, 10)
   );
-  const [obsRemision, setObsRemision] = useState(denuncia.observacionesEjecucion ?? "");
-
+  const [obsRemision, setObsRemision] = useState(
+    denuncia.observacionesEjecucion ?? ""
+  );
   const [fechaRectoral, setFechaRectoral] = useState(
     denuncia.fechaResolucionRectoral ?? new Date().toISOString().slice(0, 10)
   );
-  const [numRectoral, setNumRectoral] = useState(denuncia.numeroResolucionRectoral ?? "");
-  const [obsRectoral, setObsRectoral] = useState(denuncia.observacionesEjecucion ?? "");
-
+  const [numRectoral, setNumRectoral] = useState(
+    denuncia.numeroResolucionRectoral ?? ""
+  );
+  const [obsRectoral, setObsRectoral] = useState(
+    denuncia.observacionesEjecucion ?? ""
+  );
   const [fechaGaceta, setFechaGaceta] = useState(
     denuncia.fechaRegistroGaceta ?? new Date().toISOString().slice(0, 10)
   );
@@ -1974,38 +2028,101 @@ export function EtapaEjecucionRectorado({
   const paso2Completo = !!denuncia.fechaResolucionRectoral;
   const paso3Completo = !!denuncia.fechaRegistroGaceta;
 
+  // Solo se registra en Gaceta si la resolución fue sancionatoria (Art. 7)
+  const esSancionatoria =
+    !denuncia.tipoResolucion || denuncia.tipoResolucion === "SANCIONATORIA";
+
   return (
     <div className="bg-green-50 dark:bg-green-900/20 rounded-2xl border border-green-200 dark:border-green-800 p-6 space-y-5">
       <h3 className="text-lg font-semibold text-green-700 dark:text-green-400 flex items-center gap-2">
         <FileCheck className="w-5 h-5" />
-        Ejecución de Fallo al Rectorado (Art. 16 + Art. 90 par. II)
+        Ejecución de Fallo (Art. 16 + Art. 90)
       </h3>
 
-      <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4">
-        <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
-          El fallo ejecutoriado debe ser remitido a la autoridad responsable en{" "}
-          <span className="font-bold text-green-600">3 días hábiles</span> (Art. 16).
-          El Rector emite resolución administrativa en{" "}
-          <span className="font-bold text-green-600">5 días hábiles</span> (Art. 90 par. II).
-          La resolución sancionatoria debe registrarse en la{" "}
-          <span className="font-bold text-green-600">Gaceta Universitaria en 5 días hábiles</span> (Art. 7).
+      {/* Banner destinatario */}
+      <div
+        className={`rounded-xl border p-4 ${
+          denuncia.tipoDenunciado === "AUTORIDAD"
+            ? "bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800"
+            : "bg-white dark:bg-slate-800/50 border-green-200 dark:border-green-800"
+        }`}
+      >
+        <p
+          className={`text-xs font-bold uppercase tracking-wider mb-1 ${
+            denuncia.tipoDenunciado === "AUTORIDAD"
+              ? "text-purple-600 dark:text-purple-400"
+              : "text-green-600 dark:text-green-400"
+          }`}
+        >
+          Destinatario de ejecución — {destinatario.articulo}
+        </p>
+        <p
+          className={`text-sm font-semibold ${
+            denuncia.tipoDenunciado === "AUTORIDAD"
+              ? "text-purple-800 dark:text-purple-300"
+              : "text-green-800 dark:text-green-200"
+          }`}
+        >
+          {destinatario.label}
+        </p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
+          {destinatario.descripcion}
         </p>
       </div>
 
-      {/* ── Paso 1: Remisión al Rectorado ── */}
-      <div className={`rounded-xl border p-4 ${paso1Completo ? "border-green-300 dark:border-green-700 bg-green-50/60 dark:bg-green-900/10" : "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/40"}`}>
+      <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4">
+        <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+          El fallo ejecutoriado debe ser remitido en{" "}
+          <span className="font-bold text-green-600">3 días hábiles</span> (Art.
+          16). {destinatario.label} debe emitir resolución en{" "}
+          <span className="font-bold text-green-600">
+            {destinatario.plazo}
+          </span>{" "}
+          ({destinatario.articulo}).
+          {esSancionatoria && (
+            <>
+              {" "}
+              La resolución sancionatoria se registra en la{" "}
+              <span className="font-bold text-green-600">
+                Gaceta Universitaria en 5 días hábiles
+              </span>{" "}
+              (Art. 7).
+            </>
+          )}
+        </p>
+      </div>
+
+      {/* ── Paso 1: Remisión ── */}
+      <div
+        className={`rounded-xl border p-4 ${
+          paso1Completo
+            ? "border-green-300 dark:border-green-700 bg-green-50/60 dark:bg-green-900/10"
+            : "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/40"
+        }`}
+      >
         <div className="flex items-center gap-2 mb-3">
-          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${paso1Completo ? "bg-green-500 text-white" : "bg-gray-200 dark:bg-slate-600 text-gray-600 dark:text-gray-300"}`}>
+          <div
+            className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+              paso1Completo
+                ? "bg-green-500 text-white"
+                : "bg-gray-200 dark:bg-slate-600 text-gray-600 dark:text-gray-300"
+            }`}
+          >
             {paso1Completo ? <CheckCircle className="w-4 h-4" /> : "1"}
           </div>
           <p className="text-sm font-semibold text-gray-800 dark:text-white">
-            Remisión del expediente al Rectorado (Art. 16)
+            Remisión del expediente a {destinatario.label} (Art. 16)
           </p>
         </div>
 
         {paso1Completo ? (
           <div className="text-xs text-green-700 dark:text-green-400 space-y-1 pl-8">
-            <p>✓ Remitido el: <span className="font-semibold">{denuncia.fechaRemisionRectorado}</span></p>
+            <p>
+              ✓ Remitido el:{" "}
+              <span className="font-semibold">
+                {denuncia.fechaRemisionRectorado}
+              </span>
+            </p>
             {denuncia.observacionesEjecucion && (
               <p>Obs: {denuncia.observacionesEjecucion}</p>
             )}
@@ -2019,7 +2136,7 @@ export function EtapaEjecucionRectorado({
               <input
                 type="date"
                 value={fechaRemision}
-                onChange={e => setFechaRemision(e.target.value)}
+                onChange={(e) => setFechaRemision(e.target.value)}
                 disabled={saving}
                 className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-green-500 outline-none"
               />
@@ -2030,26 +2147,35 @@ export function EtapaEjecucionRectorado({
               </label>
               <textarea
                 value={obsRemision}
-                onChange={e => setObsRemision(e.target.value)}
+                onChange={(e) => setObsRemision(e.target.value)}
                 rows={2}
                 disabled={saving}
-                placeholder="Ej: Expediente remitido con oficio N° 123/2025..."
+                placeholder={`Ej: Expediente remitido a ${destinatario.label} con oficio N° ...`}
                 className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-green-500 outline-none"
               />
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <button
-                onClick={() => onRegistrarRemision({ fechaRemisionRectorado: fechaRemision, observacionesEjecucion: obsRemision || undefined })}
+                onClick={() =>
+                  onRegistrarRemision({
+                    fechaRemisionRectorado: fechaRemision,
+                    observacionesEjecucion: obsRemision || undefined,
+                  })
+                }
                 disabled={saving || !fechaRemision}
                 className="px-4 py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-semibold transition-colors flex items-center gap-2 disabled:opacity-50"
               >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                {saving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
                 Registrar remisión
               </button>
               <button
                 onClick={onEnviarNotificacion}
                 disabled={saving}
-                title="Enviar email al Rectorado y a las partes"
+                title={`Enviar email a ${destinatario.label} y a las partes`}
                 className="px-4 py-2 rounded-xl border border-green-300 dark:border-green-700 text-green-700 dark:text-green-400 text-sm font-medium hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors flex items-center gap-2"
               >
                 <Send className="w-4 h-4" /> Enviar notificación por email
@@ -2059,43 +2185,70 @@ export function EtapaEjecucionRectorado({
         )}
       </div>
 
-      {/* ── Paso 2: Resolución Rectoral ── */}
-      <div className={`rounded-xl border p-4 ${paso2Completo ? "border-green-300 dark:border-green-700 bg-green-50/60 dark:bg-green-900/10" : !paso1Completo ? "border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/20 opacity-60" : "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/40"}`}>
+      {/* ── Paso 2: Resolución de la autoridad ejecutante ── */}
+      <div
+        className={`rounded-xl border p-4 ${
+          paso2Completo
+            ? "border-green-300 dark:border-green-700 bg-green-50/60 dark:bg-green-900/10"
+            : !paso1Completo
+            ? "border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/20 opacity-60"
+            : "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/40"
+        }`}
+      >
         <div className="flex items-center gap-2 mb-3">
-          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${paso2Completo ? "bg-green-500 text-white" : "bg-gray-200 dark:bg-slate-600 text-gray-600 dark:text-gray-300"}`}>
+          <div
+            className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+              paso2Completo
+                ? "bg-green-500 text-white"
+                : "bg-gray-200 dark:bg-slate-600 text-gray-600 dark:text-gray-300"
+            }`}
+          >
             {paso2Completo ? <CheckCircle className="w-4 h-4" /> : "2"}
           </div>
           <p className="text-sm font-semibold text-gray-800 dark:text-white">
-            Resolución administrativa del Rector (Art. 90 par. II)
+            Resolución de {destinatario.label} ({destinatario.articulo})
           </p>
         </div>
 
         {paso2Completo ? (
           <div className="text-xs text-green-700 dark:text-green-400 space-y-1 pl-8">
-            <p>✓ Resolución rectoral: <span className="font-semibold">{denuncia.numeroResolucionRectoral}</span></p>
-            <p>✓ Fecha: <span className="font-semibold">{denuncia.fechaResolucionRectoral}</span></p>
-            {denuncia.observacionesEjecucion && (
-              <p>Obs: {denuncia.observacionesEjecucion}</p>
-            )}
+            <p>
+              ✓ N° resolución:{" "}
+              <span className="font-semibold">
+                {denuncia.numeroResolucionRectoral}
+              </span>
+            </p>
+            <p>
+              ✓ Fecha:{" "}
+              <span className="font-semibold">
+                {denuncia.fechaResolucionRectoral}
+              </span>
+            </p>
           </div>
         ) : paso1Completo ? (
           <div className="pl-8 space-y-3">
             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3">
               <p className="text-xs text-amber-700 dark:text-amber-400">
-                El Rector tiene <strong>5 días hábiles</strong> desde la recepción del expediente para emitir resolución administrativa (Art. 90 par. II).
+                {destinatario.label} tiene{" "}
+                <strong>{destinatario.plazo}</strong> desde la recepción del
+                expediente para emitir resolución ({destinatario.articulo}).
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                  N° Resolución rectoral <span className="text-red-500">*</span>
+                  N° Resolución <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={numRectoral}
-                  onChange={e => setNumRectoral(e.target.value)}
+                  onChange={(e) => setNumRectoral(e.target.value)}
                   disabled={saving}
-                  placeholder="Ej: R-RECT-0123/2025"
+                  placeholder={
+                    denuncia.tipoDenunciado === "AUTORIDAD"
+                      ? "Ej: R-ICU-0045/2025"
+                      : "Ej: R-RECT-0123/2025"
+                  }
                   className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-green-500 outline-none"
                 />
               </div>
@@ -2106,7 +2259,7 @@ export function EtapaEjecucionRectorado({
                 <input
                   type="date"
                   value={fechaRectoral}
-                  onChange={e => setFechaRectoral(e.target.value)}
+                  onChange={(e) => setFechaRectoral(e.target.value)}
                   disabled={saving}
                   className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-green-500 outline-none"
                 />
@@ -2114,113 +2267,167 @@ export function EtapaEjecucionRectorado({
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                Observaciones sobre la ejecución (opcional)
+                Observaciones (opcional)
               </label>
               <textarea
                 value={obsRectoral}
-                onChange={e => setObsRectoral(e.target.value)}
+                onChange={(e) => setObsRectoral(e.target.value)}
                 rows={2}
                 disabled={saving}
-                placeholder="Ej: Sanción ejecutada, denunciado notificado por Rectorado..."
+                placeholder="Ej: Sanción ejecutada, denunciado notificado..."
                 className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-green-500 outline-none"
               />
             </div>
             <button
-              onClick={() => onRegistrarResolucionRectoral({
-                fechaResolucionRectoral: fechaRectoral,
-                numeroResolucionRectoral: numRectoral,
-                observacionesEjecucion: obsRectoral || undefined,
-              })}
+              onClick={() =>
+                onRegistrarResolucionRectoral({
+                  fechaResolucionRectoral: fechaRectoral,
+                  numeroResolucionRectoral: numRectoral,
+                  observacionesEjecucion: obsRectoral || undefined,
+                })
+              }
               disabled={saving || !numRectoral.trim() || !fechaRectoral}
               className="px-4 py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-semibold transition-colors flex items-center gap-2 disabled:opacity-50"
             >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-              Registrar resolución rectoral
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <CheckCircle className="w-4 h-4" />
+              )}
+              Registrar resolución
             </button>
           </div>
         ) : (
           <p className="text-xs text-gray-400 dark:text-gray-500 pl-8">
-            Disponible una vez registrada la remisión al Rectorado.
+            Disponible una vez registrada la remisión.
           </p>
         )}
       </div>
 
-      {/* ── Paso 3: Registro en Gaceta ── */}
-      <div className={`rounded-xl border p-4 ${paso3Completo ? "border-green-300 dark:border-green-700 bg-green-50/60 dark:bg-green-900/10" : !paso2Completo ? "border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/20 opacity-60" : "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/40"}`}>
-        <div className="flex items-center gap-2 mb-3">
-          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${paso3Completo ? "bg-green-500 text-white" : "bg-gray-200 dark:bg-slate-600 text-gray-600 dark:text-gray-300"}`}>
-            {paso3Completo ? <CheckCircle className="w-4 h-4" /> : "3"}
+      {/* ── Paso 3: Gaceta (solo sancionatorias, Art. 7) ── */}
+      {esSancionatoria && (
+        <div
+          className={`rounded-xl border p-4 ${
+            paso3Completo
+              ? "border-green-300 dark:border-green-700 bg-green-50/60 dark:bg-green-900/10"
+              : !paso2Completo
+              ? "border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/20 opacity-60"
+              : "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/40"
+          }`}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <div
+              className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                paso3Completo
+                  ? "bg-green-500 text-white"
+                  : "bg-gray-200 dark:bg-slate-600 text-gray-600 dark:text-gray-300"
+              }`}
+            >
+              {paso3Completo ? <CheckCircle className="w-4 h-4" /> : "3"}
+            </div>
+            <p className="text-sm font-semibold text-gray-800 dark:text-white">
+              Registro en Gaceta Universitaria (Art. 7)
+            </p>
           </div>
-          <p className="text-sm font-semibold text-gray-800 dark:text-white">
-            Registro en Gaceta Universitaria (Art. 7)
-          </p>
-        </div>
 
-        {paso3Completo ? (
-          <div className="text-xs text-green-700 dark:text-green-400 space-y-1 pl-8">
-            <p>✓ N° Gaceta: <span className="font-semibold">{denuncia.numeroGaceta}</span></p>
-            <p>✓ Fecha de registro: <span className="font-semibold">{denuncia.fechaRegistroGaceta}</span></p>
-          </div>
-        ) : paso2Completo ? (
-          <div className="pl-8 space-y-3">
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
-              <p className="text-xs text-blue-700 dark:text-blue-400">
-                Las resoluciones definitivas sancionatorias deben registrarse en la{" "}
-                <strong>Gaceta Universitaria en 5 días hábiles</strong> desde su emisión (Art. 7).
+          {paso3Completo ? (
+            <div className="text-xs text-green-700 dark:text-green-400 space-y-1 pl-8">
+              <p>
+                ✓ N° Gaceta:{" "}
+                <span className="font-semibold">{denuncia.numeroGaceta}</span>
+              </p>
+              <p>
+                ✓ Fecha:{" "}
+                <span className="font-semibold">
+                  {denuncia.fechaRegistroGaceta}
+                </span>
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                  N° de Gaceta <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={numGaceta}
-                  onChange={e => setNumGaceta(e.target.value)}
-                  disabled={saving}
-                  placeholder="Ej: GU-2025-045"
-                  className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-green-500 outline-none"
-                />
+          ) : paso2Completo ? (
+            <div className="pl-8 space-y-3">
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
+                <p className="text-xs text-blue-700 dark:text-blue-400">
+                  Las resoluciones sancionatorias definitivas deben registrarse
+                  en la{" "}
+                  <strong>
+                    Gaceta Universitaria en 5 días hábiles
+                  </strong>{" "}
+                  desde su emisión (Art. 7).
+                </p>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                  Fecha de registro <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={fechaGaceta}
-                  onChange={e => setFechaGaceta(e.target.value)}
-                  disabled={saving}
-                  className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-green-500 outline-none"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    N° de Gaceta <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={numGaceta}
+                    onChange={(e) => setNumGaceta(e.target.value)}
+                    disabled={saving}
+                    placeholder="Ej: GU-2025-045"
+                    className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    Fecha de registro <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={fechaGaceta}
+                    onChange={(e) => setFechaGaceta(e.target.value)}
+                    disabled={saving}
+                    className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                  />
+                </div>
               </div>
+              <button
+                onClick={() =>
+                  onRegistrarGaceta({
+                    fechaRegistroGaceta: fechaGaceta,
+                    numeroGaceta: numGaceta,
+                  })
+                }
+                disabled={saving || !numGaceta.trim() || !fechaGaceta}
+                className="px-4 py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-semibold transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                {saving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCircle className="w-4 h-4" />
+                )}
+                Registrar en Gaceta
+              </button>
             </div>
-            <button
-              onClick={() => onRegistrarGaceta({ fechaRegistroGaceta: fechaGaceta, numeroGaceta: numGaceta })}
-              disabled={saving || !numGaceta.trim() || !fechaGaceta}
-              className="px-4 py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-semibold transition-colors flex items-center gap-2 disabled:opacity-50"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-              Registrar en Gaceta
-            </button>
-          </div>
-        ) : (
-          <p className="text-xs text-gray-400 dark:text-gray-500 pl-8">
-            Disponible una vez registrada la resolución rectoral.
+          ) : (
+            <p className="text-xs text-gray-400 dark:text-gray-500 pl-8">
+              Disponible una vez registrada la resolución.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Resolución absolutoria — no requiere Gaceta */}
+      {!esSancionatoria && paso2Completo && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+          <p className="text-xs text-blue-700 dark:text-blue-400 flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 shrink-0" />
+            Resolución absolutoria — no requiere registro en Gaceta Universitaria (Art. 7 aplica solo a resoluciones sancionatorias).
           </p>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Resumen final */}
-      {paso1Completo && paso2Completo && paso3Completo && (
+      {paso1Completo && paso2Completo && (!esSancionatoria || paso3Completo) && (
         <div className="bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700 rounded-xl p-4 text-center">
           <CheckCircle className="w-8 h-8 mx-auto text-green-500 mb-2" />
           <p className="text-sm font-bold text-green-700 dark:text-green-400">
             Proceso completamente ejecutado
           </p>
           <p className="text-xs text-green-600 dark:text-green-300 mt-1">
-            Expediente remitido, resolución rectoral emitida y resolución registrada en Gaceta Universitaria.
+            Expediente remitido, resolución emitida por {destinatario.label}
+            {esSancionatoria && " y resolución registrada en Gaceta Universitaria"}.
           </p>
         </div>
       )}

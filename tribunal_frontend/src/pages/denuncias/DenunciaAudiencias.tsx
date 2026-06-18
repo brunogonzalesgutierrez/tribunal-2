@@ -139,17 +139,20 @@ const INIT_AUD = {
 };
 
 export function FormAudienciaDenuncia({
-  idExpediente, editando, tiposAud, salasAud, onSaved, onCancel,
+  idExpediente, editando, tiposAud, salasAud, conformaciones, estadoDenuncia, onSaved, onCancel,
 }: {
   idExpediente: number;
   editando: any | null;
   tiposAud: any[];
   salasAud: any[];
+  conformaciones: any[];
+  estadoDenuncia: string;
   onSaved: () => void;
   onCancel: () => void;
 }) {
-  const [crear]      = useMutation(CREAR_AUDIENCIA);
-  const [actualizar] = useMutation(ACTUALIZAR_AUDIENCIA);
+  const [crear]            = useMutation(CREAR_AUDIENCIA);
+  const [actualizar]       = useMutation(ACTUALIZAR_AUDIENCIA);
+  const [enviarCitaciones] = useMutation(ENVIAR_CITACIONES_AUDIENCIA);
 
   const [form, setForm] = useState(
     editando ? {
@@ -186,39 +189,89 @@ export function FormAudienciaDenuncia({
     setForm(p => ({ ...p, [k]: e.target.value }));
 
   const guardar = async () => {
+    // Validar campos obligatorios
     if (!form.idTipoAudiencia || !form.fechaHoraProgramada) {
       setErr("Tipo y fecha son obligatorios."); return;
     }
+
+    // Validar que la fecha no sea en el pasado
+    const fechaSeleccionada = new Date(form.fechaHoraProgramada);
+    const ahora = new Date();
+    if (fechaSeleccionada < ahora) {
+      setErr("La fecha y hora no puede ser en el pasado."); return;
+    }
+
+    // Advertencia de plazo: Declaración Informativa debería programarse
+    // dentro de los 10 días hábiles desde hoy (Art. 58 inc. a)
+    const tipoSeleccionado = tiposAud.find(t => t.idTipoAudiencia === form.idTipoAudiencia);
+    if (
+      tipoSeleccionado?.nombre?.toLowerCase().includes("declaraci") ||
+      tipoSeleccionado?.nombre?.toLowerCase().includes("informativa")
+    ) {
+      // calcular 10 días hábiles desde hoy
+      let diasHabiles = 0;
+      const cursor = new Date();
+      while (diasHabiles < 10) {
+        cursor.setDate(cursor.getDate() + 1);
+        const dow = cursor.getDay();
+        if (dow !== 0 && dow !== 6) diasHabiles++;
+      }
+      if (fechaSeleccionada > cursor) {
+        setErr(
+          `⚠ La Declaración Informativa debería programarse dentro de los 10 días hábiles ` +
+          `(Art. 58 inc. a). La fecha seleccionada supera ese plazo. ` +
+          `Si igual querés continuar, hacé click en Guardar nuevamente.`
+        );
+        // Solo advertencia, no bloqueamos — segundo click pasa igual
+        // Para eso usamos un flag
+        if (!err.includes("hacé click")) return;
+      }
+    }
+
     setSaving(true); setErr("");
     try {
+      let idAudienciaCreada: number | null = null;
+
       if (editando) {
         await actualizar({
           variables: {
             id: Number(editando.idAudiencia),
             input: {
-              idTipoAudiencia:     Number(form.idTipoAudiencia) || undefined,
-              idSalaAud:           Number(form.idSalaAud) || undefined,
-              fechaHoraProgramada: form.fechaHoraProgramada,
-              estadoAudiencia:     form.estadoAudiencia || undefined,
-              motivoSuspension:    form.motivoSuspension || undefined,
+              idTipoAudiencia:      Number(form.idTipoAudiencia) || undefined,
+              idSalaAud:            Number(form.idSalaAud) || undefined,
+              fechaHoraProgramada:  form.fechaHoraProgramada,
+              estadoAudiencia:      form.estadoAudiencia || undefined,
+              motivoSuspension:     form.motivoSuspension || undefined,
               linkVideoconferencia: form.linkVideoconferencia || undefined,
-              fechaHoraInicio:     form.fechaHoraInicio || undefined,
-              fechaHoraFin:        form.fechaHoraFin || undefined,
+              fechaHoraInicio:      form.fechaHoraInicio || undefined,
+              fechaHoraFin:         form.fechaHoraFin || undefined,
             },
           },
         });
       } else {
-        await crear({
+        const { data } = await crear({
           variables: {
             input: {
-              idExpediente:        Number(idExpediente),
-              idTipoAudiencia:     Number(form.idTipoAudiencia),
-              fechaHoraProgramada: form.fechaHoraProgramada,
-              idSalaAud:           Number(form.idSalaAud) || undefined,
+              idExpediente:         Number(idExpediente),
+              idTipoAudiencia:      Number(form.idTipoAudiencia),
+              fechaHoraProgramada:  form.fechaHoraProgramada,
+              idSalaAud:            Number(form.idSalaAud) || undefined,
               linkVideoconferencia: form.linkVideoconferencia || undefined,
             },
           },
         });
+        idAudienciaCreada = data?.crearAudiencia?.audiencia?.idAudiencia ?? null;
+
+        // Enviar citaciones automáticamente al crear (solo si hay partes)
+        if (idAudienciaCreada) {
+          try {
+            await enviarCitaciones({
+              variables: { idAudiencia: Number(idAudienciaCreada) },
+            });
+          } catch {
+            // No bloqueamos si falla el email — la audiencia ya fue guardada
+          }
+        }
       }
       onSaved();
     } catch (e: any) {
@@ -227,6 +280,35 @@ export function FormAudienciaDenuncia({
       setSaving(false);
     }
   };
+
+  // Si no hay vocales asignados, bloquear el form
+  if (!editando && conformaciones.length === 0) {
+    return (
+      <div className="rounded-2xl border-2 border-amber-200 dark:border-amber-800/60 bg-amber-50/60 dark:bg-amber-900/10 p-5">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center shrink-0 mt-0.5">
+            <AlertCircle className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-amber-700 dark:text-amber-400">
+              No hay vocales asignados a este proceso
+            </p>
+            <p className="text-xs text-amber-600 dark:text-amber-500 mt-1 leading-relaxed">
+              Según el Reglamento (Art. 27), el Tribunal debe estar conformado antes de programar 
+              audiencias. Asigná al menos un vocal en el tab <strong>Vocales</strong> antes de 
+              continuar.
+            </p>
+          </div>
+        </div>
+        <div className="flex justify-end mt-4">
+          <button onClick={onCancel}
+            className="px-4 py-2 rounded-xl border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 text-sm font-medium hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

@@ -13,8 +13,9 @@ import {
   ENVIAR_NOTIFICACION_EJECUCION,
 } from "../../graphql/denuncias";
 import { GET_SALAS_TRIBUNAL } from "../../graphql/tribunal";
-import { GET_TIPOS_AUDIENCIA, GET_SALAS_AUDIENCIA, ELIMINAR_AUDIENCIA } from "../../graphql/audiencias";
+import { GET_TIPOS_AUDIENCIA, GET_SALAS_AUDIENCIA, ELIMINAR_AUDIENCIA, ACTUALIZAR_AUDIENCIA } from "../../graphql/audiencias";
 import { gql } from "@apollo/client";
+import { BtnGenerarPdfResolucion } from "./DenunciaPdfResolucion";
 
 const GET_VOCALES_DISPONIBLES = gql`
   query {
@@ -92,7 +93,8 @@ import {
   EtapaRatificacionPruebas,
   EtapaTrasladoApelacion,
   EtapaEjecucionRectorado,
-  TimelineDenuncia
+  TimelineDenuncia,
+  parseFechaLocal,
 } from "./DenunciaEtapas";
 import {
   FormAudienciaDenuncia,
@@ -105,7 +107,7 @@ import {
   FormDocumentoDenuncia,
   TarjetaDocumentoDenuncia,
 } from "./DenunciaDocumentos";
-
+import { PanelReglamento } from "./PanelReglamento";
 import { ELIMINAR_DOCUMENTO } from "../../graphql/documento";
 
 import {
@@ -113,7 +115,7 @@ import {
   FileText, Send, Scale, FolderOpen, Plus, Loader2, AlertTriangle,
   Gavel, FileCheck, ClipboardList, MessageSquare,
   GitBranch, History, XCircle, User, Lock, UserCheck, Building2, Trash2,
-} from "lucide-react";
+ChevronDown } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 
 // ─── HELPERS ─────────────────────────────────────────────
@@ -157,7 +159,7 @@ const TIPOS_SANCION_LABEL: Record<string, string> = {
 
 const fmtFecha = (iso?: string) => {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("es-BO", { day: "2-digit", month: "short", year: "numeric" });
+  return parseFechaLocal(iso).toLocaleDateString("es-BO", { day: "2-digit", month: "short", year: "numeric" });
 };
 
 // ─── TABS ──────────────────────────────────────────────
@@ -168,6 +170,7 @@ const TABS = [
   { id: "audiencias", label: "Audiencias", icon: Calendar,   requiereExpediente: true  },
   { id: "documentos", label: "Documentos", icon: FolderOpen, requiereExpediente: true  },
   { id: "historial",  label: "Historial",  icon: History,    requiereExpediente: true  },
+  { id: "reglamento", label: "Reglamento", icon: Scale,      requiereExpediente: false },
 ] as const;
 
 type TabId = typeof TABS[number]["id"];
@@ -184,6 +187,11 @@ export default function DenunciaDetailPage() {
   const navigate = useNavigate();
   const [tabActiva, setTabActiva] = useState<TabId>("general");
   const [saving, setSaving] = useState(false);
+
+    // Al inicio del componente, junto a los otros useState:
+  const [plazosAbiertos, setPlazosAbiertos] = useState(false);
+  const [refsAbiertos, setRefsAbiertos]     = useState(false);
+  const [mostrarPanelDerecho, setMostrarPanelDerecho] = useState(false);
 
   const [showFormAud, setShowFormAud]   = useState(false);
   const [editandoAud, setEditandoAud]   = useState<any | null>(null);
@@ -217,6 +225,7 @@ export default function DenunciaDetailPage() {
   const denuncia = data?.denunciaById;
 
   const [actualizarDenuncia] = useMutation(ACTUALIZAR_DENUNCIA);
+
   const [admitirDenuncia]    = useMutation(ADMITIR_DENUNCIA);
 
   const [registrarRatificacion] = useMutation(REGISTRAR_RATIFICACION_PRUEBAS);
@@ -233,6 +242,7 @@ export default function DenunciaDetailPage() {
   const { data: dataTiposAud } = useQuery(GET_TIPOS_AUDIENCIA);
   const { data: dataSalasAud } = useQuery(GET_SALAS_AUDIENCIA);
   const [eliminarAudiencia]    = useMutation(ELIMINAR_AUDIENCIA);
+  const [actualizarAudiencia]  = useMutation(ACTUALIZAR_AUDIENCIA);
 
   const { data: dataHistorial, loading: loadingHistorial } = useQuery(
     GET_HISTORIAL_POR_EXPEDIENTE,
@@ -292,6 +302,12 @@ export default function DenunciaDetailPage() {
         if (datosAdicionales.motivoDesistimiento)        input.motivoDesistimiento = datosAdicionales.motivoDesistimiento;
         if (datosAdicionales.fechaCompulsa)              input.fechaCompulsa = datosAdicionales.fechaCompulsa;
         if (datosAdicionales.resolucionCompulsa)         input.resolucionCompulsa = datosAdicionales.resolucionCompulsa;
+        if (datosAdicionales.fechaRemisionRectorado)     input.fechaRemisionRectorado = datosAdicionales.fechaRemisionRectorado;
+        if (datosAdicionales.fechaResolucionRectoral)    input.fechaResolucionRectoral = datosAdicionales.fechaResolucionRectoral;
+        if (datosAdicionales.numeroResolucionRectoral)   input.numeroResolucionRectoral = datosAdicionales.numeroResolucionRectoral;
+        if (datosAdicionales.observacionesEjecucion)     input.observacionesEjecucion = datosAdicionales.observacionesEjecucion;
+        if (datosAdicionales.fechaRegistroGaceta)        input.fechaRegistroGaceta = datosAdicionales.fechaRegistroGaceta;
+        if (datosAdicionales.numeroGaceta)               input.numeroGaceta = datosAdicionales.numeroGaceta;
       }
 
       await actualizarDenuncia({
@@ -505,7 +521,7 @@ export default function DenunciaDetailPage() {
     setSaving(true);
     try {
       const { data } = await registrarRatificacion({
-        variables: { idDenuncia: Number(denuncia.idDenuncia), idUsuario: Number(usuario?.idUsuario) }
+        variables: { idDenuncia: Number(id), idUsuario: Number(usuario?.idUsuario) }
       });
       if (data.registrarRatificacionPruebas.ok) {
         toast.success("Ratificación de pruebas registrada en el expediente.");
@@ -523,7 +539,7 @@ export default function DenunciaDetailPage() {
     setSaving(true);
     try {
       const { data } = await enviarNotificacionEjecucion({
-        variables: { idDenuncia: Number(denuncia.idDenuncia), idUsuario: Number(usuario?.idUsuario) }
+        variables: { idDenuncia: Number(id), idUsuario: Number(usuario?.idUsuario) }
       });
       if (data.enviarNotificacionEjecucion.ok) {
         toast.success(`Notificación de ejecución enviada: ${data.enviarNotificacionEjecucion.emailEnviado}`);
@@ -541,7 +557,7 @@ export default function DenunciaDetailPage() {
     setSaving(true);
     try {
       const { data } = await registrarTrasladoApelacion({
-        variables: { idDenuncia: Number(denuncia.idDenuncia), idUsuario: Number(usuario?.idUsuario) }
+        variables: { idDenuncia: Number(id), idUsuario: Number(usuario?.idUsuario) }
       });
       if (data.registrarTrasladoApelacion.ok) {
         toast.success("Traslado de apelación registrado en el expediente.");
@@ -582,65 +598,106 @@ export default function DenunciaDetailPage() {
     <div className="space-y-6 animate-fade-in">
 
       {/* ENCABEZADO */}
-      <div className="flex items-center gap-4 mb-2">
+      <div className="flex items-center gap-3 flex-wrap">
         <button
           onClick={() => navigate("/denuncias")}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+          className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
         >
           <ChevronLeft className="w-4 h-4" /> Denuncias
         </button>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-blue-500" />
-            Denuncia <span className="font-mono text-blue-600 dark:text-blue-400">{denuncia.numeroDenuncia}</span>
-          </h1>
-          <div className="flex items-center gap-3 mt-1 flex-wrap">
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${estadoActual.color}`}>
-              <EstadoIcon className="w-3.5 h-3.5" />
-              {estadoActual.label}
-            </span>
-            <span className="text-xs text-gray-500">Creada: {fmtFecha(denuncia.fechaDenuncia)}</span>
-            {denuncia.fechaHecho && (
-              <span className="text-xs text-gray-500">Fecha del hecho: {fmtFecha(denuncia.fechaHecho)}</span>
-            )}
-          </div>
-        </div>
+        <span className="text-gray-300 dark:text-slate-600">·</span>
+        <h1 className="text-base font-bold text-gray-800 dark:text-white flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-blue-500" />
+          Denuncia <span className="font-mono text-blue-600 dark:text-blue-400">{denuncia.numeroDenuncia}</span>
+        </h1>
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${estadoActual.color}`}>
+          <EstadoIcon className="w-3 h-3" />
+          {estadoActual.label}
+        </span>
+        <span className="text-xs text-gray-400 dark:text-gray-500 ml-auto">Creada: {fmtFecha(denuncia.fechaDenuncia)}</span>
       </div>
 
       {!["RETIRADA", "CONCILIADA", "ARCHIVADA", "FALLECIDO", "DESISTIDA", "PRESCRITA"].includes(denuncia.estado) && (
-        <TimelineDenuncia estadoActual={denuncia.estado} estados={ESTADOS} />
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 px-6 py-4">
+          <div className="flex items-center justify-between relative">
+            {/* línea de fondo */}
+            <div className="absolute left-0 right-0 top-5 h-0.5 bg-gray-200 dark:bg-slate-700 z-0" />
+            {ESTADOS.map((etapa, i) => {
+              const estadoIdx   = ESTADOS.findIndex(e => e.value === denuncia.estado);
+              const completada  = i < estadoIdx;
+              const actual      = i === estadoIdx;
+              const pendiente   = i > estadoIdx;
+              const Icon        = etapa.icon;
+              return (
+                <div key={etapa.value} className="relative z-10 flex flex-col items-center gap-1.5" style={{ flex: 1 }}>
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all ${
+                    completada
+                      ? "bg-blue-500 border-blue-500 text-white"
+                      : actual
+                        ? "bg-white dark:bg-slate-800 border-blue-500 text-blue-500 shadow-md shadow-blue-200 dark:shadow-blue-900/40"
+                        : "bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-600 text-gray-300 dark:text-slate-600"
+                  }`}>
+                    {completada
+                      ? <CheckCircle className="w-4 h-4" />
+                      : <Icon className="w-4 h-4" />
+                    }
+                  </div>
+                  <span className={`text-center leading-tight ${
+                    actual    ? "text-xs font-semibold text-blue-600 dark:text-blue-400" :
+                    completada? "text-xs font-medium text-gray-500 dark:text-gray-400"   :
+                                "text-xs text-gray-300 dark:text-slate-600"
+                  }`} style={{ maxWidth: 72 }}>
+                    {etapa.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
 
-      <div className="flex gap-6 items-start">
+      <div className="flex flex-col gap-0">
 
-        <nav className="w-44 shrink-0 bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
-          {TABS.map(tab => {
-            const Icon = tab.icon;
-            const activa = tabActiva === tab.id;
-            const bloqueado = tab.requiereExpediente && !denuncia.expediente;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => { if (!bloqueado) setTabActiva(tab.id); }}
-                title={bloqueado ? "Disponible una vez que la denuncia sea admitida" : tab.label}
-                className={`w-full flex items-center gap-2.5 px-4 py-3 text-sm font-medium transition-all border-l-2 ${
-                  bloqueado
-                    ? "border-transparent text-gray-300 dark:text-gray-600 cursor-not-allowed opacity-50"
-                    : activa
-                      ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
-                      : "border-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700/50"
-                }`}
-              >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span className="flex-1 text-left">{tab.label}</span>
-                {bloqueado && <Lock className="w-3 h-3 shrink-0" />}
-              </button>
-            );
-          })}
-        </nav>
+        {/* Barra de tabs horizontal */}
+        <div className="bg-white dark:bg-slate-800/90 rounded-t-2xl border border-gray-200 dark:border-slate-700 border-b-0 px-2 flex items-center">
+          <div className="flex items-center flex-1">
+            {TABS.map(tab => {
+              const Icon = tab.icon;
+              const activa = tabActiva === tab.id;
+              const bloqueado = tab.requiereExpediente && !denuncia.expediente;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => { if (!bloqueado) setTabActiva(tab.id); }}
+                  title={bloqueado ? "Disponible una vez que la denuncia sea admitida" : tab.label}
+                  className={`relative flex items-center gap-2 px-4 py-4 text-sm font-medium transition-all whitespace-nowrap ${
+                    bloqueado
+                      ? "text-gray-300 dark:text-gray-600 cursor-not-allowed opacity-50"
+                      : activa
+                        ? "text-blue-600 dark:text-blue-400"
+                        : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                  }`}
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  {tab.label}
+                  {bloqueado && <Lock className="w-3 h-3 shrink-0 ml-1" />}
+                  {/* underline activo */}
+                  {activa && !bloqueado && (
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-t" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
-        <div className="flex-1 min-w-0 bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm p-6">
+          {/* Plazos y Referencias — dropdown a la derecha */}
+          {/* separador visual antes del tab reglamento */}
+          <div className="ml-auto shrink-0 flex items-center">
+            <div className="w-px h-5 bg-gray-200 dark:bg-slate-600 mx-1" />
+          </div>
+        </div>
 
+        <div className="flex-1 min-w-0 bg-white dark:bg-slate-800/90 rounded-b-2xl border border-gray-200 dark:border-slate-700 border-t-0 shadow-sm p-6">
           {/* ── TAB GENERAL ── */}
           {tabActiva === "general" && (
             <div className="space-y-6">
@@ -743,9 +800,16 @@ export default function DenunciaDetailPage() {
                       )}
                     </div>
                   )}
-                  {denuncia.fechaResolucion && (
+                 {denuncia.fechaResolucion && (
                     <p className="text-xs text-gray-400 mt-2">Fecha: {fmtFecha(denuncia.fechaResolucion)}</p>
                   )}
+                </div>
+              )}
+
+              {/* BOTÓN PDF — va aquí */}
+              {denuncia.resolucion && (
+                <div className="flex justify-end mt-3">
+                  <BtnGenerarPdfResolucion denuncia={denuncia} />
                 </div>
               )}
 
@@ -1072,11 +1136,21 @@ export default function DenunciaDetailPage() {
                       </div>
                     );
                   })()}
-                  <EtapaDeclaracionInformativa
-                    denuncia={denuncia}
-                    onRegistrarDeclaracion={(datos) => avanzarEtapa("DECLARACION_INFORMATIVA", datos)}
-                    saving={saving}
-                  />
+                  {(() => {
+                    const tieneAudDeclaracionParaAvanzar = audiencias.some(
+                      (a: any) =>
+                        a.idTipoAudiencia?.nombre?.toLowerCase().includes("declaraci") ||
+                        a.idTipoAudiencia?.nombre?.toLowerCase().includes("informativa")
+                    );
+                    return (
+                      <EtapaDeclaracionInformativa
+                        denuncia={denuncia}
+                        onRegistrarDeclaracion={(datos) => avanzarEtapa("DECLARACION_INFORMATIVA", datos)}
+                        saving={saving}
+                        disabled={!tieneAudDeclaracionParaAvanzar}
+                      />
+                    );
+                  })()}
                   <EtapaConciliacion
                     denuncia={denuncia}
                     onConciliar={(datos) => avanzarEtapa("CONCILIADA", datos)}
@@ -1534,6 +1608,8 @@ export default function DenunciaDetailPage() {
                       editando={editandoAud}
                       tiposAud={tiposAud}
                       salasAud={salasAud}
+                      conformaciones={conformaciones}
+                      estadoDenuncia={denuncia.estado}
                       onSaved={() => { setShowFormAud(false); setEditandoAud(null); refetch(); }}
                       onCancel={() => { setShowFormAud(false); setEditandoAud(null); }}
                     />
@@ -1575,7 +1651,7 @@ export default function DenunciaDetailPage() {
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                             <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${
                               a.estadoAudiencia === "PROGRAMADA" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
                               a.estadoAudiencia === "REALIZADA"  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
@@ -1586,29 +1662,114 @@ export default function DenunciaDetailPage() {
                               {a.estadoAudiencia}
                             </span>
 
-                            <button
-                              onClick={() => setCitacionAud(a)}
+                            {/* Acciones rápidas de estado */}
+                            {/* PROGRAMADA → puede iniciarse o suspenderse */}
+                            {a.estadoAudiencia === "PROGRAMADA" && (
+                              <>
+                                <button
+                                  onClick={async () => {
+                                    if (!confirm(`¿Iniciar la audiencia "${a.idTipoAudiencia?.nombre}" ahora?`)) return;
+                                    const ahora = new Date();
+                                    const fechaHoraInicio = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}T${String(ahora.getHours()).padStart(2,'0')}:${String(ahora.getMinutes()).padStart(2,'0')}`;
+                                    try {
+                                      await actualizarAudiencia({
+                                        variables: {
+                                          id: Number(a.idAudiencia),
+                                          input: {
+                                            estadoAudiencia: "EN_CURSO",
+                                            fechaHoraInicio: fechaHoraInicio,
+                                          }
+                                        }
+                                      });
+                                      await refetch();
+                                      toast.success("Audiencia iniciada — hora de inicio registrada");
+                                    } catch (e: any) {
+                                      toast.error(e.message ?? "Error al iniciar la audiencia");
+                                    }
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-semibold transition-colors flex items-center gap-1"
+                                >
+                                  <Clock className="w-3.5 h-3.5" /> Iniciar
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    const motivo = prompt("Motivo de suspensión (requerido):");
+                                    if (!motivo?.trim()) return;
+                                    try {
+                                      await actualizarAudiencia({
+                                        variables: {
+                                          id: Number(a.idAudiencia),
+                                          input: { estadoAudiencia: "SUSPENDIDA", motivoSuspension: motivo.trim() }
+                                        }
+                                      });
+                                      await refetch();
+                                      toast.success("Audiencia suspendida");
+                                    } catch (e: any) {
+                                      toast.error(e.message ?? "Error al suspender la audiencia");
+                                    }
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors flex items-center gap-1"
+                                >
+                                  <AlertTriangle className="w-3.5 h-3.5" /> Suspender
+                                </button>
+                              </>
+                            )}
+
+                            {/* EN_CURSO → puede finalizarse */}
+                            {a.estadoAudiencia === "EN_CURSO" && (
+                              <button
+                                onClick={async () => {
+                                  if (!confirm("¿Finalizar la audiencia ahora? Se registrará la hora de cierre.")) return;
+                                  const ahora = new Date();
+                                  const fechaHoraFin = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}T${String(ahora.getHours()).padStart(2,'0')}:${String(ahora.getMinutes()).padStart(2,'0')}`;
+                                  try {
+                                    await actualizarAudiencia({
+                                      variables: {
+                                        id: Number(a.idAudiencia),
+                                        input: {
+                                          estadoAudiencia: "REALIZADA",
+                                          fechaHoraFin: fechaHoraFin,
+                                        }
+                                      }
+                                    });
+                                    await refetch();
+                                    toast.success("Audiencia finalizada — hora de cierre registrada");
+                                  } catch (e: any) {
+                                    toast.error(e.message ?? "Error al finalizar la audiencia");
+                                  }
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold transition-colors flex items-center gap-1 animate-pulse"
+                              >
+                                <CheckCircle className="w-3.5 h-3.5" /> Finalizar
+                              </button>
+                            )}
+
+                            {/* SUSPENDIDA → puede reprogramarse */}
+                            {a.estadoAudiencia === "SUSPENDIDA" && (
+                              <button
+                                onClick={() => { setEditandoAud(a); setShowFormAud(true); }}
+                                className="px-2.5 py-1 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold transition-colors flex items-center gap-1"
+                              >
+                                <Calendar className="w-3.5 h-3.5" /> Reprogramar
+                              </button>
+                            )}
+                          
+
+                            <button onClick={() => setCitacionAud(a)}
                               title="Enviar citaciones por email"
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                            >
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
                               <Send className="w-3.5 h-3.5" />
                             </button>
-
-                            <button
-                              onClick={() => setAsistenciaAud(a)}
+                            <button onClick={() => setAsistenciaAud(a)}
                               title="Tomar asistencia"
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
-                            >
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors">
                               <ClipboardList className="w-3.5 h-3.5" />
                             </button>
-
                             <button
                               onClick={() => { setEditandoAud(a); setShowFormAud(true); }}
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                            >
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
                               <FileText className="w-3.5 h-3.5" />
                             </button>
-
                             <button
                               onClick={async () => {
                                 if (!confirm("¿Eliminar esta audiencia?")) return;
@@ -1621,8 +1782,7 @@ export default function DenunciaDetailPage() {
                                 }
                               }}
                               disabled={eliminandoAudId === a.idAudiencia}
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-40"
-                            >
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-40">
                               {eliminandoAudId === a.idAudiencia
                                 ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                 : <XCircle className="w-3.5 h-3.5" />
@@ -1643,6 +1803,22 @@ export default function DenunciaDetailPage() {
                                 className="text-blue-500 hover:underline font-medium">
                                 Videoconferencia
                               </a>
+                            </div>
+                          )}
+                          {a.fechaHoraInicio && (
+                            <div>
+                              <p className="text-gray-400 dark:text-gray-500">Hora inicio</p>
+                              <p className="text-indigo-600 dark:text-indigo-400 font-medium">
+                                {new Date(a.fechaHoraInicio).toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit" })}
+                              </p>
+                            </div>
+                          )}
+                          {a.fechaHoraFin && (
+                            <div>
+                              <p className="text-gray-400 dark:text-gray-500">Hora fin</p>
+                              <p className="text-emerald-600 dark:text-emerald-400 font-medium">
+                                {new Date(a.fechaHoraFin).toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit" })}
+                              </p>
                             </div>
                           )}
                           {a.motivoSuspension && (
@@ -2066,6 +2242,13 @@ export default function DenunciaDetailPage() {
 
 
 
+          {/* ── TAB REGLAMENTO ── */}
+          {tabActiva === "reglamento" && (
+            <div className="h-[600px] [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+              <PanelReglamento />
+            </div>
+          )}
+
           {/* ── TAB DOCUMENTOS ── */}
           {tabActiva === "documentos" && (
             <div className="space-y-4">
@@ -2143,62 +2326,6 @@ export default function DenunciaDetailPage() {
           )}
         </div>
 
-        <div className="w-80 shrink-0 space-y-5">
-          <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-amber-500" />
-              Plazos Procesales
-            </h3>
-            <div className="space-y-2 text-sm">
-              {[
-                ["Admisión (Art. 58)",     "5 días"],
-                ["Subsanación (Art. 56)",  "3 días"],
-                ["Defensa (Art. 58a)",     "10 días"],
-                ["Pruebas (Art. 60)",      "30 días"],
-                ["Resolución (Art. 75)",   "15 días"],
-                ["Apelación (Art. 82)",    "5 días"],
-                ["Remisión Superior (Art. 86)", "3 días"],
-                ["Ejecución (Art. 90)",    "5 días"],
-              ].map(([label, dias], i) => (
-                <div key={i} className={`flex justify-between py-1 ${i > 0 ? "border-t border-gray-100 dark:border-slate-700" : ""}`}>
-                  <span className="text-gray-600 dark:text-gray-400">{label}</span>
-                  <span className="font-mono">{dias}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-gray-200 dark:border-slate-700 p-5">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-              <Scale className="w-4 h-4 text-purple-500" />
-              Referencias Legales
-            </h3>
-            <div className="space-y-1.5 text-sm text-gray-600 dark:text-gray-400">
-              <p>Art. 22 - Retiro de denuncia</p>
-              <p>Art. 55 - Requisitos de la denuncia</p>
-              <p>Art. 56 - Denuncia defectuosa</p>
-              <p>Art. 57 - Rechazo de denuncia</p>
-              <p>Art. 58 - Auto de admisión</p>
-              <p>Art. 59 - Conciliación</p>
-              <p>Art. 60 - Período probatorio</p>
-              <p>Art. 75 - Resolución final</p>
-              <p>Art. 82 - Recurso de apelación</p>
-              <p>Art. 86 - Remisión al Superior</p>
-              <p>Art. 90 - Ejecución de fallos</p>
-              <p>Art. 8  - Prescripción (2 años)</p>
-              <p>Art. 23 - Desistimiento</p>
-              <p>Art. 46 - Notificación personal</p>
-              <p>Art. 61 - Medidas precautorias</p>
-              <p>Art. 77 - Aclaración/enmienda</p>
-              <p>Art. 80 - Fallecimiento</p>
-              <p>Art. 81 - Resolución de prescripción</p>
-              <p>Art. 83 - Compulsa</p>
-              <p>Art. 7  - Registro en Gaceta</p>
-              <p>Art. 16 - Remisión a autoridad</p>
-              <p>Art. 90 - Resolución rectoral</p>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

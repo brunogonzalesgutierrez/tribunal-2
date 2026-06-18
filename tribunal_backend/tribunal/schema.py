@@ -5769,6 +5769,25 @@ class AdmitirDenuncia(graphene.Mutation):
                         mensaje=f"No se puede admitir una denuncia en estado '{denuncia.estado}'."
                     )
 
+                
+                # ── Verificar prescripción ANTES de admitir (Art. 8) ──────────────────────────
+                if denuncia.fecha_hecho:
+                    from datetime import timedelta
+                    limite_prescripcion = denuncia.fecha_hecho + timedelta(days=730)
+                    if date.today() > limite_prescripcion:
+                        return AdmitirDenuncia(
+                            ok=False,
+                            mensaje=(
+                                f"Prescripción (Art. 8): los hechos ocurrieron el "
+                                f"{denuncia.fecha_hecho.strftime('%d/%m/%Y')} y el plazo de "
+                                f"2 años venció el {limite_prescripcion.strftime('%d/%m/%Y')}. "
+                                f"Declarar prescripción mediante resolución fundada (Art. 81)."
+                            ),
+                            denuncia=None,
+                            expediente=None,
+                            numero_expediente=None,
+                        )
+
                 sala            = SalaTribunal.objects.get(id_sala=id_sala)
                 tipo_proceso    = TipoProceso.objects.get(codigo="PDS")
                 usuario         = Usuario.objects.get(id_usuario=id_usuario)

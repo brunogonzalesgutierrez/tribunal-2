@@ -307,3 +307,15 @@ export const ENVIAR_NOTIFICACION_EJECUCION = gql`
     }
   }
 `;
+
+export const ACTUALIZAR_AUDIENCIA = gql`
+  mutation ActualizarAudiencia($id: Int!, $input: ActualizarAudienciaInput!) {
+    actualizarAudiencia(id: $id, input: $input) {
+      audiencia {
+        idAudiencia
+        estadoAudiencia
+        motivoSuspension
+      }
+    }
+  }
+`;

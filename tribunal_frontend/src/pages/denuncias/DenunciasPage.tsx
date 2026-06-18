@@ -255,6 +255,9 @@ function BuscadorPersona({
 export default function DenunciasPage() {
   const navigate = useNavigate();
   const [modalAbierto, setModalAbierto] = useState(false);
+
+
+
   const [editando, setEditando] = useState<Denuncia | null>(null);
   const [form, setForm] = useState(initialForm);
   const [busqueda, setBusqueda] = useState("");
