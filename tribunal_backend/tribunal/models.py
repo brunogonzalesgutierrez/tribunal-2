@@ -343,19 +343,39 @@ class ParteProcesal(models.Model):
         return f"Parte {self.id_parte}"
 
 
+
 class Documento(models.Model):
-    id_documento = models.AutoField(primary_key=True)
-    id_expediente = models.ForeignKey(Expediente, on_delete=models.CASCADE, db_column='id_expediente', related_name='documentos')
-    id_tipo_doc = models.ForeignKey(TipoDoc, on_delete=models.CASCADE, db_column='id_tipo_doc', related_name='documentos')
-    id_persona = models.ForeignKey(Persona, on_delete=models.SET_NULL, null=True, blank=True, db_column='id_persona', related_name='documentos')
-    titulo = models.CharField(max_length=200)
+    TIPOS_PRESENTACION = [
+        ("ORIGINAL",         "Original"),
+        ("COPIA_LEGALIZADA", "Fotocopia legalizada"),
+        ("COPIA_SIMPLE",     "Fotocopia simple"),
+        ("DIGITAL",          "Digital"),
+    ]
+
+    id_documento      = models.AutoField(primary_key=True)
+    id_expediente     = models.ForeignKey(Expediente, on_delete=models.CASCADE,
+                            db_column='id_expediente', related_name='documentos')
+    id_tipo_doc       = models.ForeignKey(TipoDoc, on_delete=models.CASCADE,
+                            db_column='id_tipo_doc', related_name='documentos')
+    id_persona        = models.ForeignKey(Persona, on_delete=models.SET_NULL,
+                            null=True, blank=True,
+                            db_column='id_persona', related_name='documentos')
+    titulo            = models.CharField(max_length=200)
     fecha_presentacion = models.DateTimeField(auto_now_add=True)
-    numero_folio = models.IntegerField(null=True, blank=True)
-    hash_integridad = models.CharField(max_length=256)
-    ruta_archivo = models.CharField(max_length=500)
-    tamano_kb = models.IntegerField()
-    es_electronico = models.BooleanField(default=True)
+    numero_folio      = models.IntegerField(null=True, blank=True)
+    hash_integridad   = models.CharField(max_length=256)
+    ruta_archivo      = models.CharField(max_length=500)
+    tamano_kb         = models.IntegerField()
+    es_electronico    = models.BooleanField(default=True)
     firmado_digitalmente = models.BooleanField(default=False)
+
+    # NUEVO — Art. 65: pruebas deben presentarse en original o fotocopia legalizada
+    tipo_presentacion = models.CharField(
+        max_length=20,
+        blank=True, null=True,
+        choices=TIPOS_PRESENTACION,
+        help_text="Tipo de presentación del documento (Art. 65)",
+    )
 
     class Meta:
         db_table = 'documento'

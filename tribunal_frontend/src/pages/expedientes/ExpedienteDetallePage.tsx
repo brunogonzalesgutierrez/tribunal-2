@@ -23,7 +23,9 @@ import {
 } from "../../graphql/tribunal";
 import { GET_TIPOS_DOC, ELIMINAR_DOCUMENTO } from "../../graphql/documento";
 import { useCrudNotifications } from "../../hooks/useCrudNotifications";
-import { generarPdfResolucion } from "../../utils/generarPdfResolucion";
+import {
+  generarDocumentoTribunal,
+} from "../../utils/documentosTribunal"
 
 // ─── GraphQL adicional ─────────────────────────────────────────────────────
 // (todo movido a graphql/)
@@ -1468,9 +1470,25 @@ export default function ExpedienteDetallePage() {
 
   const generarPdf = async (resolucion: any) => {
     setGenerandoPdf(resolucion.idResolucion);
-    try { await generarPdfResolucion({ expediente: exp, resolucion, partes, vocales, denuncia: denunciaVinculada }); }
-    catch (e) { console.error("Error generando PDF:", e); }
-    finally { setGenerandoPdf(null); }
+    try {
+      await generarDocumentoTribunal({
+        tipo:               "RESOLUCION_FINAL",
+        numeroExpediente:   exp.numeroExpediente,
+        anioExpediente:     exp.ano,
+        numeroDenuncia:     denunciaVinculada?.numeroDenuncia,
+        nombreDestinatario: partes.length > 0
+          ? partes.map((p: any) =>
+              `${p.idPersona?.nombre ?? ""} ${p.idPersona?.primerApellido ?? ""}`.trim()
+            ).join(" / ")
+          : "Partes procesales",
+        textoCuerpo:        resolucion.parteDispositiva ?? resolucion.fundamentacion ?? "",
+        fechaDocumento:     resolucion.fechaResolucion,
+      });
+    } catch (e) {
+      console.error("Error generando PDF:", e);
+    } finally {
+      setGenerandoPdf(null);
+    }
   };
 
   const abrirForm  = (tab: TabId) => { setShowForm(p => ({ ...p, [tab]: true })); if (tab !== "audiencias") setEditandoAud(null); };

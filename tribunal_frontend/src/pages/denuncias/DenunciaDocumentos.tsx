@@ -84,15 +84,33 @@ function BuscadorTipoDoc({
 // ══════════════════════════════════════════════════════════════════════════
 // FORM DOCUMENTO DENUNCIA
 // ══════════════════════════════════════════════════════════════════════════
+// Tipos sugeridos por etapa del proceso
+export const TIPOS_SUGERIDOS_POR_ETAPA: Record<string, string[]> = {
+  REGISTRADA:             ["PRU", "MEM"],
+  SUBSANACION:            ["MEM", "PRU"],
+  ADMITIDA:               ["ADA", "CED", "CIP", "MEM"],
+  DECLARACION_INFORMATIVA:["ACT", "MEM", "PRU"],
+  PRUEBAS:                ["PRU", "ACT", "MEM", "AAP"],
+  CONCLUSION:             ["ACT", "MEM"],
+  RESUELTA:               ["RSF", "RAF", "NOT"],
+  APELADA:                ["RAP", "RCP", "MEM"],
+  EJECUTADA:              ["RAD", "CER"],
+};
+
 export function FormDocumentoDenuncia({
-  idExpediente, onSaved, onCancel,
+  idExpediente, estadoDenuncia, partes, onSaved, onCancel,
 }: {
   idExpediente: number;
+  estadoDenuncia?: string;
+  partes?: any[];
   onSaved: () => void;
   onCancel: () => void;
 }) {
   const { data: dTipos, loading: lTipos } = useQuery(GET_TIPOS_DOC);
-  const [form, setForm] = useState({ idTipoDoc: 0, tipoLabel: "", titulo: "", numeroFolio: "" });
+  const [form, setForm] = useState({
+    idTipoDoc: 0, tipoLabel: "", titulo: "", numeroFolio: "",
+    idPersona: 0, personaLabel: "", tipoPresentacion: ""
+  });
   const [archivo, setArchivo]           = useState<File | null>(null);
   const [err, setErr]                   = useState("");
   const [saving, setSaving]             = useState(false);
@@ -100,12 +118,31 @@ export function FormDocumentoDenuncia({
   const inputFileRef                    = useRef<HTMLInputElement>(null);
 
   const tipos: any[] = dTipos?.allTiposDoc ?? [];
-  const opciones: OpcionModal[] = tipos.map((t: any) => ({
-    id: t.idTipoDoc,
-    titulo: t.nombre,
-    extra: t.codigo,
-    subtitulo: t.esPublico ? "Público" : "Privado",
-  }));
+
+  const tiposSugeridos = estadoDenuncia
+    ? (TIPOS_SUGERIDOS_POR_ETAPA[estadoDenuncia] ?? [])
+    : [];
+
+  const opciones: OpcionModal[] = [
+    ...tipos
+      .filter((t: any) => tiposSugeridos.includes(t.codigo))
+      .map((t: any) => ({
+        id: t.idTipoDoc,
+        titulo: t.nombre,
+        extra: `${t.codigo} · Sugerido para esta etapa`,
+        subtitulo: t.esPublico ? "Público" : "Privado",
+      })),
+    ...tipos
+      .filter((t: any) => !tiposSugeridos.includes(t.codigo))
+      .map((t: any) => ({
+        id: t.idTipoDoc,
+        titulo: t.nombre,
+        extra: t.codigo,
+        subtitulo: t.esPublico ? "Público" : "Privado",
+      })),
+  ];
+  
+  
 
   const set = (k: string) => (e: React.ChangeEvent<any>) =>
     setForm(p => ({ ...p, [k]: e.target.value }));
@@ -122,6 +159,11 @@ export function FormDocumentoDenuncia({
     if (!form.idTipoDoc || !form.titulo.trim()) {
       setErr("Tipo y título son obligatorios."); return;
     }
+    if (!form.numeroFolio) {
+      setErr("El número de folio es obligatorio (Art. 9 — foliado correlativo)."); return;
+    }
+
+    
     setSaving(true); setErr("");
     try {
       const formData = new FormData();
@@ -129,6 +171,8 @@ export function FormDocumentoDenuncia({
       formData.append("idExpediente", String(idExpediente));
       formData.append("idTipoDoc", String(form.idTipoDoc));
       if (form.numeroFolio) formData.append("numeroFolio", form.numeroFolio);
+      if (form.idPersona)   formData.append("idPersona", String(form.idPersona));
+      if (form.tipoPresentacion) formData.append("tipoPresentacion", form.tipoPresentacion);
       if (archivo) formData.append("archivo", archivo);
 
       const resp = await fetch(`${DJANGO_BASE}/api/subir-documento/`, { method: "POST", body: formData });
@@ -158,6 +202,16 @@ export function FormDocumentoDenuncia({
           </button>
         </div>
 
+        {/* Banner de sugerencia por etapa */}
+        {tiposSugeridos.length > 0 && (
+          <div className="flex items-start gap-2 p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+            <FileText className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+            <p className="text-xs text-blue-700 dark:text-blue-400">
+              Para esta etapa se sugieren: <span className="font-semibold">{tiposSugeridos.join(", ")}</span>. Aparecen primero en el selector.
+            </p>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="sm:col-span-2">
             <label className={labelCls}>Tipo de documento <span className="text-red-500">*</span></label>
@@ -184,10 +238,49 @@ export function FormDocumentoDenuncia({
           </div>
 
           <div>
-            <label className={labelCls}>N° Folio</label>
+            <label className={labelCls}>
+              N° Folio <span className="text-red-500">*</span>
+              <span className="ml-1 normal-case font-normal text-gray-400">(Art. 9)</span>
+            </label>
             <input type="number" placeholder="Ej: 42" value={form.numeroFolio}
               onChange={set("numeroFolio")} className={inputCls} disabled={saving} />
           </div>
+
+          <div>
+            <label className={labelCls}>Tipo de presentación (Art. 65)</label>
+            <select
+              value={form.tipoPresentacion}
+              onChange={e => setForm(p => ({ ...p, tipoPresentacion: e.target.value }))}
+              className={inputCls}
+              disabled={saving}
+            >
+              <option value="">— Seleccionar —</option>
+              <option value="ORIGINAL">Original</option>
+              <option value="COPIA_LEGALIZADA">Fotocopia legalizada</option>
+              <option value="COPIA_SIMPLE">Fotocopia simple</option>
+              <option value="DIGITAL">Digital</option>
+            </select>
+          </div>
+
+          {/* Presentado por — solo si hay partes */}
+          {partes && partes.length > 0 && (
+            <div>
+              <label className={labelCls}>Presentado por</label>
+              <select
+                value={form.idPersona}
+                onChange={e => setForm(p => ({ ...p, idPersona: Number(e.target.value) }))}
+                className={inputCls}
+                disabled={saving}
+              >
+                <option value={0}>— Seleccionar parte (opcional) —</option>
+                {partes.map((p: any) => (
+                  <option key={p.idParte} value={p.idPersona?.idPersona ?? 0}>
+                    {p.idPersona?.nombre} {p.idPersona?.primerApellido} · {p.idRol?.nombreRol}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label className={labelCls}>Archivo PDF (opcional)</label>

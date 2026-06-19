@@ -3,12 +3,11 @@
 POBLADA COMPLETA — Sistema de Gestión Judicial UAGRM
 Resolución ICU 048-2018
 Ejecutar desde tribunal_backend con:
-    python poblar_desde_cero.py
+    python poblar.py
 """
 
 import os
 import django
-
 from datetime import date
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
@@ -44,14 +43,10 @@ print(f"\n✅ Tribunal: {tribunal.nombre_tribunal}")
 # 2. SALAS DE TRIBUNAL
 # ══════════════════════════════════════════════════════════════
 sala1, _ = SalaTribunal.objects.get_or_create(
-    nombre_sala="Sala 1",
-    id_tribunal=tribunal,
-    defaults={"activa": True}
+    nombre_sala="Sala 1", id_tribunal=tribunal, defaults={"activa": True}
 )
 sala2, _ = SalaTribunal.objects.get_or_create(
-    nombre_sala="Sala 2",
-    id_tribunal=tribunal,
-    defaults={"activa": True}
+    nombre_sala="Sala 2", id_tribunal=tribunal, defaults={"activa": True}
 )
 print("✅ Sala 1 y Sala 2 del Tribunal")
 
@@ -67,13 +62,8 @@ salas_audiencia_data = [
 print()
 for s in salas_audiencia_data:
     obj, _ = SalaAudiencia.objects.get_or_create(
-        nombre_sala=s["nombre_sala"],
-        id_tribunal=tribunal,
-        defaults={
-            "capacidad": s["capacidad"],
-            "equipada_videoconf": s["equipada_videoconf"],
-            "activa": True,
-        }
+        nombre_sala=s["nombre_sala"], id_tribunal=tribunal,
+        defaults={"capacidad": s["capacidad"], "equipada_videoconf": s["equipada_videoconf"], "activa": True}
     )
     print(f"✅ Sala de audiencia: {obj.nombre_sala}")
 
@@ -82,67 +72,36 @@ for s in salas_audiencia_data:
 # 4. ROLES DE USUARIO
 # ══════════════════════════════════════════════════════════════
 print()
-rol_admin, _ = Rol.objects.get_or_create(
-    nombre="Administrador",
-    defaults={"descripcion": "Acceso total al sistema", "sala_asignada": None, "activo": True}
-)
-rol_adminsala1, _ = Rol.objects.get_or_create(
-    nombre="AdminSala1",
-    defaults={"descripcion": "Administrador de Sala 1", "sala_asignada": sala1, "activo": True}
-)
-rol_adminsala2, _ = Rol.objects.get_or_create(
-    nombre="AdminSala2",
-    defaults={"descripcion": "Administrador de Sala 2", "sala_asignada": sala2, "activo": True}
-)
-rol_secretariosala1, _ = Rol.objects.get_or_create(
-    nombre="SecretarioSala1",
-    defaults={"descripcion": "Secretario de Sala 1", "sala_asignada": sala1, "activo": True}
-)
-rol_secretariosala2, _ = Rol.objects.get_or_create(
-    nombre="SecretarioSala2",
-    defaults={"descripcion": "Secretario de Sala 2", "sala_asignada": sala2, "activo": True}
-)
-rol_vocalsala1, _ = Rol.objects.get_or_create(
-    nombre="VocalSala1",
-    defaults={"descripcion": "Vocal de Sala 1", "sala_asignada": sala1, "activo": True}
-)
-rol_vocalsala2, _ = Rol.objects.get_or_create(
-    nombre="VocalSala2",
-    defaults={"descripcion": "Vocal de Sala 2", "sala_asignada": sala2, "activo": True}
-)
-print("✅ Roles: Administrador, AdminSala1, AdminSala2, SecretarioSala1, SecretarioSala2, VocalSala1, VocalSala2")
+rol_admin, _         = Rol.objects.get_or_create(nombre="Administrador",    defaults={"descripcion": "Acceso total al sistema",        "sala_asignada": None,  "activo": True})
+rol_adminsala1, _    = Rol.objects.get_or_create(nombre="AdminSala1",       defaults={"descripcion": "Administrador de Sala 1",        "sala_asignada": sala1, "activo": True})
+rol_adminsala2, _    = Rol.objects.get_or_create(nombre="AdminSala2",       defaults={"descripcion": "Administrador de Sala 2",        "sala_asignada": sala2, "activo": True})
+rol_secsala1, _      = Rol.objects.get_or_create(nombre="SecretarioSala1",  defaults={"descripcion": "Secretario de Sala 1",           "sala_asignada": sala1, "activo": True})
+rol_secsala2, _      = Rol.objects.get_or_create(nombre="SecretarioSala2",  defaults={"descripcion": "Secretario de Sala 2",           "sala_asignada": sala2, "activo": True})
+rol_vocalsala1, _    = Rol.objects.get_or_create(nombre="VocalSala1",       defaults={"descripcion": "Vocal de Sala 1",                "sala_asignada": sala1, "activo": True})
+rol_vocalsala2, _    = Rol.objects.get_or_create(nombre="VocalSala2",       defaults={"descripcion": "Vocal de Sala 2",                "sala_asignada": sala2, "activo": True})
+print("✅ 7 Roles de usuario")
 
 
 # ══════════════════════════════════════════════════════════════
 # 5. ESTADOS DE EXPEDIENTE
 # ══════════════════════════════════════════════════════════════
-# Basados en el flujo real del Reglamento ICU 048-2018
 estados_data = [
-    # Nivel 0 — entrada (lo que el secretario registra al recibir el papel)
-    {"nombre_estado": "Denuncia Presentada",       "es_terminal": False, "nivel": 0},
-
-    # Nivel 1 — primera decisión del tribunal (Art. 56-57)
-    {"nombre_estado": "Denuncia Defectuosa",        "es_terminal": False, "nivel": 1},
-
-    # Nivel 2 — admisión (Art. 58)
-    {"nombre_estado": "Auto de Admisión",           "es_terminal": False, "nivel": 2},
-
-    # Nivel 3-9 — flujo principal
-    {"nombre_estado": "Etapa Investigativa",        "es_terminal": False, "nivel": 3},
-    {"nombre_estado": "Término Probatorio",         "es_terminal": False, "nivel": 4},
-    {"nombre_estado": "Clausura Probatoria",        "es_terminal": False, "nivel": 5},
-    {"nombre_estado": "Para Resolución Final",      "es_terminal": False, "nivel": 6},
-    {"nombre_estado": "Resuelto Primera Instancia", "es_terminal": False, "nivel": 7},
-    {"nombre_estado": "Remitido en Apelación",  "es_terminal": False, "nivel": 8},
-    {"nombre_estado": "Fallo de Segunda Instancia Recibido", "es_terminal": False, "nivel": 9},
-
-    # Nivel 10 — terminales
-    {"nombre_estado": "Ejecutoriado",               "es_terminal": True,  "nivel": 10},
-    {"nombre_estado": "Archivado",                  "es_terminal": True,  "nivel": 10},
-    {"nombre_estado": "Rechazado",                  "es_terminal": True,  "nivel": 10},
-    {"nombre_estado": "Desistido",                  "es_terminal": True,  "nivel": 10},
-    {"nombre_estado": "Prescrito",                  "es_terminal": True,  "nivel": 10},
-    {"nombre_estado": "Conciliado",                 "es_terminal": True,  "nivel": 10},
+    {"nombre_estado": "Denuncia Presentada",                  "es_terminal": False, "nivel": 0},
+    {"nombre_estado": "Denuncia Defectuosa",                  "es_terminal": False, "nivel": 1},
+    {"nombre_estado": "Auto de Admisión",                     "es_terminal": False, "nivel": 2},
+    {"nombre_estado": "Etapa Investigativa",                  "es_terminal": False, "nivel": 3},
+    {"nombre_estado": "Término Probatorio",                   "es_terminal": False, "nivel": 4},
+    {"nombre_estado": "Clausura Probatoria",                  "es_terminal": False, "nivel": 5},
+    {"nombre_estado": "Para Resolución Final",                "es_terminal": False, "nivel": 6},
+    {"nombre_estado": "Resuelto Primera Instancia",           "es_terminal": False, "nivel": 7},
+    {"nombre_estado": "Remitido en Apelación",                "es_terminal": False, "nivel": 8},
+    {"nombre_estado": "Fallo de Segunda Instancia Recibido",  "es_terminal": False, "nivel": 9},
+    {"nombre_estado": "Ejecutoriado",                         "es_terminal": True,  "nivel": 10},
+    {"nombre_estado": "Archivado",                            "es_terminal": True,  "nivel": 10},
+    {"nombre_estado": "Rechazado",                            "es_terminal": True,  "nivel": 10},
+    {"nombre_estado": "Desistido",                            "es_terminal": True,  "nivel": 10},
+    {"nombre_estado": "Prescrito",                            "es_terminal": True,  "nivel": 10},
+    {"nombre_estado": "Conciliado",                           "es_terminal": True,  "nivel": 10},
 ]
 print()
 for e in estados_data:
@@ -157,8 +116,7 @@ for e in estados_data:
 # 6. TIPO DE PROCESO
 # ══════════════════════════════════════════════════════════════
 tipo_proceso, _ = TipoProceso.objects.get_or_create(
-    nombre="Proceso Disciplinario Sumario",
-    defaults={"codigo": "PDS"}
+    nombre="Proceso Disciplinario Sumario", defaults={"codigo": "PDS"}
 )
 print(f"\n✅ Tipo de proceso: {tipo_proceso.nombre}")
 
@@ -166,7 +124,6 @@ print(f"\n✅ Tipo de proceso: {tipo_proceso.nombre}")
 # ══════════════════════════════════════════════════════════════
 # 7. TIPOS DE AUDIENCIA
 # ══════════════════════════════════════════════════════════════
-# Art. 58, 60, 70 — audiencias del proceso disciplinario
 tipos_audiencia_data = [
     {"nombre": "Declaración Informativa",        "duracion_estimada": 60},
     {"nombre": "Audiencia de Prueba Testifical", "duracion_estimada": 90},
@@ -178,471 +135,410 @@ tipos_audiencia_data = [
 print()
 for t in tipos_audiencia_data:
     obj, _ = TipoAudiencia.objects.get_or_create(
-        nombre=t["nombre"],
-        id_tipo_proceso=tipo_proceso,
+        nombre=t["nombre"], id_tipo_proceso=tipo_proceso,
         defaults={"duracion_estimada": t["duracion_estimada"], "descripcion": t["nombre"]}
     )
     print(f"✅ Tipo de audiencia: {obj.nombre}")
 
 
 # ══════════════════════════════════════════════════════════════
-# 8. TIPOS DE DOCUMENTO
+# 8. TIPOS DE DOCUMENTO — lista unificada (sin duplicados)
+# Cubre tanto los tipos del proceso (Art. 34, 44, 47, 58, 77, 82, 83, 90)
+# como los códigos que usa _registrar_notificacion_envio() en schema.py
 # ══════════════════════════════════════════════════════════════
-# Basados en documentos reales del proceso disciplinario (Art. 34, 44, 47, 58, 77, 82, 83, 90)
 tipos_doc_data = [
-    {"codigo": "DEN", "nombre": "Denuncia Disciplinaria",         "requiere_firma": True,  "es_publico": False},
-    {"codigo": "ADA", "nombre": "Auto de Admisión",               "requiere_firma": True,  "es_publico": True},
-    {"codigo": "CED", "nombre": "Cédula Citatoria",               "requiere_firma": False, "es_publico": True},
-    {"codigo": "CIP", "nombre": "Citación Personal",              "requiere_firma": False, "es_publico": True},
-    {"codigo": "MEM", "nombre": "Memorial",                       "requiere_firma": True,  "es_publico": True},
-    {"codigo": "AAP", "nombre": "Auto de Apertura Probatoria",    "requiere_firma": True,  "es_publico": True},
-    {"codigo": "PRU", "nombre": "Prueba Documental",              "requiere_firma": False, "es_publico": False},
-    {"codigo": "ACT", "nombre": "Acta de Audiencia",              "requiere_firma": True,  "es_publico": True},
-    {"codigo": "INF", "nombre": "Informe",                        "requiere_firma": False, "es_publico": False},
-    {"codigo": "RSF", "nombre": "Resolución Sancionatoria",       "requiere_firma": True,  "es_publico": True},
-    {"codigo": "RAF", "nombre": "Resolución Absolutoria",         "requiere_firma": True,  "es_publico": True},
-    {"codigo": "AUT", "nombre": "Auto Interlocutorio",            "requiere_firma": True,  "es_publico": True},
-    {"codigo": "DEC", "nombre": "Decreto",                        "requiere_firma": True,  "es_publico": True},
-    {"codigo": "ACL", "nombre": "Aclaración y Complementación",   "requiere_firma": True,  "es_publico": True},
-    {"codigo": "RAP", "nombre": "Recurso de Apelación",           "requiere_firma": True,  "es_publico": True},
-    {"codigo": "RCP", "nombre": "Recurso de Compulsa",            "requiere_firma": True,  "es_publico": True},
-    {"codigo": "RAD", "nombre": "Resolución Administrativa",      "requiere_firma": True,  "es_publico": True},
-    {"codigo": "CER", "nombre": "Certificado",                    "requiere_firma": True,  "es_publico": True},
-    {"codigo": "NOT", "nombre": "Notificación",                   "requiere_firma": False, "es_publico": True},
+    # código,        nombre,                                                    firma,  público
+    # ── Documentos que presentan las partes ──────────────────────────────────
+    ("DEN",          "Denuncia Disciplinaria",                                  False,  False),
+    ("PRU",          "Prueba Documental",                                       False,  False),
+    ("MEM",          "Memorial / Escrito de parte",                             False,  False),
+    ("RAF",          "Ratificación de Pruebas (Art. 60 II)",                    False,  False),
+    ("RAP",          "Recurso de Apelación (Art. 82)",                          True,   False),
+    ("RCP",          "Recurso de Compulsa (Art. 83)",                           True,   False),
+
+    # ── Autos y resoluciones que emite el Tribunal ───────────────────────────
+    ("AUT-SUB",      "Auto de Subsanación (Art. 56)",                           True,   False),
+    ("AUT-REC",      "Auto de Rechazo de Denuncia (Art. 57)",                   True,   False),
+    ("ADA",          "Auto de Admisión (Art. 58)",                              True,   True),
+    ("CIP",          "Cédula de Citación para Declaración Informativa (Art. 58b)", True, False),
+    ("ACT-CON",      "Acta de Conciliación (Art. 59)",                          True,   False),
+    ("AAP",          "Auto de Apertura Término Probatorio (Art. 60)",           True,   False),
+    ("AUT-MED",      "Resolución de Medidas Precautorias (Art. 61)",            True,   False),
+    ("ACT",          "Acta de Audiencia (Art. 73)",                             True,   False),
+    ("AUT-CIE",      "Auto de Cierre del Término Probatorio (Art. 74)",         True,   False),
+    ("RSF",          "Resolución Final Sancionatoria (Art. 75)",                True,   True),
+    ("RAF-ABS",      "Resolución Final Absolutoria (Art. 75)",                  True,   True),
+    ("AUT-ACL",      "Auto de Aclaración/Complementación/Enmienda (Art. 77)",  True,   False),
+    ("AUT-FAL",      "Resolución de Archivo por Fallecimiento (Art. 80)",       True,   False),
+    ("AUT-PRS",      "Resolución de Prescripción (Art. 81)",                    True,   False),
+    ("AUT-DES",      "Resolución de Archivo por Desistimiento (Art. 23)",       True,   False),
+    ("AUT-RET",      "Auto de Retiro de Denuncia (Art. 22)",                    True,   False),
+    ("TRA-APE",      "Traslado de Apelación a contraparte (Art. 82 III)",       True,   False),
+
+    # ── Citaciones y notificaciones físicas ──────────────────────────────────
+    ("CED",          "Cédula de Citación Personal al Denunciado (Art. 44)",     True,   False),
+    ("NOT",          "Notificación en Tablero (Art. 47)",                       True,   False),
+    ("NOT-RES",      "Notificación Personal de Resolución Definitiva (Art. 45/46)", True, False),
+    ("NOT-TABLERO",  "Notificación en Tablero de Secretaría",                   False,  False),
+
+    # ── Segunda instancia ─────────────────────────────────────────────────────
+    ("RAD",          "Decreto de Radicatoria — Segunda Instancia (Art. 48 I)",  True,   False),
+    ("RSI",          "Resolución de Segunda Instancia (Art. 86/87)",            True,   True),
+
+    # ── Ejecución de fallo ────────────────────────────────────────────────────
+    ("OFI-REC",      "Oficio de Remisión al Rectorado (Art. 16 + Art. 90 II)", True,   False),
+    ("RES-REC",      "Resolución Rectoral de Ejecución (Art. 90 II)",           False,  True),
+    ("GAC",          "Registro en Gaceta Universitaria (Art. 7)",               False,  True),
+
+    # ── Certificados ──────────────────────────────────────────────────────────
+    ("CER",          "Certificado de Proceso No Hallado",                       True,   True),
+
+    # ── Notificaciones electrónicas — registro interno del correo enviado ────
+    # Usados por _registrar_notificacion_envio() en schema.py
+    ("NOT-SUB",      "Notificación Electrónica de Subsanación",                 False,  False),
+    ("CIT-ADM",      "Citación Electrónica de Admisión",                        False,  False),
+    ("NOT-PROB",     "Notificación Electrónica Apertura Probatoria",            False,  False),
+    ("RES-1RA",      "Notificación Electrónica Resolución 1ª Instancia",        False,  False),
+    ("RES-2DA",      "Notificación Electrónica Resolución 2ª Instancia",        False,  False),
+    ("EJE-FAL",      "Notificación Electrónica Ejecución de Fallo",             False,  False),
+
+    # ── Autos interlocutorios / decretos genéricos ────────────────────────────
+    ("AUT",          "Auto Interlocutorio",                                     True,   True),
+    ("DEC",          "Decreto",                                                 True,   True),
+    ("INF",          "Informe",                                                 False,  False),
 ]
 print()
-for d in tipos_doc_data:
-    obj, _ = TipoDoc.objects.get_or_create(
-        codigo=d["codigo"],
+for codigo, nombre, requiere_firma, es_publico in tipos_doc_data:
+    obj, created = TipoDoc.objects.get_or_create(
+        codigo=codigo,
         defaults={
-            "nombre": d["nombre"],
-            "requiere_firma": d["requiere_firma"],
-            "es_publico": d["es_publico"],
+            "nombre":         nombre,
+            "requiere_firma": requiere_firma,
+            "es_publico":     es_publico,
+            "descripcion":    nombre,
         }
     )
-    print(f"✅ Tipo de doc: {obj.nombre}")
+    if created:
+        print(f"✅ TipoDoc: [{codigo}] {nombre}")
+    else:
+        # Actualizar nombre si ya existía con nombre genérico (ej: "NOT-SUB")
+        if obj.nombre == codigo:
+            obj.nombre = nombre
+            obj.descripcion = nombre
+            obj.save()
+            print(f"🔄 TipoDoc actualizado: [{codigo}] {nombre}")
 
 
 # ══════════════════════════════════════════════════════════════
 # 9. TIPOS DE RESOLUCIÓN
 # ══════════════════════════════════════════════════════════════
-# Art. 13, 75, 85, 86 — tipos de resolución del proceso disciplinario
 tipos_resolucion_data = [
-    {"codigo": "RSF", "nombre": "Resolución Sancionatoria",        "nivel_jerarquico": 1},
-    {"codigo": "RAF", "nombre": "Resolución Absolutoria",          "nivel_jerarquico": 1},
-    {"codigo": "AUT", "nombre": "Auto Interlocutorio",             "nivel_jerarquico": 2},
-    {"codigo": "DEC", "nombre": "Decreto",                         "nivel_jerarquico": 3},
-    {"codigo": "PRO", "nombre": "Providencia",                     "nivel_jerarquico": 4},
-
-    {"codigo": "RAD", "nombre": "Resolución Administrativa",       "nivel_jerarquico": 1},
+    # Los códigos que usa _sincronizar_resolucion_expediente() en schema.py
+    ("RDF",  "Resolución Definitiva Primera Instancia",    1),
+    ("RDS",  "Resolución Segunda Instancia",               1),
+    ("RCN",  "Acta de Conciliación",                       1),
+    ("RPR",  "Resolución de Prescripción",                 1),
+    ("RAR",  "Resolución de Archivo",                      1),
+    ("RAF",  "Resolución de Archivo por Fallecimiento",    1),
+    ("RDE",  "Resolución de Archivo por Desistimiento",    1),
+    # Tipos generales
+    ("RSF",  "Resolución Sancionatoria",                   1),
+    ("AUT",  "Auto Interlocutorio",                        2),
+    ("DEC",  "Decreto",                                    3),
+    ("PRO",  "Providencia",                                4),
+    ("RAD",  "Resolución Administrativa",                  1),
 ]
 print()
-for r in tipos_resolucion_data:
-    obj, _ = TipoResolucion.objects.get_or_create(
-        codigo=r["codigo"],
-        defaults={"nombre": r["nombre"], "nivel_jerarquico": r["nivel_jerarquico"]}
+for codigo, nombre, nivel in tipos_resolucion_data:
+    obj, created = TipoResolucion.objects.get_or_create(
+        codigo=codigo,
+        defaults={"nombre": nombre, "nivel_jerarquico": nivel}
     )
-    print(f"✅ Tipo de resolución: {obj.nombre}")
+    if created:
+        print(f"✅ TipoResolucion: [{codigo}] {nombre}")
 
 
 # ══════════════════════════════════════════════════════════════
 # 10. TIPOS DE RECURSO
 # ══════════════════════════════════════════════════════════════
-# Art. 82, 83 — recursos del proceso disciplinario
 tipos_recurso_data = [
-    {"nombre": "Recurso de Apelación",   "descripcion": "Art. 82 — Impugna resoluciones de primera instancia. Plazo: 5 días hábiles."},
-    {"nombre": "Recurso de Compulsa",    "descripcion": "Art. 83 — Procede por negativa indebida del recurso de apelación."},
-    {"nombre": "Recurso de Aclaración",  "descripcion": "Art. 77 — Solicita aclaración, complementación o enmienda. Plazo: 2 días hábiles."},
-    {"nombre": "Recurso de Nulidad",     "descripcion": "Solicita nulidad de actuaciones procesales."},
-    {"nombre": "Recurso de Reposición",  "descripcion": "Solicita reposición de autos o decretos."},
+    ("Apelación",            "Art. 82 — Impugna resoluciones de primera instancia. Plazo: 5 días hábiles."),
+    ("Compulsa",             "Art. 83 — Procede por negativa indebida del recurso de apelación."),
+    ("Aclaración/Enmienda",  "Art. 77 — Solicita aclaración, complementación o enmienda. Plazo: 2 días hábiles."),
+    ("Nulidad",              "Solicita nulidad de actuaciones procesales."),
+    ("Reposición",           "Solicita reposición de autos o decretos."),
 ]
 print()
-for r in tipos_recurso_data:
-    obj, _ = TipoRecurso.objects.get_or_create(
-        nombre=r["nombre"],
-        defaults={"descripcion": r["descripcion"]}
+for nombre, descripcion in tipos_recurso_data:
+    obj, created = TipoRecurso.objects.get_or_create(
+        nombre=nombre, defaults={"descripcion": descripcion}
     )
-    print(f"✅ Tipo de recurso: {obj.nombre}")
+    if created:
+        print(f"✅ TipoRecurso: {nombre}")
 
 
 # ══════════════════════════════════════════════════════════════
-# 11. TIPOS DE ACTUACIÓN PROCESAL
+# 11. TIPOS DE ACTUACIÓN PROCESAL — lista unificada
+# Cubre tanto los de la poblada original como los que usa
+# _registrar_actuacion_automatica() en schema.py
 # ══════════════════════════════════════════════════════════════
-# Basados en el flujo real del Reglamento ICU 048-2018
 tipos_actuacion_data = [
-    # Etapa inicial
-    # Etapa inicial
-    {"codigo": "PRE", "nombre": "Presentación de Denuncia"},
-    {"codigo": "SUB", "nombre": "Subsanación de Defectos"},
-    {"codigo": "ADA", "nombre": "Auto de Admisión de Denuncia"},       # Art. 58
-    {"codigo": "REC", "nombre": "Rechazo de Denuncia"},                # Art. 57
-    {"codigo": "RDE", "nombre": "Retiro de Denuncia"},                 # Art. 22
-    {"codigo": "DDO", "nombre": "Designación Defensor de Oficio"},     # Art. 58 inc. b
-    {"codigo": "PRS", "nombre": "Prescripción"},                       # Art. 8
-    {"codigo": "CNA", "nombre": "Conciliación — Acuerdo"},             # Art. 59            
-    # Etapa investigativa
-    {"codigo": "CIP", "nombre": "Citación Personal al Denunciado"},    # Art. 44
-    {"codigo": "DIN", "nombre": "Declaración Informativa"},            # Art. 58 inc. a
-    {"codigo": "AAP", "nombre": "Auto de Apertura de Término Probatorio"}, # Art. 60
-    {"codigo": "OFP", "nombre": "Ofrecimiento de Prueba"},
-    {"codigo": "RAP", "nombre": "Ratificación de Pruebas"},            # Art. 60 par. II
-    {"codigo": "PRP", "nombre": "Producción de Prueba"},
-    {"codigo": "PRT", "nombre": "Prueba Testifical"},                  # Art. 67
-    {"codigo": "MED", "nombre": "Medida Precautoria"},                 # Art. 61
-    {"codigo": "INF", "nombre": "Solicitud de Informe"},               # Art. 21
-    # Conclusión investigativa
-    {"codigo": "CTP", "nombre": "Clausura del Término Probatorio"},    # Art. 74
-    # Resolución
-    {"codigo": "DRF", "nombre": "Dictado de Resolución Final"},        # Art. 75
-    {"codigo": "NRF", "nombre": "Notificación de Resolución Final"},   # Art. 45, 46
-    {"codigo": "ACE", "nombre": "Aclaración, Complementación o Enmienda"}, # Art. 77
-    # Impugnación
-    {"codigo": "IAP", "nombre": "Interposición de Apelación"},         # Art. 82
-    {"codigo": "TRA", "nombre": "Traslado a la Otra Parte"},           # Art. 82 par. III
-    {"codigo": "CON", "nombre": "Contestación al Recurso"},
-    {"codigo": "REM", "nombre": "Remisión al Tribunal Superior"},      # Art. 86
-
-    # Ejecución
-    {"codigo": "EFA", "nombre": "Ejecución de Fallo"},                 # Art. 90
-    {"codigo": "RES", "nombre": "Resolución Administrativa del Rector"},# Art. 90 par. II
-    {"codigo": "ARC", "nombre": "Archivo de Expediente"},
+    # código, nombre
+    # ── Usados por _registrar_actuacion_automatica() en schema.py ────────────
+    ("SUB",  "Subsanación requerida (Art. 56)"),
+    ("ADA",  "Auto de Admisión (Art. 58)"),
+    ("REC",  "Rechazo / Archivo (Art. 57)"),
+    ("RDE",  "Retiro de denuncia (Art. 22)"),
+    ("DIN",  "Declaración informativa recibida (Art. 58a)"),
+    ("AAP",  "Auto de Apertura del Término Probatorio (Art. 60)"),
+    ("CTP",  "Clausura del Término Probatorio (Art. 74)"),
+    ("DRF",  "Dictado de Resolución Final (Art. 75)"),
+    ("IAP",  "Interposición de Recurso de Apelación (Art. 82)"),
+    ("EFA",  "Ejecución de fallo (Art. 90)"),
+    ("CNA",  "Conciliación entre partes (Art. 59)"),
+    ("PRS",  "Prescripción declarada (Art. 8/81)"),
+    ("ARC",  "Archivo del proceso"),
+    # ── Usados por mutations específicas ─────────────────────────────────────
+    ("RAP",  "Ratificación de pruebas (Art. 60 II)"),
+    ("TAP",  "Traslado del recurso de apelación a contraparte (Art. 82 III)"),
+    # ── Actuaciones adicionales del flujo ────────────────────────────────────
+    ("PRE",  "Presentación de Denuncia"),
+    ("DDO",  "Designación de Defensor de Oficio (Art. 58b)"),
+    ("CIP",  "Citación Personal al Denunciado (Art. 44)"),
+    ("OFP",  "Ofrecimiento de Prueba"),
+    ("PRP",  "Producción de Prueba"),
+    ("PRT",  "Prueba Testifical (Art. 67)"),
+    ("MED",  "Medidas Precautorias adoptadas (Art. 61)"),
+    ("CMP",  "Compulsa disciplinaria (Art. 83)"),
+    ("ACL",  "Aclaración/Complementación/Enmienda (Art. 77)"),
+    ("RAD",  "Radicatoria en Segunda Instancia (Art. 48)"),
+    ("REM",  "Remisión al Tribunal Superior (Art. 86)"),
+    ("OFI",  "Oficio de remisión al Rectorado (Art. 16 + Art. 90 II)"),
+    ("NRF",  "Notificación de Resolución Final (Art. 45/46)"),
+    ("TRA",  "Traslado a la contraparte"),
+    ("CON",  "Contestación al recurso"),
+    ("RES",  "Resolución Administrativa del Rector (Art. 90 II)"),
+    ("INF",  "Solicitud de Informe (Art. 21)"),
 ]
 print()
-for a in tipos_actuacion_data:
-    obj, _ = TipoActuacion.objects.get_or_create(
-        codigo=a["codigo"],
-        defaults={"nombre": a["nombre"]}
+for codigo, nombre in tipos_actuacion_data:
+    obj, created = TipoActuacion.objects.get_or_create(
+        codigo=codigo, defaults={"nombre": nombre}
     )
-    print(f"✅ Tipo de actuación: {obj.nombre}")
+    if created:
+        print(f"✅ TipoActuacion: [{codigo}] {nombre}")
+    else:
+        # Actualizar nombre si era genérico
+        if obj.nombre != nombre and len(obj.nombre) < 10:
+            obj.nombre = nombre
+            obj.save()
+            print(f"🔄 TipoActuacion actualizado: [{codigo}] {nombre}")
 
 
 # ══════════════════════════════════════════════════════════════
 # 12. ROLES PROCESALES
 # ══════════════════════════════════════════════════════════════
-# Terminología correcta según el Reglamento ICU 048-2018
 roles_procesales_data = [
     "Denunciante",
     "Denunciado",
     "Abogado Defensor",
-    "Abogado Defensor de Oficio",   # Art. 58 inc. b
+    "Abogado Defensor de Oficio",
     "Testigo",
     "Perito",
-    "Autoridad Universitaria",      # Art. 38
-    "Docente",                      # Art. 39
-    "Estudiante",                   # Art. 41
-    "Administrativo",               # Art. 40
+    "Autoridad Universitaria",
+    "Docente",
+    "Estudiante",
+    "Administrativo",
     "Tercero Interesado",
     "Representante Legal",
 ]
 print()
 for rp in roles_procesales_data:
-    obj, _ = RolProcesal.objects.get_or_create(nombre_rol=rp)
-    print(f"✅ Rol procesal: {obj.nombre_rol}")
+    obj, created = RolProcesal.objects.get_or_create(nombre_rol=rp)
+    if created:
+        print(f"✅ RolProcesal: {obj.nombre_rol}")
 
 
 # ══════════════════════════════════════════════════════════════
-# 13. PERMISOS — códigos exactos del frontend (permisos.ts)
+# 13. PERMISOS
 # ══════════════════════════════════════════════════════════════
 permisos_data = [
-    # Seguridad
-    {"codigo": "USUARIOS_VER",          "nombre": "Ver usuarios",              "modulo": "Seguridad"},
-    {"codigo": "ROLES_VER",             "nombre": "Ver roles",                 "modulo": "Seguridad"},
-    {"codigo": "PERMISOS_VER",          "nombre": "Ver permisos",              "modulo": "Seguridad"},
-    # Tribunal
-    {"codigo": "TRIBUNALES_VER",        "nombre": "Ver tribunal",              "modulo": "Tribunal"},
-    {"codigo": "SALAS_TRIBUNAL_VER",    "nombre": "Ver salas de tribunal",     "modulo": "Tribunal"},
-    {"codigo": "SALAS_AUDIENCIA_VER",   "nombre": "Ver salas de audiencia",    "modulo": "Tribunal"},
-    {"codigo": "VOCALES_VER",           "nombre": "Ver vocales",               "modulo": "Tribunal"},
-    {"codigo": "CONFORMACIONES_VER",    "nombre": "Ver conformaciones",        "modulo": "Tribunal"},
-    # Expedientes
-    {"codigo": "EXPEDIENTES_VER",       "nombre": "Ver expedientes",           "modulo": "Expedientes"},
-    {"codigo": "HISTORIAL_ESTADOS_VER", "nombre": "Ver historial de estados",  "modulo": "Expedientes"},
-    {"codigo": "ACTUACIONES_VER",       "nombre": "Ver actuaciones",           "modulo": "Expedientes"},
-    {"codigo": "ESTADOS_EXPEDIENTE_VER","nombre": "Ver estados de expediente", "modulo": "Expedientes"},
-    # Audiencias
-    {"codigo": "AUDIENCIAS_VER",        "nombre": "Ver audiencias",            "modulo": "Audiencias"},
-    {"codigo": "ASISTENCIAS_VER",       "nombre": "Ver asistencias",           "modulo": "Audiencias"},
-    {"codigo": "ACTAS_VER",             "nombre": "Ver actas",                 "modulo": "Audiencias"},
-    # Resoluciones
-    {"codigo": "RESOLUCIONES_VER",      "nombre": "Ver resoluciones",          "modulo": "Resoluciones"},
-    {"codigo": "RECURSOS_VER",          "nombre": "Ver recursos",              "modulo": "Resoluciones"},
-    {"codigo": "TIPOS_RESOLUCION_VER",  "nombre": "Ver tipos de resolución",   "modulo": "Resoluciones"},
-    {"codigo": "TIPOS_RECURSO_VER",     "nombre": "Ver tipos de recurso",      "modulo": "Resoluciones"},
-    # Documentos
-    {"codigo": "DOCUMENTOS_VER",        "nombre": "Ver documentos",            "modulo": "Documentos"},
-    {"codigo": "TIPOS_DOCUMENTO_VER",   "nombre": "Ver tipos de documento",    "modulo": "Documentos"},
-    {"codigo": "NOTIFICACIONES_VER",    "nombre": "Ver notificaciones",        "modulo": "Documentos"},
-    {"codigo": "SOLICITUDES_VER",       "nombre": "Ver solicitudes",           "modulo": "Documentos"},
-    # Personas
-    {"codigo": "PERSONAS_VER",          "nombre": "Ver personas",              "modulo": "Personas"},
-    {"codigo": "CONTACTOS_VER",         "nombre": "Ver contactos",             "modulo": "Personas"},
-    {"codigo": "ROLES_PROCESALES_VER",  "nombre": "Ver roles procesales",      "modulo": "Personas"},
-    {"codigo": "PARTES_PROCESALES_VER", "nombre": "Ver partes procesales",     "modulo": "Personas"},
-    # Catálogos
-    {"codigo": "TIPOS_PROCESO_VER",     "nombre": "Ver tipos de proceso",      "modulo": "Catalogos"},
-    {"codigo": "TIPOS_AUDIENCIA_VER",   "nombre": "Ver tipos de audiencia",    "modulo": "Catalogos"},
-    {"codigo": "TIPOS_ACTUACION_VER",   "nombre": "Ver tipos de actuación",    "modulo": "Catalogos"},
-    # Reportes
-
-    {"codigo": "REPORTES_VER",          "nombre": "Ver reportes",              "modulo": "Reportes"},
-    # Denuncias
-    {"codigo": "DENUNCIAS_VER",         "nombre": "Ver denuncias",             "modulo": "Denuncias"},
-    {"codigo": "DENUNCIAS_GESTIONAR",   "nombre": "Gestionar denuncias",       "modulo": "Denuncias"},
+    ("USUARIOS_VER",           "Ver usuarios",              "Seguridad"),
+    ("ROLES_VER",              "Ver roles",                 "Seguridad"),
+    ("PERMISOS_VER",           "Ver permisos",              "Seguridad"),
+    ("TRIBUNALES_VER",         "Ver tribunal",              "Tribunal"),
+    ("SALAS_TRIBUNAL_VER",     "Ver salas de tribunal",     "Tribunal"),
+    ("SALAS_AUDIENCIA_VER",    "Ver salas de audiencia",    "Tribunal"),
+    ("VOCALES_VER",            "Ver vocales",               "Tribunal"),
+    ("CONFORMACIONES_VER",     "Ver conformaciones",        "Tribunal"),
+    ("EXPEDIENTES_VER",        "Ver expedientes",           "Expedientes"),
+    ("HISTORIAL_ESTADOS_VER",  "Ver historial de estados",  "Expedientes"),
+    ("ACTUACIONES_VER",        "Ver actuaciones",           "Expedientes"),
+    ("ESTADOS_EXPEDIENTE_VER", "Ver estados de expediente", "Expedientes"),
+    ("AUDIENCIAS_VER",         "Ver audiencias",            "Audiencias"),
+    ("ASISTENCIAS_VER",        "Ver asistencias",           "Audiencias"),
+    ("ACTAS_VER",              "Ver actas",                 "Audiencias"),
+    ("RESOLUCIONES_VER",       "Ver resoluciones",          "Resoluciones"),
+    ("RECURSOS_VER",           "Ver recursos",              "Resoluciones"),
+    ("TIPOS_RESOLUCION_VER",   "Ver tipos de resolución",   "Resoluciones"),
+    ("TIPOS_RECURSO_VER",      "Ver tipos de recurso",      "Resoluciones"),
+    ("DOCUMENTOS_VER",         "Ver documentos",            "Documentos"),
+    ("TIPOS_DOCUMENTO_VER",    "Ver tipos de documento",    "Documentos"),
+    ("NOTIFICACIONES_VER",     "Ver notificaciones",        "Documentos"),
+    ("SOLICITUDES_VER",        "Ver solicitudes",           "Documentos"),
+    ("PERSONAS_VER",           "Ver personas",              "Personas"),
+    ("CONTACTOS_VER",          "Ver contactos",             "Personas"),
+    ("ROLES_PROCESALES_VER",   "Ver roles procesales",      "Personas"),
+    ("PARTES_PROCESALES_VER",  "Ver partes procesales",     "Personas"),
+    ("TIPOS_PROCESO_VER",      "Ver tipos de proceso",      "Catalogos"),
+    ("TIPOS_AUDIENCIA_VER",    "Ver tipos de audiencia",    "Catalogos"),
+    ("TIPOS_ACTUACION_VER",    "Ver tipos de actuación",    "Catalogos"),
+    ("REPORTES_VER",           "Ver reportes",              "Reportes"),
+    ("DENUNCIAS_VER",          "Ver denuncias",             "Denuncias"),
+    ("DENUNCIAS_GESTIONAR",    "Gestionar denuncias",       "Denuncias"),
 ]
-
 print()
 permisos_map = {}
-for p in permisos_data:
-    obj, _ = Permiso.objects.get_or_create(
-        codigo=p["codigo"],
-        defaults={"nombre": p["nombre"], "modulo": p["modulo"]}
+for codigo, nombre, modulo in permisos_data:
+    obj, created = Permiso.objects.get_or_create(
+        codigo=codigo, defaults={"nombre": nombre, "modulo": modulo}
     )
-    permisos_map[p["codigo"]] = obj
-    print(f"✅ Permiso: {obj.codigo}")
+    permisos_map[codigo] = obj
+    if created:
+        print(f"✅ Permiso: {codigo}")
 
 
 # ══════════════════════════════════════════════════════════════
 # 14. ASIGNAR PERMISOS A ROLES
 # ══════════════════════════════════════════════════════════════
-
-# ── Administrador → TODOS ────────────────────────────────────
-print("\n🔐 Asignando permisos al rol Administrador...")
-RolPermiso.objects.filter(rol=rol_admin).delete()
-for permiso in permisos_map.values():
-    RolPermiso.objects.get_or_create(rol=rol_admin, permiso=permiso)
-print(f"   ✅ {len(permisos_map)} permisos asignados")
-
-# ── AdminSala1 y AdminSala2 → todo excepto seguridad ─────────
 permisos_adminsala = [
-    "TRIBUNALES_VER", "SALAS_TRIBUNAL_VER", "SALAS_AUDIENCIA_VER",
-    "VOCALES_VER", "CONFORMACIONES_VER",
-    "EXPEDIENTES_VER", "HISTORIAL_ESTADOS_VER", "ACTUACIONES_VER", "ESTADOS_EXPEDIENTE_VER",
-    "AUDIENCIAS_VER", "ASISTENCIAS_VER", "ACTAS_VER",
-    "RESOLUCIONES_VER", "RECURSOS_VER", "TIPOS_RESOLUCION_VER", "TIPOS_RECURSO_VER",
-    "DOCUMENTOS_VER", "TIPOS_DOCUMENTO_VER", "NOTIFICACIONES_VER", "SOLICITUDES_VER",
-    "PERSONAS_VER", "CONTACTOS_VER", "ROLES_PROCESALES_VER", "PARTES_PROCESALES_VER",
-    "TIPOS_PROCESO_VER", "TIPOS_AUDIENCIA_VER", "TIPOS_ACTUACION_VER",
-    "REPORTES_VER", "DENUNCIAS_VER", "DENUNCIAS_GESTIONAR",
+    "TRIBUNALES_VER","SALAS_TRIBUNAL_VER","SALAS_AUDIENCIA_VER","VOCALES_VER","CONFORMACIONES_VER",
+    "EXPEDIENTES_VER","HISTORIAL_ESTADOS_VER","ACTUACIONES_VER","ESTADOS_EXPEDIENTE_VER",
+    "AUDIENCIAS_VER","ASISTENCIAS_VER","ACTAS_VER",
+    "RESOLUCIONES_VER","RECURSOS_VER","TIPOS_RESOLUCION_VER","TIPOS_RECURSO_VER",
+    "DOCUMENTOS_VER","TIPOS_DOCUMENTO_VER","NOTIFICACIONES_VER","SOLICITUDES_VER",
+    "PERSONAS_VER","CONTACTOS_VER","ROLES_PROCESALES_VER","PARTES_PROCESALES_VER",
+    "TIPOS_PROCESO_VER","TIPOS_AUDIENCIA_VER","TIPOS_ACTUACION_VER",
+    "REPORTES_VER","DENUNCIAS_VER","DENUNCIAS_GESTIONAR",
 ]
-for nombre_rol, rol_obj in [("AdminSala1", rol_adminsala1), ("AdminSala2", rol_adminsala2)]:
-    print(f"\n🔐 Asignando permisos a {nombre_rol}...")
-    RolPermiso.objects.filter(rol=rol_obj).delete()
-    for codigo in permisos_adminsala:
-        if codigo in permisos_map:
-            RolPermiso.objects.get_or_create(rol=rol_obj, permiso=permisos_map[codigo])
-    print(f"   ✅ {len(permisos_adminsala)} permisos asignados")
-
-# ── Secretario → perfil operativo (Art. 34) ──────────────────
-# Gestiona expedientes, actuaciones, citaciones, notificaciones,
-# actas, documentos, personas, plazos
 permisos_secretario = [
-    "EXPEDIENTES_VER", "HISTORIAL_ESTADOS_VER", "ACTUACIONES_VER", "ESTADOS_EXPEDIENTE_VER",
-    "AUDIENCIAS_VER", "ASISTENCIAS_VER", "ACTAS_VER",
-    "DOCUMENTOS_VER", "NOTIFICACIONES_VER", "SOLICITUDES_VER", "TIPOS_DOCUMENTO_VER",
-    "PERSONAS_VER", "CONTACTOS_VER", "ROLES_PROCESALES_VER", "PARTES_PROCESALES_VER",
-    "TIPOS_PROCESO_VER", "TIPOS_AUDIENCIA_VER", "TIPOS_ACTUACION_VER",
-    "SALAS_AUDIENCIA_VER", "DENUNCIAS_VER", "DENUNCIAS_GESTIONAR",
+    "EXPEDIENTES_VER","HISTORIAL_ESTADOS_VER","ACTUACIONES_VER","ESTADOS_EXPEDIENTE_VER",
+    "AUDIENCIAS_VER","ASISTENCIAS_VER","ACTAS_VER",
+    "DOCUMENTOS_VER","NOTIFICACIONES_VER","SOLICITUDES_VER","TIPOS_DOCUMENTO_VER",
+    "PERSONAS_VER","CONTACTOS_VER","ROLES_PROCESALES_VER","PARTES_PROCESALES_VER",
+    "TIPOS_PROCESO_VER","TIPOS_AUDIENCIA_VER","TIPOS_ACTUACION_VER",
+    "SALAS_AUDIENCIA_VER","DENUNCIAS_VER","DENUNCIAS_GESTIONAR",
 ]
-for nombre_rol, rol_obj in [("SecretarioSala1", rol_secretariosala1), ("SecretarioSala2", rol_secretariosala2)]:
-    print(f"\n🔐 Asignando permisos a {nombre_rol}...")
-    RolPermiso.objects.filter(rol=rol_obj).delete()
-    for codigo in permisos_secretario:
-        if codigo in permisos_map:
-            RolPermiso.objects.get_or_create(rol=rol_obj, permiso=permisos_map[codigo])
-    print(f"   ✅ {len(permisos_secretario)} permisos asignados")
-
-# ── Vocal → perfil resolutivo (Art. 27, 75, 82, 86) ──────────
-# Resuelve expedientes, dicta resoluciones, conoce audiencias,
-# revisa recursos. No gestiona usuarios ni catálogos operativos.
 permisos_vocal = [
-    "EXPEDIENTES_VER", "HISTORIAL_ESTADOS_VER", "ESTADOS_EXPEDIENTE_VER",
-    "AUDIENCIAS_VER", "ACTAS_VER",
-    "RESOLUCIONES_VER", "RECURSOS_VER", "TIPOS_RESOLUCION_VER", "TIPOS_RECURSO_VER",
+    "EXPEDIENTES_VER","HISTORIAL_ESTADOS_VER","ESTADOS_EXPEDIENTE_VER",
+    "AUDIENCIAS_VER","ACTAS_VER",
+    "RESOLUCIONES_VER","RECURSOS_VER","TIPOS_RESOLUCION_VER","TIPOS_RECURSO_VER",
     "DOCUMENTOS_VER",
-    "PERSONAS_VER", "PARTES_PROCESALES_VER", "ROLES_PROCESALES_VER",
+    "PERSONAS_VER","PARTES_PROCESALES_VER","ROLES_PROCESALES_VER",
     "DENUNCIAS_VER",
 ]
-for nombre_rol, rol_obj in [("VocalSala1", rol_vocalsala1), ("VocalSala2", rol_vocalsala2)]:
-    print(f"\n🔐 Asignando permisos a {nombre_rol}...")
+
+asignaciones = [
+    (rol_admin,      list(permisos_map.keys()),  "Administrador"),
+    (rol_adminsala1, permisos_adminsala,          "AdminSala1"),
+    (rol_adminsala2, permisos_adminsala,          "AdminSala2"),
+    (rol_secsala1,   permisos_secretario,         "SecretarioSala1"),
+    (rol_secsala2,   permisos_secretario,         "SecretarioSala2"),
+    (rol_vocalsala1, permisos_vocal,              "VocalSala1"),
+    (rol_vocalsala2, permisos_vocal,              "VocalSala2"),
+]
+print()
+for rol_obj, lista_codigos, nombre_rol in asignaciones:
     RolPermiso.objects.filter(rol=rol_obj).delete()
-    for codigo in permisos_vocal:
+    count = 0
+    for codigo in lista_codigos:
         if codigo in permisos_map:
             RolPermiso.objects.get_or_create(rol=rol_obj, permiso=permisos_map[codigo])
-    print(f"   ✅ {len(permisos_vocal)} permisos asignados")
+            count += 1
+    print(f"✅ {nombre_rol}: {count} permisos asignados")
 
 
 # ══════════════════════════════════════════════════════════════
 # 15. USUARIOS
 # ══════════════════════════════════════════════════════════════
-print()
 usuarios_data = [
-    {
-        "username": "admin",
-        "nombres": "Administrador", "paterno": "Sistema", "materno": "",
-        "ci": "00000000", "email": "admin@tribunal.bo",
-        "password": "Admin123!", "rol": rol_admin,
-        "cargo": "Administrador del Sistema",
-    },
-    {
-        "username": "adminsala1",
-        "nombres": "Admin", "paterno": "Sala1", "materno": "",
-        "ci": "11111111", "email": "adminsala1@tribunal.bo",
-        "password": "Admin123!", "rol": rol_adminsala1,
-        "cargo": "Administrador Sala 1",
-    },
-    {
-        "username": "adminsala2",
-        "nombres": "Admin", "paterno": "Sala2", "materno": "",
-        "ci": "22222222", "email": "adminsala2@tribunal.bo",
-        "password": "Admin123!", "rol": rol_adminsala2,
-        "cargo": "Administrador Sala 2",
-    },
-    {
-        "username": "secretariosala1",
-        "nombres": "Secretario", "paterno": "Sala1", "materno": "",
-        "ci": "33333333", "email": "secretariosala1@tribunal.bo",
-        "password": "Admin123!", "rol": rol_secretariosala1,
-        "cargo": "Secretario Sala 1",
-    },
-    {
-        "username": "secretariosala2",
-        "nombres": "Secretario", "paterno": "Sala2", "materno": "",
-        "ci": "44444444", "email": "secretariosala2@tribunal.bo",
-        "password": "Admin123!", "rol": rol_secretariosala2,
-        "cargo": "Secretario Sala 2",
-    },
-    {
-        "username": "vocalsala1",
-        "nombres": "Vocal", "paterno": "Sala1", "materno": "",
-        "ci": "55555555", "email": "vocalsala1@tribunal.bo",
-        "password": "Admin123!", "rol": rol_vocalsala1,
-        "cargo": "Vocal Sala 1",
-    },
-    {
-        "username": "vocalsala2",
-        "nombres": "Vocal", "paterno": "Sala2", "materno": "",
-        "ci": "66666666", "email": "vocalsala2@tribunal.bo",
-        "password": "Admin123!", "rol": rol_vocalsala2,
-        "cargo": "Vocal Sala 2",
-    },
+    ("admin",           "Administrador", "Sistema",    "",  "00000000", "admin@tribunal.bo",           rol_admin,      "Administrador del Sistema"),
+    ("adminsala1",      "Admin",         "Sala1",      "",  "11111111", "adminsala1@tribunal.bo",      rol_adminsala1, "Administrador Sala 1"),
+    ("adminsala2",      "Admin",         "Sala2",      "",  "22222222", "adminsala2@tribunal.bo",      rol_adminsala2, "Administrador Sala 2"),
+    ("secretariosala1", "Secretario",    "Sala1",      "",  "33333333", "secretariosala1@tribunal.bo", rol_secsala1,   "Secretario Sala 1"),
+    ("secretariosala2", "Secretario",    "Sala2",      "",  "44444444", "secretariosala2@tribunal.bo", rol_secsala2,   "Secretario Sala 2"),
+    ("vocalsala1",      "Vocal",         "Sala1",      "",  "55555555", "vocalsala1@tribunal.bo",      rol_vocalsala1, "Vocal Sala 1"),
+    ("vocalsala2",      "Vocal",         "Sala2",      "",  "66666666", "vocalsala2@tribunal.bo",      rol_vocalsala2, "Vocal Sala 2"),
 ]
-
-for u in usuarios_data:
-    if not Usuario.objects.filter(username=u["username"]).exists():
+print()
+for username, nombres, paterno, materno, ci, email, rol, cargo in usuarios_data:
+    if not Usuario.objects.filter(username=username).exists():
         Usuario.objects.create(
-            nombres=u["nombres"],
-            paterno=u["paterno"],
-            materno=u["materno"],
-            documento_identidad=u["ci"],
-            email=u["email"],
-            username=u["username"],
-            password=make_password(u["password"]),
-            rol=u["rol"],
-            cargo_oficial=u["cargo"],
-            activo=True,
+            nombres=nombres, paterno=paterno, materno=materno,
+            documento_identidad=ci, email=email, username=username,
+            password=make_password("Admin123!"),
+            rol=rol, cargo_oficial=cargo, activo=True,
         )
-        print(f"✅ Usuario creado: {u['username']} / {u['password']}")
+        print(f"✅ Usuario creado: {username} / Admin123!")
     else:
-        print(f"⚠️  Usuario ya existe: {u['username']}")
-
+        print(f"⚠️  Ya existe: {username}")
 
 
 # ══════════════════════════════════════════════════════════════
-# 16. PERSONAS
+# 16. PERSONAS DE PRUEBA
 # ══════════════════════════════════════════════════════════════
-
-print("\n👤 Creando personas...")
-
+print()
 william, _ = Persona.objects.get_or_create(
     numero_documento="70000001",
-    defaults={
-        "nombre": "William",
-        "primer_apellido": "Torrico",
-        "segundo_apellido": "Jimenez",
-        "registro_universitario": "RU001"
-    }
+    defaults={"nombre": "William", "primer_apellido": "Torrico",
+              "segundo_apellido": "Jimenez", "registro_universitario": "RU001"}
 )
-
 eduardo, _ = Persona.objects.get_or_create(
     numero_documento="70000002",
-    defaults={
-        "nombre": "Eduardo",
-        "primer_apellido": "Garcia",
-        "segundo_apellido": "Hernandez",
-        "registro_universitario": "RU002"
-    }
+    defaults={"nombre": "Eduardo", "primer_apellido": "Garcia",
+              "segundo_apellido": "Hernandez", "registro_universitario": "RU002"}
 )
-
 camila, _ = Persona.objects.get_or_create(
     numero_documento="70000003",
-    defaults={
-        "nombre": "Camila",
-        "primer_apellido": "Justiniano",
-        "segundo_apellido": "Apaza",
-        "registro_universitario": "RU003"
-    }
+    defaults={"nombre": "Camila", "primer_apellido": "Justiniano",
+              "segundo_apellido": "Apaza", "registro_universitario": "RU003"}
 )
-
-print("✅ Personas creadas")
-
-
-
+print("✅ Personas: William Torrico, Eduardo Garcia, Camila Justiniano")
 
 
 # ══════════════════════════════════════════════════════════════
 # 17. CONTACTOS
 # ══════════════════════════════════════════════════════════════
-
 ContactoPersona.objects.get_or_create(
-    id_persona=william,
-    tipo_contacto="EMAIL",
-    valor="danielgonzalesgutierrez12@gmail.com",
-    defaults={
-        "es_principal": True,
-        "validado": True
-    }
+    id_persona=william, tipo_contacto="EMAIL", valor="danielgonzalesgutierrez12@gmail.com",
+    defaults={"es_principal": True, "validado": True}
 )
-
 ContactoPersona.objects.get_or_create(
-    id_persona=eduardo,
-    tipo_contacto="EMAIL",
-    valor="brunogonzalesgutierrez@gmail.com",
-    defaults={
-        "es_principal": True,
-        "validado": True
-    }
+    id_persona=eduardo, tipo_contacto="EMAIL", valor="brunogonzalesgutierrez@gmail.com",
+    defaults={"es_principal": True, "validado": True}
 )
-
 ContactoPersona.objects.get_or_create(
-    id_persona=camila,
-    tipo_contacto="EMAIL",
-    valor="kenny404xd@gmail.com",
-    defaults={
-        "es_principal": True,
-        "validado": True
-    }
+    id_persona=camila, tipo_contacto="EMAIL", valor="kenny404xd@gmail.com",
+    defaults={"es_principal": True, "validado": True}
 )
-
 print("✅ Contactos creados")
-
-
 
 
 # ══════════════════════════════════════════════════════════════
 # 18. VOCAL
 # ══════════════════════════════════════════════════════════════
-
+usuario_admin = Usuario.objects.filter(username="admin").first()
 VocalTribunal.objects.get_or_create(
     id_persona=camila,
     defaults={
         "id_sala": sala1,
         "cargo": "Vocal Titular",
         "fecha_posesion": date(2026, 1, 1),
-        "activo": True
+        "activo": True,
+        "usuario": usuario_admin,
     }
 )
-
-print("✅ Vocal creada: Camila Justiniano Apaza")
+print("✅ Vocal: Camila Justiniano Apaza — Sala 1")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -652,14 +548,12 @@ print()
 print("=" * 60)
 print("  ✅ Poblada completa finalizada")
 print("=" * 60)
-print()
-print("  Resumen:")
-print(f"  - 1 Tribunal + 2 Salas de Tribunal + 3 Salas de Audiencia")
+print(f"  - 1 Tribunal · 2 Salas · 3 Salas de audiencia")
 print(f"  - 7 Roles de usuario")
-print(f"  - {len(estados_data)} Estados de expediente (flujo real ICU 048-2018)")
-print(f"  - 1 Tipo de proceso (Proceso Disciplinario Sumario)")
+print(f"  - {len(estados_data)} Estados de expediente")
+print(f"  - 1 Tipo de proceso (PDS)")
 print(f"  - {len(tipos_audiencia_data)} Tipos de audiencia")
-print(f"  - {len(tipos_doc_data)} Tipos de documento")
+print(f"  - {len(tipos_doc_data)} Tipos de documento (sin duplicados)")
 print(f"  - {len(tipos_resolucion_data)} Tipos de resolución")
 print(f"  - {len(tipos_recurso_data)} Tipos de recurso")
 print(f"  - {len(tipos_actuacion_data)} Tipos de actuación procesal")
@@ -667,18 +561,10 @@ print(f"  - {len(roles_procesales_data)} Roles procesales")
 print(f"  - {len(permisos_data)} Permisos")
 print(f"  - {len(usuarios_data)} Usuarios de prueba")
 print()
-print("  Credenciales (todos con contraseña Admin123!):")
-print("  ┌─────────────────────┬────────────────────────┐")
-print("  │ Usuario             │ Rol                    │")
-print("  ├─────────────────────┼────────────────────────┤")
-print("  │ admin               │ Administrador          │")
-print("  │ adminsala1          │ AdminSala1             │")
-print("  │ adminsala2          │ AdminSala2             │")
-print("  │ secretariosala1     │ SecretarioSala1        │")
-print("  │ secretariosala2     │ SecretarioSala2        │")
-print("  │ vocalsala1          │ VocalSala1             │")
-print("  │ vocalsala2          │ VocalSala2             │")
-print("  └─────────────────────┴────────────────────────┘")
+print("  Credenciales (todos: Admin123!):")
+print("  admin / adminsala1 / adminsala2")
+print("  secretariosala1 / secretariosala2")
+print("  vocalsala1 / vocalsala2")
 print()
-print("  ⚠️  Cierra sesión y vuelve a entrar para ver los cambios.")
+print("  ⚠️  Cerrá sesión y volvé a entrar para ver los cambios.")
 print()

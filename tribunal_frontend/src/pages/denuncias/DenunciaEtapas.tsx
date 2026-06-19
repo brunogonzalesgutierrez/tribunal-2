@@ -5,6 +5,13 @@ import {
   ClipboardList, Scale, Gavel, Send, FileCheck,
   Clock, AlertTriangle, FileText, Plus, X, Handshake
 } from "lucide-react";
+import {
+  generarAutoAdmision,
+  generarAutoSubsanacion,
+  generarAperturaProbatoria,
+  generarCierreProbatorio,
+  generarActaConciliacion,
+} from "../../utils/documentosTribunal";
 
 
 export function parseFechaLocal(fechaStr: string): Date {
@@ -37,9 +44,6 @@ function calcularFechaLimiteHabiles(desde: string, diasHabiles: number): Date {
   }
   return fecha;
 }
-
-
-
 
 
 // ─────────────────────────────────────────────────────────────
@@ -98,9 +102,6 @@ const TIPOS_SANCION_OPTIONS = [
 ];
 
 // ─────────────────────────────────────────────────────────────
-// 1. ETAPA ADMISIÓN
-// ─────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────
 // 1. ETAPA ADMISIÓN — con modal para número de expediente y sala
 // ─────────────────────────────────────────────────────────────
 interface EtapaAdmisionProps {
@@ -115,10 +116,25 @@ interface EtapaAdmisionProps {
 }
 
 export function EtapaAdmision({
-  onRechazar, onSolicitarSubsanacion, onAdmitir, salas, saving
+  denuncia, onRechazar, onSolicitarSubsanacion, onAdmitir, salas, saving
 }: EtapaAdmisionProps) {
   const [confirmando, setConfirmando] = useState(false);
   const [idSala, setIdSala] = useState(0);
+
+  // ── Cambio 2: handler async que genera el documento antes de admitir ──
+  const handleConfirmarAdmision = async () => {
+    const nombreDenunciado = denuncia.denunciado
+      ? `${denuncia.denunciado.nombre} ${denuncia.denunciado.primerApellido}`.trim()
+      : "—";
+    await generarAutoAdmision({
+      numeroExpediente:   denuncia.expediente?.numeroExpediente ?? `DEN-${denuncia.numeroDenuncia}`,
+      numeroDenuncia:     denuncia.numeroDenuncia,
+      nombreDestinatario: nombreDenunciado,
+      rolDestinatario:    "Denunciado/a",
+      descripcionHechos:  denuncia.descripcion,
+    });
+    onAdmitir({ idSala });
+  };
 
   if (!confirmando) {
     return (
@@ -202,7 +218,7 @@ export function EtapaAdmision({
           Cancelar
         </button>
         <button
-          onClick={() => onAdmitir({ idSala })}
+          onClick={handleConfirmarAdmision}
           disabled={saving || !idSala}
           className="px-4 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-semibold transition-colors flex items-center gap-2 disabled:opacity-50">
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
@@ -225,6 +241,20 @@ interface EtapaSubsanacionProps {
 
 export function EtapaSubsanacion({ denuncia, onSubsanar, onRechazar, saving }: EtapaSubsanacionProps) {
   const [nuevaDescripcion, setNuevaDescripcion] = useState(denuncia.descripcion);
+
+  // ── Cambio 3: handler async que genera el documento antes de subsanar ──
+  const handleSolicitarSubsanacion = async () => {
+    const nombreDenunciante = denuncia.denunciante
+      ? `${denuncia.denunciante.nombre} ${denuncia.denunciante.primerApellido}`.trim()
+      : "—";
+    await generarAutoSubsanacion({
+      numeroExpediente:   denuncia.expediente?.numeroExpediente ?? `DEN-${denuncia.numeroDenuncia}`,
+      numeroDenuncia:     denuncia.numeroDenuncia,
+      nombreDestinatario: nombreDenunciante,
+      rolDestinatario:    "Denunciante",
+    });
+    onSubsanar({ descripcion: nuevaDescripcion });
+  };
 
   return (
     <div className="bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-200 dark:border-amber-800 p-6">
@@ -250,7 +280,7 @@ export function EtapaSubsanacion({ denuncia, onSubsanar, onRechazar, saving }: E
           className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
           Rechazar Denuncia
         </button>
-        <button onClick={() => onSubsanar({ descripcion: nuevaDescripcion })} disabled={saving}
+        <button onClick={handleSolicitarSubsanacion} disabled={saving}
           className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold transition-colors flex items-center gap-2">
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
           Subsanar y Admitir
@@ -346,7 +376,7 @@ interface EtapaConciliacionProps {
   saving: boolean;
 }
 
-export function EtapaConciliacion({ onConciliar, saving }: EtapaConciliacionProps) {
+export function EtapaConciliacion({ denuncia, onConciliar, saving }: EtapaConciliacionProps) {
   const [acta, setActa] = useState("");
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
   const [confirmando, setConfirmando] = useState(false);
@@ -374,6 +404,21 @@ export function EtapaConciliacion({ onConciliar, saving }: EtapaConciliacionProp
       </div>
     );
   }
+
+  // ── Cambio 5: handler async que genera el documento antes de conciliar ──
+  const handleConfirmarConciliacion = async () => {
+    const nombreDenunciante = denuncia.denunciante
+      ? `${denuncia.denunciante.nombre} ${denuncia.denunciante.primerApellido}`.trim()
+      : "—";
+    await generarActaConciliacion({
+      numeroExpediente:   denuncia.expediente?.numeroExpediente ?? `DEN-${denuncia.numeroDenuncia}`,
+      numeroDenuncia:     denuncia.numeroDenuncia,
+      nombreDestinatario: nombreDenunciante,
+      textoConciliacion:  acta,
+      fechaDocumento:     fecha,
+    });
+    onConciliar({ actaConciliacion: acta, fechaConciliacion: fecha });
+  };
 
   return (
     <div className="bg-teal-50 dark:bg-teal-900/20 rounded-2xl border border-teal-200 dark:border-teal-800 p-6">
@@ -403,7 +448,7 @@ export function EtapaConciliacion({ onConciliar, saving }: EtapaConciliacionProp
           className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
           Cancelar
         </button>
-        <button onClick={() => onConciliar({ actaConciliacion: acta, fechaConciliacion: fecha })}
+        <button onClick={handleConfirmarConciliacion}
           disabled={saving || !acta.trim()}
           className="px-4 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-600 text-white font-semibold transition-colors flex items-center gap-2">
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
@@ -421,9 +466,8 @@ interface EtapaDeclaracionInformativaProps {
   denuncia: Denuncia;
   onRegistrarDeclaracion: (datos: { declaracion: string; fechaDeclaracion: string }) => void;
   saving: boolean;
-  disabled?: boolean;  // ← agregar esto
+  disabled?: boolean;
 }
-
 
 export function EtapaDeclaracionInformativa({ onRegistrarDeclaracion, saving, disabled }: EtapaDeclaracionInformativaProps) {
   const [declaracion, setDeclaracion] = useState("");
@@ -487,6 +531,40 @@ export function EtapaPruebas({ denuncia, onAbrirPruebas, onCerrarPruebas, saving
     }
   };
 
+  // ── Cambio 4: handlers async para apertura y cierre probatorio ──
+  const handleAbrirPruebas = async () => {
+    if (!onAbrirPruebas) return;
+    const nombreDenunciante = denuncia.denunciante
+      ? `${denuncia.denunciante.nombre} ${denuncia.denunciante.primerApellido}`.trim()
+      : "—";
+    const nombreDenunciado = denuncia.denunciado
+      ? `${denuncia.denunciado.nombre} ${denuncia.denunciado.primerApellido}`.trim()
+      : "—";
+    await generarAperturaProbatoria({
+      numeroExpediente:   denuncia.expediente?.numeroExpediente ?? `DEN-${denuncia.numeroDenuncia}`,
+      numeroDenuncia:     denuncia.numeroDenuncia,
+      nombreDestinatario: nombreDenunciante,
+      rolDestinatario:    "Denunciante",
+    });
+    await generarAperturaProbatoria({
+      numeroExpediente:   denuncia.expediente?.numeroExpediente ?? `DEN-${denuncia.numeroDenuncia}`,
+      numeroDenuncia:     denuncia.numeroDenuncia,
+      nombreDestinatario: nombreDenunciado,
+      rolDestinatario:    "Denunciado/a",
+    });
+    onAbrirPruebas();
+  };
+
+  const handleCerrarPruebas = async () => {
+    if (!onCerrarPruebas) return;
+    await generarCierreProbatorio({
+      numeroExpediente:   denuncia.expediente?.numeroExpediente ?? `DEN-${denuncia.numeroDenuncia}`,
+      numeroDenuncia:     denuncia.numeroDenuncia,
+      nombreDestinatario: "Ambas partes procesales",
+    });
+    onCerrarPruebas();
+  };
+
   const esEtapaPruebas = denuncia.estado === "PRUEBAS";
 
   return (
@@ -543,14 +621,14 @@ export function EtapaPruebas({ denuncia, onAbrirPruebas, onCerrarPruebas, saving
 
       <div className="flex justify-end gap-3 mt-4">
         {onAbrirPruebas && (
-          <button onClick={onAbrirPruebas} disabled={saving}
+          <button onClick={handleAbrirPruebas} disabled={saving}
             className="px-4 py-2.5 rounded-xl bg-purple-500 hover:bg-purple-600 text-white font-semibold transition-colors flex items-center gap-2">
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ClipboardList className="w-4 h-4" />}
             Abrir Período Probatorio
           </button>
         )}
         {onCerrarPruebas && (
-          <button onClick={onCerrarPruebas} disabled={saving}
+          <button onClick={handleCerrarPruebas} disabled={saving}
             className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition-colors flex items-center gap-2">
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
             Cerrar Pruebas y Concluir
@@ -606,7 +684,6 @@ export function EtapaResolucion({ onEmitirResolucion, saving }: EtapaResolucionP
         </select>
       </div>
 
-      {/* Sanción específica — solo si es Sancionatoria */}
       {tipoResolucion === "SANCIONATORIA" && (
         <>
           <div className="mb-4">
@@ -692,11 +769,8 @@ export function EtapaApelacion({
   const [resolucionApelacion, setResolucionApelacion] = useState("");
   const esApelada = denuncia.estado === "APELADA";
 
-  // ── Calcular estado del plazo de apelación ──────────────────
   const fechaNotif = denuncia.fechaNotificacionResolucion;
 
-  // Si hay fecha de notificación, calculamos cuántos días hábiles
-  // han pasado desde ella hasta hoy, y cuándo vence el plazo.
   const diasHabilesTranscurridos = fechaNotif
     ? calcularDiasHabiles(fechaNotif)
     : null;
@@ -718,7 +792,6 @@ export function EtapaApelacion({
         Recurso de Apelación (Art. 82)
       </h3>
 
-      {/* Info general del plazo */}
       <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4 mb-4">
         <p className="text-sm text-gray-600 dark:text-gray-300">
           Plazo perentorio de{" "}
@@ -730,7 +803,6 @@ export function EtapaApelacion({
         <p className="text-xs text-gray-400 mt-1">Arts. 82 y 86 del Reglamento</p>
       </div>
 
-      {/* ── Banner de estado del plazo (solo en estado RESUELTA) ── */}
       {!esApelada && fechaNotif && (
         <>
           {plazoVencido && (
@@ -789,7 +861,6 @@ export function EtapaApelacion({
         </>
       )}
 
-      {/* Aviso si no hay fecha de notificación registrada */}
       {!esApelada && !fechaNotif && (
         <div className="mb-4 flex items-start gap-3 p-3 rounded-xl bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800">
           <AlertCircle className="w-4 h-4 text-sky-500 shrink-0 mt-0.5" />
@@ -801,7 +872,6 @@ export function EtapaApelacion({
         </div>
       )}
 
-      {/* ── Estado RESUELTA — decidir si apelar o ejecutar ── */}
       {!esApelada && onApelar && onEjecutar && (
         <div className="space-y-4">
           <div>
@@ -815,7 +885,6 @@ export function EtapaApelacion({
               className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-orange-500 outline-none"
               disabled={saving}
             />
-            {/* Advertencia dinámica según la fecha seleccionada */}
             {fechaNotif && fechaApelacion && (() => {
               const diasSel = calcularDiasHabiles(fechaNotif, new Date(fechaApelacion + "T23:59:59"));
               if (diasSel > 5) {
@@ -894,7 +963,6 @@ export function EtapaApelacion({
             </button>
           </div>
 
-          {/* Advertencia final si plazo vencido */}
           {plazoVencido && (
             <p className="text-xs text-red-600 dark:text-red-400 text-right">
               ⚠ Si el plazo ya venció, usá "Ejecutar fallo" directamente (Art. 82 par. IV).
@@ -903,7 +971,6 @@ export function EtapaApelacion({
         </div>
       )}
 
-      {/* ── Estado APELADA — remisión y resolución del superior ── */}
       {esApelada && (
         <div className="space-y-4">
           {!denuncia.fechaRemisionSuperior && onRemitirSuperior && (
@@ -983,6 +1050,7 @@ export function EtapaApelacion({
     </div>
   );
 }
+
 // ─────────────────────────────────────────────────────────────
 // 10. ACLARACIÓN / COMPLEMENTACIÓN / ENMIENDA (Art. 77)
 // ─────────────────────────────────────────────────────────────
@@ -1553,13 +1621,12 @@ export function EtapaPrescripcion({
   const [fundamentacion, setFundamentacion] = useState("");
   const [confirmando, setConfirmando] = useState(false);
 
-  // Calcular si hay prescripción inminente (referencial, no bloqueante)
   const fechaHecho = denuncia.fechaHecho ? parseFechaLocal(denuncia.fechaHecho) : null;
   const diasTranscurridos = fechaHecho
     ? Math.floor((Date.now() - fechaHecho.getTime()) / (1000 * 60 * 60 * 24))
     : null;
   const mesesTranscurridos = diasTranscurridos ? Math.floor(diasTranscurridos / 30) : null;
-  const prescripcionInminente = diasTranscurridos !== null && diasTranscurridos > 600; // ~20 meses
+  const prescripcionInminente = diasTranscurridos !== null && diasTranscurridos > 600;
 
   if (!confirmando) {
     return (
@@ -1939,13 +2006,8 @@ export function EtapaTrasladoApelacion({
 }
 
 // ─────────────────────────────────────────────────────────────
-// 19. EJECUCIÓN AL RECTORADO (Art. 16 + Art. 90 par. II)
-// ─────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────
 // 19. EJECUCIÓN AL RECTORADO (Art. 16 + Art. 90)
-// Destinatario varía según tipo_denunciado (Art. 90 par. II-IV)
 // ─────────────────────────────────────────────────────────────
-
 function getDestinatarioEjecucion(tipoDenunciado?: string): {
   label: string;
   descripcion: string;
@@ -2028,7 +2090,6 @@ export function EtapaEjecucionRectorado({
   const paso2Completo = !!denuncia.fechaResolucionRectoral;
   const paso3Completo = !!denuncia.fechaRegistroGaceta;
 
-  // Solo se registra en Gaceta si la resolución fue sancionatoria (Art. 7)
   const esSancionatoria =
     !denuncia.tipoResolucion || denuncia.tipoResolucion === "SANCIONATORIA";
 
@@ -2039,7 +2100,6 @@ export function EtapaEjecucionRectorado({
         Ejecución de Fallo (Art. 16 + Art. 90)
       </h3>
 
-      {/* Banner destinatario */}
       <div
         className={`rounded-xl border p-4 ${
           denuncia.tipoDenunciado === "AUTORIDAD"
@@ -2092,7 +2152,7 @@ export function EtapaEjecucionRectorado({
         </p>
       </div>
 
-      {/* ── Paso 1: Remisión ── */}
+      {/* Paso 1 */}
       <div
         className={`rounded-xl border p-4 ${
           paso1Completo
@@ -2117,15 +2177,8 @@ export function EtapaEjecucionRectorado({
 
         {paso1Completo ? (
           <div className="text-xs text-green-700 dark:text-green-400 space-y-1 pl-8">
-            <p>
-              ✓ Remitido el:{" "}
-              <span className="font-semibold">
-                {denuncia.fechaRemisionRectorado}
-              </span>
-            </p>
-            {denuncia.observacionesEjecucion && (
-              <p>Obs: {denuncia.observacionesEjecucion}</p>
-            )}
+            <p>✓ Remitido el: <span className="font-semibold">{denuncia.fechaRemisionRectorado}</span></p>
+            {denuncia.observacionesEjecucion && <p>Obs: {denuncia.observacionesEjecucion}</p>}
           </div>
         ) : (
           <div className="pl-8 space-y-3">
@@ -2133,51 +2186,26 @@ export function EtapaEjecucionRectorado({
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                 Fecha de remisión <span className="text-red-500">*</span>
               </label>
-              <input
-                type="date"
-                value={fechaRemision}
-                onChange={(e) => setFechaRemision(e.target.value)}
+              <input type="date" value={fechaRemision} onChange={(e) => setFechaRemision(e.target.value)}
                 disabled={saving}
-                className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-green-500 outline-none"
-              />
+                className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-green-500 outline-none" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                Observaciones (opcional)
-              </label>
-              <textarea
-                value={obsRemision}
-                onChange={(e) => setObsRemision(e.target.value)}
-                rows={2}
-                disabled={saving}
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Observaciones (opcional)</label>
+              <textarea value={obsRemision} onChange={(e) => setObsRemision(e.target.value)} rows={2} disabled={saving}
                 placeholder={`Ej: Expediente remitido a ${destinatario.label} con oficio N° ...`}
-                className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-green-500 outline-none"
-              />
+                className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-green-500 outline-none" />
             </div>
             <div className="flex items-center gap-3 flex-wrap">
-              <button
-                onClick={() =>
-                  onRegistrarRemision({
-                    fechaRemisionRectorado: fechaRemision,
-                    observacionesEjecucion: obsRemision || undefined,
-                  })
-                }
+              <button onClick={() => onRegistrarRemision({ fechaRemisionRectorado: fechaRemision, observacionesEjecucion: obsRemision || undefined })}
                 disabled={saving || !fechaRemision}
-                className="px-4 py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-semibold transition-colors flex items-center gap-2 disabled:opacity-50"
-              >
-                {saving ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4" />
-                )}
+                className="px-4 py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-semibold transition-colors flex items-center gap-2 disabled:opacity-50">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 Registrar remisión
               </button>
-              <button
-                onClick={onEnviarNotificacion}
-                disabled={saving}
+              <button onClick={onEnviarNotificacion} disabled={saving}
                 title={`Enviar email a ${destinatario.label} y a las partes`}
-                className="px-4 py-2 rounded-xl border border-green-300 dark:border-green-700 text-green-700 dark:text-green-400 text-sm font-medium hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors flex items-center gap-2"
-              >
+                className="px-4 py-2 rounded-xl border border-green-300 dark:border-green-700 text-green-700 dark:text-green-400 text-sm font-medium hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors flex items-center gap-2">
                 <Send className="w-4 h-4" /> Enviar notificación por email
               </button>
             </div>
@@ -2185,7 +2213,7 @@ export function EtapaEjecucionRectorado({
         )}
       </div>
 
-      {/* ── Paso 2: Resolución de la autoridad ejecutante ── */}
+      {/* Paso 2 */}
       <div
         className={`rounded-xl border p-4 ${
           paso2Completo
@@ -2198,9 +2226,7 @@ export function EtapaEjecucionRectorado({
         <div className="flex items-center gap-2 mb-3">
           <div
             className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-              paso2Completo
-                ? "bg-green-500 text-white"
-                : "bg-gray-200 dark:bg-slate-600 text-gray-600 dark:text-gray-300"
+              paso2Completo ? "bg-green-500 text-white" : "bg-gray-200 dark:bg-slate-600 text-gray-600 dark:text-gray-300"
             }`}
           >
             {paso2Completo ? <CheckCircle className="w-4 h-4" /> : "2"}
@@ -2212,99 +2238,48 @@ export function EtapaEjecucionRectorado({
 
         {paso2Completo ? (
           <div className="text-xs text-green-700 dark:text-green-400 space-y-1 pl-8">
-            <p>
-              ✓ N° resolución:{" "}
-              <span className="font-semibold">
-                {denuncia.numeroResolucionRectoral}
-              </span>
-            </p>
-            <p>
-              ✓ Fecha:{" "}
-              <span className="font-semibold">
-                {denuncia.fechaResolucionRectoral}
-              </span>
-            </p>
+            <p>✓ N° resolución: <span className="font-semibold">{denuncia.numeroResolucionRectoral}</span></p>
+            <p>✓ Fecha: <span className="font-semibold">{denuncia.fechaResolucionRectoral}</span></p>
           </div>
         ) : paso1Completo ? (
           <div className="pl-8 space-y-3">
             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3">
               <p className="text-xs text-amber-700 dark:text-amber-400">
-                {destinatario.label} tiene{" "}
-                <strong>{destinatario.plazo}</strong> desde la recepción del
-                expediente para emitir resolución ({destinatario.articulo}).
+                {destinatario.label} tiene <strong>{destinatario.plazo}</strong> desde la recepción del expediente para emitir resolución ({destinatario.articulo}).
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                  N° Resolución <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={numRectoral}
-                  onChange={(e) => setNumRectoral(e.target.value)}
-                  disabled={saving}
-                  placeholder={
-                    denuncia.tipoDenunciado === "AUTORIDAD"
-                      ? "Ej: R-ICU-0045/2025"
-                      : "Ej: R-RECT-0123/2025"
-                  }
-                  className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-green-500 outline-none"
-                />
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">N° Resolución <span className="text-red-500">*</span></label>
+                <input type="text" value={numRectoral} onChange={(e) => setNumRectoral(e.target.value)} disabled={saving}
+                  placeholder={denuncia.tipoDenunciado === "AUTORIDAD" ? "Ej: R-ICU-0045/2025" : "Ej: R-RECT-0123/2025"}
+                  className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-green-500 outline-none" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                  Fecha de emisión <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={fechaRectoral}
-                  onChange={(e) => setFechaRectoral(e.target.value)}
-                  disabled={saving}
-                  className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-green-500 outline-none"
-                />
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Fecha de emisión <span className="text-red-500">*</span></label>
+                <input type="date" value={fechaRectoral} onChange={(e) => setFechaRectoral(e.target.value)} disabled={saving}
+                  className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-green-500 outline-none" />
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                Observaciones (opcional)
-              </label>
-              <textarea
-                value={obsRectoral}
-                onChange={(e) => setObsRectoral(e.target.value)}
-                rows={2}
-                disabled={saving}
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Observaciones (opcional)</label>
+              <textarea value={obsRectoral} onChange={(e) => setObsRectoral(e.target.value)} rows={2} disabled={saving}
                 placeholder="Ej: Sanción ejecutada, denunciado notificado..."
-                className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-green-500 outline-none"
-              />
+                className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-green-500 outline-none" />
             </div>
-            <button
-              onClick={() =>
-                onRegistrarResolucionRectoral({
-                  fechaResolucionRectoral: fechaRectoral,
-                  numeroResolucionRectoral: numRectoral,
-                  observacionesEjecucion: obsRectoral || undefined,
-                })
-              }
+            <button onClick={() => onRegistrarResolucionRectoral({ fechaResolucionRectoral: fechaRectoral, numeroResolucionRectoral: numRectoral, observacionesEjecucion: obsRectoral || undefined })}
               disabled={saving || !numRectoral.trim() || !fechaRectoral}
-              className="px-4 py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-semibold transition-colors flex items-center gap-2 disabled:opacity-50"
-            >
-              {saving ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <CheckCircle className="w-4 h-4" />
-              )}
+              className="px-4 py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-semibold transition-colors flex items-center gap-2 disabled:opacity-50">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
               Registrar resolución
             </button>
           </div>
         ) : (
-          <p className="text-xs text-gray-400 dark:text-gray-500 pl-8">
-            Disponible una vez registrada la remisión.
-          </p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 pl-8">Disponible una vez registrada la remisión.</p>
         )}
       </div>
 
-      {/* ── Paso 3: Gaceta (solo sancionatorias, Art. 7) ── */}
+      {/* Paso 3: Gaceta */}
       {esSancionatoria && (
         <div
           className={`rounded-xl border p-4 ${
@@ -2318,9 +2293,7 @@ export function EtapaEjecucionRectorado({
           <div className="flex items-center gap-2 mb-3">
             <div
               className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                paso3Completo
-                  ? "bg-green-500 text-white"
-                  : "bg-gray-200 dark:bg-slate-600 text-gray-600 dark:text-gray-300"
+                paso3Completo ? "bg-green-500 text-white" : "bg-gray-200 dark:bg-slate-600 text-gray-600 dark:text-gray-300"
               }`}
             >
               {paso3Completo ? <CheckCircle className="w-4 h-4" /> : "3"}
@@ -2332,83 +2305,43 @@ export function EtapaEjecucionRectorado({
 
           {paso3Completo ? (
             <div className="text-xs text-green-700 dark:text-green-400 space-y-1 pl-8">
-              <p>
-                ✓ N° Gaceta:{" "}
-                <span className="font-semibold">{denuncia.numeroGaceta}</span>
-              </p>
-              <p>
-                ✓ Fecha:{" "}
-                <span className="font-semibold">
-                  {denuncia.fechaRegistroGaceta}
-                </span>
-              </p>
+              <p>✓ N° Gaceta: <span className="font-semibold">{denuncia.numeroGaceta}</span></p>
+              <p>✓ Fecha: <span className="font-semibold">{denuncia.fechaRegistroGaceta}</span></p>
             </div>
           ) : paso2Completo ? (
             <div className="pl-8 space-y-3">
               <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
                 <p className="text-xs text-blue-700 dark:text-blue-400">
-                  Las resoluciones sancionatorias definitivas deben registrarse
-                  en la{" "}
-                  <strong>
-                    Gaceta Universitaria en 5 días hábiles
-                  </strong>{" "}
-                  desde su emisión (Art. 7).
+                  Las resoluciones sancionatorias definitivas deben registrarse en la{" "}
+                  <strong>Gaceta Universitaria en 5 días hábiles</strong> desde su emisión (Art. 7).
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                    N° de Gaceta <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={numGaceta}
-                    onChange={(e) => setNumGaceta(e.target.value)}
-                    disabled={saving}
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">N° de Gaceta <span className="text-red-500">*</span></label>
+                  <input type="text" value={numGaceta} onChange={(e) => setNumGaceta(e.target.value)} disabled={saving}
                     placeholder="Ej: GU-2025-045"
-                    className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-green-500 outline-none"
-                  />
+                    className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                    Fecha de registro <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={fechaGaceta}
-                    onChange={(e) => setFechaGaceta(e.target.value)}
-                    disabled={saving}
-                    className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-green-500 outline-none"
-                  />
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Fecha de registro <span className="text-red-500">*</span></label>
+                  <input type="date" value={fechaGaceta} onChange={(e) => setFechaGaceta(e.target.value)} disabled={saving}
+                    className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                 </div>
               </div>
-              <button
-                onClick={() =>
-                  onRegistrarGaceta({
-                    fechaRegistroGaceta: fechaGaceta,
-                    numeroGaceta: numGaceta,
-                  })
-                }
+              <button onClick={() => onRegistrarGaceta({ fechaRegistroGaceta: fechaGaceta, numeroGaceta: numGaceta })}
                 disabled={saving || !numGaceta.trim() || !fechaGaceta}
-                className="px-4 py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-semibold transition-colors flex items-center gap-2 disabled:opacity-50"
-              >
-                {saving ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <CheckCircle className="w-4 h-4" />
-                )}
+                className="px-4 py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-semibold transition-colors flex items-center gap-2 disabled:opacity-50">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                 Registrar en Gaceta
               </button>
             </div>
           ) : (
-            <p className="text-xs text-gray-400 dark:text-gray-500 pl-8">
-              Disponible una vez registrada la resolución.
-            </p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 pl-8">Disponible una vez registrada la resolución.</p>
           )}
         </div>
       )}
 
-      {/* Resolución absolutoria — no requiere Gaceta */}
       {!esSancionatoria && paso2Completo && (
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
           <p className="text-xs text-blue-700 dark:text-blue-400 flex items-center gap-2">
@@ -2418,13 +2351,10 @@ export function EtapaEjecucionRectorado({
         </div>
       )}
 
-      {/* Resumen final */}
       {paso1Completo && paso2Completo && (!esSancionatoria || paso3Completo) && (
         <div className="bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700 rounded-xl p-4 text-center">
           <CheckCircle className="w-8 h-8 mx-auto text-green-500 mb-2" />
-          <p className="text-sm font-bold text-green-700 dark:text-green-400">
-            Proceso completamente ejecutado
-          </p>
+          <p className="text-sm font-bold text-green-700 dark:text-green-400">Proceso completamente ejecutado</p>
           <p className="text-xs text-green-600 dark:text-green-300 mt-1">
             Expediente remitido, resolución emitida por {destinatario.label}
             {esSancionatoria && " y resolución registrada en Gaceta Universitaria"}.

@@ -106,6 +106,7 @@ import {
 import {
   FormDocumentoDenuncia,
   TarjetaDocumentoDenuncia,
+  TIPOS_SUGERIDOS_POR_ETAPA,
 } from "./DenunciaDocumentos";
 import { PanelReglamento } from "./PanelReglamento";
 import { ELIMINAR_DOCUMENTO } from "../../graphql/documento";
@@ -1574,6 +1575,29 @@ export default function DenunciaDetailPage() {
 
               {denuncia.expediente && (
                 <>
+                  {/* Banner de documentos pendientes por etapa */}
+                  {(() => {
+                    const sugeridos = TIPOS_SUGERIDOS_POR_ETAPA[denuncia.estado] ?? [];
+                    if (sugeridos.length === 0) return null;
+                    const codigosCargados = documentos.map((d: any) => d.idTipoDoc?.codigo);
+                    const faltantes = sugeridos.filter(c => !codigosCargados.includes(c));
+                    if (faltantes.length === 0) return (
+                      <div className="flex items-center gap-2 p-3 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 mb-2">
+                        <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
+                        <p className="text-xs text-green-700 dark:text-green-400">
+                          Todos los documentos sugeridos para esta etapa están registrados.
+                        </p>
+                      </div>
+                    );
+                    return (
+                      <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 mb-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                        <p className="text-xs text-amber-700 dark:text-amber-400">
+                          Documentos pendientes para esta etapa: <span className="font-semibold">{faltantes.join(", ")}</span>
+                        </p>
+                      </div>
+                    );
+                  })()}
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
@@ -2280,6 +2304,8 @@ export default function DenunciaDetailPage() {
                    
                       <FormDocumentoDenuncia
                         idExpediente={denuncia.expediente.idExpediente}
+                        estadoDenuncia={denuncia.estado}
+                        partes={partes.filter((p: any) => p.activo)}
                         onSaved={() => { setShowFormDoc(false); refetch(); }}
                         onCancel={() => setShowFormDoc(false)}
                       />
