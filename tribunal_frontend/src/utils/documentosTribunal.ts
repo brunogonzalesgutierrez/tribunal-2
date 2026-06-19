@@ -107,7 +107,7 @@ function estilosBase(): string {
     }
     .pagina {
       width: 21.5cm;
-      min-height: 27.9cm;
+      min-height: auto;
       margin: 0 auto;
       padding: 1.8cm 2.2cm 2cm 2.2cm;
       position: relative;
@@ -209,10 +209,16 @@ function estilosBase(): string {
     .certifico {
       margin-top: 0.6cm;
       font-size: 11pt;
+      page-break-after: avoid;
+      break-after: avoid;
     }
     .firma-bloque {
       margin-top: 1.8cm;
       text-align: center;
+      page-break-inside: avoid;
+      break-inside: avoid;
+      page-break-before: avoid;
+      break-before: avoid;
     }
     .firma-linea {
       display: inline-block;
@@ -238,10 +244,7 @@ function estilosBase(): string {
     }
     /* ── Pie ── */
     .pie {
-      position: absolute;
-      bottom: 1.2cm;
-      left: 2.2cm;
-      right: 2.2cm;
+      margin-top: 1.5cm;
       border-top: 1px solid #888;
       padding-top: 0.2cm;
       font-size: 8pt;
@@ -250,8 +253,13 @@ function estilosBase(): string {
       justify-content: space-between;
     }
     @media print {
-      body { background: #fff; }
-      .pagina { margin: 0; width: 100%; }
+      @page {
+        margin: 2.5cm 2.5cm 2.5cm 2.5cm;
+        size: letter portrait;
+      }
+      body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .pagina { margin: 0; width: 100%; padding: 0; }
+      .pie { position: static; margin-top: 1cm; }
     }
   `;
 }
@@ -493,7 +501,8 @@ const CONFIGS: Record<TipoDocumentoTribunal, {
 };
 
 // ── Función principal ─────────────────────────────────────────────────────────
-export async function generarDocumentoTribunal(datos: DatosDocumentoTribunal): Promise<void> {
+// ── Función principal — retorna HTML (no abre ventana) ───────────────────────
+export async function generarDocumentoTribunal(datos: DatosDocumentoTribunal): Promise<string> {
   const secretaria = datos.nombreSecretaria ?? "Abg. Fátima Aguirre Avalos";
   const cargoSec   = datos.cargoSecretaria  ?? "Sría. al Tribunal de 1ra Instancia";
 
@@ -505,10 +514,10 @@ export async function generarDocumentoTribunal(datos: DatosDocumentoTribunal): P
   const config = CONFIGS[datos.tipo];
   if (!config) {
     console.error(`Tipo de documento desconocido: ${datos.tipo}`);
-    return;
+    return "";
   }
 
-  const html = `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8"/>
@@ -525,9 +534,14 @@ export async function generarDocumentoTribunal(datos: DatosDocumentoTribunal): P
   ${htmlFirma(secretaria, cargoSec)}
   ${htmlPie(datos.numeroExpediente, config.titulo)}
 </div>
-<script>window.onload = function(){ window.print(); }</script>
 </body>
 </html>`;
+}
+
+// ── Abre el documento en ventana e imprime ────────────────────────────────────
+export async function abrirEImprimirDocumento(datos: DatosDocumentoTribunal): Promise<void> {
+  const html = await generarDocumentoTribunal(datos);
+  if (!html) return;
 
   const win = window.open("", "_blank", "width=950,height=800");
   if (!win) {
@@ -537,7 +551,10 @@ export async function generarDocumentoTribunal(datos: DatosDocumentoTribunal): P
   win.document.open();
   win.document.write(html);
   win.document.close();
+  win.onload = () => win.print();
 }
+
+// ── Exportaciones de conveniencia por tipo ────────────────────────────────────
 
 // ── Exportaciones de conveniencia por tipo ────────────────────────────────────
 
@@ -561,3 +578,19 @@ export const generarOficioRectorado = (d: Omit<DatosDocumentoTribunal, "tipo">) 
 
 export const generarActaConciliacion = (d: Omit<DatosDocumentoTribunal, "tipo">) =>
   generarDocumentoTribunal({ ...d, tipo: "CONCILIACION" });
+
+// Impresión directa (abre ventana + print dialog)
+export const imprimirAutoAdmision = (d: Omit<DatosDocumentoTribunal, "tipo">) =>
+  abrirEImprimirDocumento({ ...d, tipo: "AUTO_ADMISION" });
+
+export const imprimirAutoSubsanacion = (d: Omit<DatosDocumentoTribunal, "tipo">) =>
+  abrirEImprimirDocumento({ ...d, tipo: "SUBSANACION" });
+
+export const imprimirAperturaProbatoria = (d: Omit<DatosDocumentoTribunal, "tipo">) =>
+  abrirEImprimirDocumento({ ...d, tipo: "APERTURA_PROBATORIA" });
+
+export const imprimirCierreProbatorio = (d: Omit<DatosDocumentoTribunal, "tipo">) =>
+  abrirEImprimirDocumento({ ...d, tipo: "CIERRE_PROBATORIO" });
+
+export const imprimirActaConciliacion = (d: Omit<DatosDocumentoTribunal, "tipo">) =>
+  abrirEImprimirDocumento({ ...d, tipo: "CONCILIACION" });

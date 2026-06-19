@@ -86,6 +86,7 @@ const DENUNCIA_FIELDS = `
       numeroFolio
       rutaArchivo
       tamanoKb
+      esElectronico
       firmadoDigitalmente
       idTipoDoc { idTipoDoc codigo nombre esPublico requiereFirma }
     }

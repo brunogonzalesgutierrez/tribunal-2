@@ -120,7 +120,7 @@ def subir_documento(request):
             numero_folio      = int(numero_folio),
             hash_integridad   = hash_sha256,
             tipo_presentacion = tipo_presentacion,
-            es_electronico    = True,
+            es_electronico    = False,
             firmado_digitalmente = False,
         )
 

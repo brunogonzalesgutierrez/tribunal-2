@@ -109,6 +109,8 @@ import {
   TIPOS_SUGERIDOS_POR_ETAPA,
 } from "./DenunciaDocumentos";
 import { PanelReglamento } from "./PanelReglamento";
+import type { DocumentoPendiente } from "./DenunciaEtapas";
+import { abrirEImprimirDocumento } from "../../utils/documentosTribunal";
 import { ELIMINAR_DOCUMENTO } from "../../graphql/documento";
 
 import {
@@ -116,7 +118,7 @@ import {
   FileText, Send, Scale, FolderOpen, Plus, Loader2, AlertTriangle,
   Gavel, FileCheck, ClipboardList, MessageSquare,
   GitBranch, History, XCircle, User, Lock, UserCheck, Building2, Trash2,
-ChevronDown } from "lucide-react";
+  Printer, ChevronDown } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 
 // ─── HELPERS ─────────────────────────────────────────────
@@ -193,6 +195,7 @@ export default function DenunciaDetailPage() {
   const [plazosAbiertos, setPlazosAbiertos] = useState(false);
   const [refsAbiertos, setRefsAbiertos]     = useState(false);
   const [mostrarPanelDerecho, setMostrarPanelDerecho] = useState(false);
+  const [docPendiente, setDocPendiente] = useState<DocumentoPendiente | null>(null);
 
   const [showFormAud, setShowFormAud]   = useState(false);
   const [editandoAud, setEditandoAud]   = useState<any | null>(null);
@@ -597,6 +600,63 @@ export default function DenunciaDetailPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+
+      {/* BANNER DOCUMENTO PENDIENTE DE IMPRESIÓN */}
+      {docPendiente && (
+        <div className={`fixed bottom-6 right-6 z-50 max-w-sm w-full shadow-2xl rounded-2xl border-2 p-4 flex items-start gap-3
+          ${docPendiente.color === "blue"   ? "bg-blue-50 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700" : ""}
+          ${docPendiente.color === "amber"  ? "bg-amber-50 dark:bg-amber-900/40 border-amber-300 dark:border-amber-700" : ""}
+          ${docPendiente.color === "purple" ? "bg-purple-50 dark:bg-purple-900/40 border-purple-300 dark:border-purple-700" : ""}
+          ${docPendiente.color === "teal"   ? "bg-teal-50 dark:bg-teal-900/40 border-teal-300 dark:border-teal-700" : ""}
+        `}>
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0
+            ${docPendiente.color === "blue"   ? "bg-blue-100 dark:bg-blue-900/60" : ""}
+            ${docPendiente.color === "amber"  ? "bg-amber-100 dark:bg-amber-900/60" : ""}
+            ${docPendiente.color === "purple" ? "bg-purple-100 dark:bg-purple-900/60" : ""}
+            ${docPendiente.color === "teal"   ? "bg-teal-100 dark:bg-teal-900/60" : ""}
+          `}>
+            <FileText className={`w-5 h-5
+              ${docPendiente.color === "blue"   ? "text-blue-500" : ""}
+              ${docPendiente.color === "amber"  ? "text-amber-500" : ""}
+              ${docPendiente.color === "purple" ? "text-purple-500" : ""}
+              ${docPendiente.color === "teal"   ? "text-teal-500" : ""}
+            `} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-gray-800 dark:text-white leading-tight">
+              Documento listo para imprimir
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-snug">
+              {docPendiente.titulo}
+            </p>
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={async () => {
+                  await abrirEImprimirDocumento(docPendiente.datos as any);
+                  setDocPendiente(null);
+                }}
+                className={`flex-1 px-3 py-1.5 rounded-xl text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors
+                  ${docPendiente.color === "blue"   ? "bg-blue-500 hover:bg-blue-600" : ""}
+                  ${docPendiente.color === "amber"  ? "bg-amber-500 hover:bg-amber-600" : ""}
+                  ${docPendiente.color === "purple" ? "bg-purple-500 hover:bg-purple-600" : ""}
+                  ${docPendiente.color === "teal"   ? "bg-teal-500 hover:bg-teal-600" : ""}
+                `}>
+                <Printer className="w-3.5 h-3.5" /> Imprimir
+              </button>
+              <button
+                onClick={() => setDocPendiente(null)}
+                className="px-3 py-1.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-600 dark:text-gray-300 text-xs font-medium hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+                Omitir
+              </button>
+            </div>
+          </div>
+          <button
+            onClick={() => setDocPendiente(null)}
+            className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors shrink-0">
+            <XCircle className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* ENCABEZADO */}
       <div className="flex items-center gap-3 flex-wrap">
@@ -1029,6 +1089,7 @@ export default function DenunciaDetailPage() {
                     onAdmitir={handleAdmitir}
                     salas={salas}
                     saving={saving}
+                    onDocumentoListo={setDocPendiente}
                   />
                   <EtapaRetiro
                     denuncia={denuncia}
@@ -1065,6 +1126,7 @@ export default function DenunciaDetailPage() {
                     onAdmitir={handleAdmitir}
                     salas={salas}
                     saving={saving}
+                    onDocumentoListo={setDocPendiente}
                   />
                   <EtapaRetiro
                     denuncia={denuncia}
@@ -1156,6 +1218,7 @@ export default function DenunciaDetailPage() {
                     denuncia={denuncia}
                     onConciliar={(datos) => avanzarEtapa("CONCILIADA", datos)}
                     saving={saving}
+                    onDocumentoListo={setDocPendiente}
                   />
                   <EtapaMedidasPrecautorias
                     denuncia={denuncia}
@@ -1181,6 +1244,8 @@ export default function DenunciaDetailPage() {
                 </>
               )}
 
+              {/* ── DECLARACION_INFORMATIVA*/}
+
               {/* ── DECLARACION_INFORMATIVA: Abrir pruebas + Conciliación ── */}
               {denuncia.estado === "DECLARACION_INFORMATIVA" && (
                 <>
@@ -1197,11 +1262,13 @@ export default function DenunciaDetailPage() {
                     denuncia={denuncia}
                     onAbrirPruebas={handleAbrirPruebas}
                     saving={saving}
+                    onDocumentoListo={setDocPendiente}
                   />
                   <EtapaConciliacion
                     denuncia={denuncia}
                     onConciliar={(datos) => avanzarEtapa("CONCILIADA", datos)}
                     saving={saving}
+                    onDocumentoListo={setDocPendiente}
                   />
                   <EtapaMedidasPrecautorias
                     denuncia={denuncia}
@@ -1299,6 +1366,7 @@ export default function DenunciaDetailPage() {
                     denuncia={denuncia}
                     onCerrarPruebas={() => avanzarEtapa("CONCLUSION")}
                     saving={saving}
+                    onDocumentoListo={setDocPendiente}
                   />
                   <EtapaRatificacionPruebas
                     denuncia={denuncia}

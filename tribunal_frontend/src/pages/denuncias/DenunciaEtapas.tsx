@@ -11,8 +11,17 @@ import {
   generarAperturaProbatoria,
   generarCierreProbatorio,
   generarActaConciliacion,
+  abrirEImprimirDocumento,
 } from "../../utils/documentosTribunal";
+import type { DatosDocumentoTribunal } from "../../utils/documentosTribunal";
 
+
+// ── Tipo para el banner de impresión ─────────────────────────────────────────
+export interface DocumentoPendiente {
+  titulo: string;
+  datos: Omit<DatosDocumentoTribunal, never>;
+  color: "blue" | "amber" | "purple" | "teal";
+}
 
 export function parseFechaLocal(fechaStr: string): Date {
   const [y, m, d] = fechaStr.split("-").map(Number);
@@ -113,10 +122,11 @@ interface EtapaAdmisionProps {
   onAdmitir: (datos: { idSala: number }) => void;
   salas: { idSala: number; nombreSala: string }[];
   saving: boolean;
+  onDocumentoListo?: (doc: DocumentoPendiente) => void;
 }
 
 export function EtapaAdmision({
-  denuncia, onRechazar, onSolicitarSubsanacion, onAdmitir, salas, saving
+  denuncia, onRechazar, onSolicitarSubsanacion, onAdmitir, salas, saving, onDocumentoListo
 }: EtapaAdmisionProps) {
   const [confirmando, setConfirmando] = useState(false);
   const [idSala, setIdSala] = useState(0);
@@ -126,14 +136,20 @@ export function EtapaAdmision({
     const nombreDenunciado = denuncia.denunciado
       ? `${denuncia.denunciado.nombre} ${denuncia.denunciado.primerApellido}`.trim()
       : "—";
-    await generarAutoAdmision({
+    const datoDoc = {
       numeroExpediente:   denuncia.expediente?.numeroExpediente ?? `DEN-${denuncia.numeroDenuncia}`,
       numeroDenuncia:     denuncia.numeroDenuncia,
       nombreDestinatario: nombreDenunciado,
-      rolDestinatario:    "Denunciado/a",
+      rolDestinatario:    "Denunciado/a" as const,
       descripcionHechos:  denuncia.descripcion,
-    });
+      tipo:               "AUTO_ADMISION" as const,
+    };
     onAdmitir({ idSala });
+    onDocumentoListo?.({
+      titulo: "Auto de Admisión (Art. 58)",
+      datos: datoDoc,
+      color: "blue",
+    });
   };
 
   if (!confirmando) {
@@ -237,23 +253,29 @@ interface EtapaSubsanacionProps {
   onSubsanar: (datos: { descripcion: string }) => void;
   onRechazar: () => void;
   saving: boolean;
+  onDocumentoListo?: (doc: DocumentoPendiente) => void;
 }
 
-export function EtapaSubsanacion({ denuncia, onSubsanar, onRechazar, saving }: EtapaSubsanacionProps) {
+export function EtapaSubsanacion({ denuncia, onSubsanar, onRechazar, saving, onDocumentoListo }: EtapaSubsanacionProps) {
   const [nuevaDescripcion, setNuevaDescripcion] = useState(denuncia.descripcion);
 
   // ── Cambio 3: handler async que genera el documento antes de subsanar ──
-  const handleSolicitarSubsanacion = async () => {
+  const handleSolicitarSubsanacion = () => {
     const nombreDenunciante = denuncia.denunciante
       ? `${denuncia.denunciante.nombre} ${denuncia.denunciante.primerApellido}`.trim()
       : "—";
-    await generarAutoSubsanacion({
-      numeroExpediente:   denuncia.expediente?.numeroExpediente ?? `DEN-${denuncia.numeroDenuncia}`,
-      numeroDenuncia:     denuncia.numeroDenuncia,
-      nombreDestinatario: nombreDenunciante,
-      rolDestinatario:    "Denunciante",
-    });
     onSubsanar({ descripcion: nuevaDescripcion });
+    onDocumentoListo?.({
+      titulo: "Auto de Subsanación (Art. 56)",
+      datos: {
+        tipo: "SUBSANACION",
+        numeroExpediente:   denuncia.expediente?.numeroExpediente ?? `DEN-${denuncia.numeroDenuncia}`,
+        numeroDenuncia:     denuncia.numeroDenuncia,
+        nombreDestinatario: nombreDenunciante,
+        rolDestinatario:    "Denunciante",
+      },
+      color: "amber",
+    });
   };
 
   return (
@@ -374,9 +396,10 @@ interface EtapaConciliacionProps {
   denuncia: Denuncia;
   onConciliar: (datos: { actaConciliacion: string; fechaConciliacion: string }) => void;
   saving: boolean;
+  onDocumentoListo?: (doc: DocumentoPendiente) => void;
 }
 
-export function EtapaConciliacion({ denuncia, onConciliar, saving }: EtapaConciliacionProps) {
+export function EtapaConciliacion({ denuncia, onConciliar, saving, onDocumentoListo }: EtapaConciliacionProps) {
   const [acta, setActa] = useState("");
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
   const [confirmando, setConfirmando] = useState(false);
@@ -406,20 +429,25 @@ export function EtapaConciliacion({ denuncia, onConciliar, saving }: EtapaConcil
   }
 
   // ── Cambio 5: handler async que genera el documento antes de conciliar ──
-  const handleConfirmarConciliacion = async () => {
+  const handleConfirmarConciliacion = () => {
     const nombreDenunciante = denuncia.denunciante
       ? `${denuncia.denunciante.nombre} ${denuncia.denunciante.primerApellido}`.trim()
       : "—";
-    await generarActaConciliacion({
-      numeroExpediente:   denuncia.expediente?.numeroExpediente ?? `DEN-${denuncia.numeroDenuncia}`,
-      numeroDenuncia:     denuncia.numeroDenuncia,
-      nombreDestinatario: nombreDenunciante,
-      textoConciliacion:  acta,
-      fechaDocumento:     fecha,
-    });
     onConciliar({ actaConciliacion: acta, fechaConciliacion: fecha });
+    onDocumentoListo?.({
+      titulo: "Acta de Conciliación (Art. 59)",
+      datos: {
+        tipo: "CONCILIACION",
+        numeroExpediente:   denuncia.expediente?.numeroExpediente ?? `DEN-${denuncia.numeroDenuncia}`,
+        numeroDenuncia:     denuncia.numeroDenuncia,
+        nombreDestinatario: nombreDenunciante,
+        textoConciliacion:  acta,
+        fechaDocumento:     fecha,
+      },
+      color: "teal",
+    });
   };
-
+  
   return (
     <div className="bg-teal-50 dark:bg-teal-900/20 rounded-2xl border border-teal-200 dark:border-teal-800 p-6">
       <h3 className="text-lg font-semibold text-teal-700 dark:text-teal-400 mb-4 flex items-center gap-2">
@@ -518,9 +546,10 @@ interface EtapaPruebasProps {
   onAbrirPruebas?: () => void;
   onCerrarPruebas?: () => void;
   saving: boolean;
+  onDocumentoListo?: (doc: DocumentoPendiente) => void;
 }
 
-export function EtapaPruebas({ denuncia, onAbrirPruebas, onCerrarPruebas, saving }: EtapaPruebasProps) {
+export function EtapaPruebas({ denuncia, onAbrirPruebas, onCerrarPruebas, saving, onDocumentoListo }: EtapaPruebasProps) {
   const [pruebas, setPruebas] = useState<{ nombre: string; descripcion: string }[]>([]);
   const [nuevaPrueba, setNuevaPrueba] = useState({ nombre: "", descripcion: "" });
 
@@ -532,7 +561,7 @@ export function EtapaPruebas({ denuncia, onAbrirPruebas, onCerrarPruebas, saving
   };
 
   // ── Cambio 4: handlers async para apertura y cierre probatorio ──
-  const handleAbrirPruebas = async () => {
+  const handleAbrirPruebas = () => {
     if (!onAbrirPruebas) return;
     const nombreDenunciante = denuncia.denunciante
       ? `${denuncia.denunciante.nombre} ${denuncia.denunciante.primerApellido}`.trim()
@@ -540,29 +569,48 @@ export function EtapaPruebas({ denuncia, onAbrirPruebas, onCerrarPruebas, saving
     const nombreDenunciado = denuncia.denunciado
       ? `${denuncia.denunciado.nombre} ${denuncia.denunciado.primerApellido}`.trim()
       : "—";
-    await generarAperturaProbatoria({
-      numeroExpediente:   denuncia.expediente?.numeroExpediente ?? `DEN-${denuncia.numeroDenuncia}`,
-      numeroDenuncia:     denuncia.numeroDenuncia,
-      nombreDestinatario: nombreDenunciante,
-      rolDestinatario:    "Denunciante",
-    });
-    await generarAperturaProbatoria({
-      numeroExpediente:   denuncia.expediente?.numeroExpediente ?? `DEN-${denuncia.numeroDenuncia}`,
-      numeroDenuncia:     denuncia.numeroDenuncia,
-      nombreDestinatario: nombreDenunciado,
-      rolDestinatario:    "Denunciado/a",
-    });
     onAbrirPruebas();
+    // Notificar 2 documentos: uno por parte
+    onDocumentoListo?.({
+      titulo: "Auto de Apertura Probatoria — Denunciante (Art. 60)",
+      datos: {
+        tipo: "APERTURA_PROBATORIA",
+        numeroExpediente:   denuncia.expediente?.numeroExpediente ?? `DEN-${denuncia.numeroDenuncia}`,
+        numeroDenuncia:     denuncia.numeroDenuncia,
+        nombreDestinatario: nombreDenunciante,
+        rolDestinatario:    "Denunciante",
+      },
+      color: "purple",
+    });
+    // El segundo doc se mostrará cuando el usuario cierre el primero — lo encolamos via setTimeout
+    setTimeout(() => {
+      onDocumentoListo?.({
+        titulo: "Auto de Apertura Probatoria — Denunciado/a (Art. 60)",
+        datos: {
+          tipo: "APERTURA_PROBATORIA",
+          numeroExpediente:   denuncia.expediente?.numeroExpediente ?? `DEN-${denuncia.numeroDenuncia}`,
+          numeroDenuncia:     denuncia.numeroDenuncia,
+          nombreDestinatario: nombreDenunciado,
+          rolDestinatario:    "Denunciado/a",
+        },
+        color: "purple",
+      });
+    }, 100);
   };
 
-  const handleCerrarPruebas = async () => {
+  const handleCerrarPruebas = () => {
     if (!onCerrarPruebas) return;
-    await generarCierreProbatorio({
-      numeroExpediente:   denuncia.expediente?.numeroExpediente ?? `DEN-${denuncia.numeroDenuncia}`,
-      numeroDenuncia:     denuncia.numeroDenuncia,
-      nombreDestinatario: "Ambas partes procesales",
-    });
     onCerrarPruebas();
+    onDocumentoListo?.({
+      titulo: "Auto de Clausura Probatoria (Art. 74)",
+      datos: {
+        tipo: "CIERRE_PROBATORIO",
+        numeroExpediente:   denuncia.expediente?.numeroExpediente ?? `DEN-${denuncia.numeroDenuncia}`,
+        numeroDenuncia:     denuncia.numeroDenuncia,
+        nombreDestinatario: "Ambas partes procesales",
+      },
+      color: "purple",
+    });
   };
 
   const esEtapaPruebas = denuncia.estado === "PRUEBAS";

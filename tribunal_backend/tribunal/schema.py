@@ -1676,7 +1676,7 @@ class CrearDocumento(graphene.Mutation):
             id_expediente=expediente, id_tipo_doc=tipo_doc, titulo=titulo,
             numero_folio=numero_folio, ruta_archivo=ruta_archivo,
             tamano_kb=tamano_kb, hash_integridad='',
-            es_electronico=True, firmado_digitalmente=False))
+            es_electronico=False, firmado_digitalmente=False))
 
 class ActualizarDocumento(graphene.Mutation):
     class Arguments:

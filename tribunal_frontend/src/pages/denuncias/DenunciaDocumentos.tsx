@@ -4,7 +4,7 @@ import { useQuery } from "@apollo/client";
 import { GET_TIPOS_DOC } from "../../graphql/documento";
 import {
   FileText, Search, Plus, X, Loader2, AlertCircle,
-  Save, Trash2, Upload,
+  Save, Trash2, Upload, Send,
 } from "lucide-react";
 
 const DJANGO_BASE = "http://localhost:8000";
@@ -457,6 +457,11 @@ export function TarjetaDocumentoDenuncia({
             className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors disabled:opacity-40">
             {subiendo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
           </button>
+        </div>
+      ) : doc.esElectronico ? (
+        <div className="px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-800/60 border border-gray-200 dark:border-slate-700 flex items-center gap-2">
+          <Send className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+          <span className="text-xs text-gray-400 dark:text-gray-500">Registro electrónico — enviado por correo</span>
         </div>
       ) : (
         <button onClick={() => inputRef.current?.click()} disabled={subiendo}
