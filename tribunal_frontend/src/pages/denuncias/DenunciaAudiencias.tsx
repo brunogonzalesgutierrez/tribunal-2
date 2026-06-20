@@ -680,6 +680,196 @@ interface RegistroLocal {
   motivoInasistencia: string;
 }
 
+
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// ASISTENCIA INLINE — se muestra dentro de la tarjeta de audiencia
+// ══════════════════════════════════════════════════════════════════════════
+type EstadoAsist = "PRESENTE" | "AUSENTE" | "JUSTIFICADO" | null;
+
+export function AsistenciaInlineAudiencia({
+  audiencia,
+  partes,
+}: {
+  audiencia: any;
+  partes: any[];
+}) {
+  const { data, loading, refetch } = useQuery(GET_ASISTENCIAS_AUDIENCIA, {
+    variables: { idAudiencia: Number(audiencia.idAudiencia) },
+    fetchPolicy: "cache-and-network",
+  });
+  const [registrarBatch] = useMutation(REGISTRAR_ASISTENCIA_BATCH);
+
+  const asistenciasGuardadas: any[] = data?.asistenciasPorAudiencia ?? [];
+  const hayDatos = asistenciasGuardadas.length > 0;
+
+  const [editando, setEditando] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [registros, setRegistros] = useState<
+    { idPersona: number; nombre: string; rol: string; estado: EstadoAsist; motivo: string }[]
+  >([]);
+  
+  useEffect(() => {
+    if (!loading) {
+      setRegistros(
+        partes.map((p: any) => {
+          const g = asistenciasGuardadas.find(
+            (a: any) => a.idPersona?.idPersona === p.idPersona?.idPersona
+          );
+          let estado: EstadoAsist = null;
+          if (g) {
+            if (g.asistio) estado = "PRESENTE";
+            else if (g.motivoInasistencia?.toLowerCase().includes("justif")) estado = "JUSTIFICADO";
+            else estado = "AUSENTE";
+          }
+          return {
+            idPersona: Number(p.idPersona?.idPersona),
+            nombre: `${p.idPersona?.nombre} ${p.idPersona?.primerApellido}`,
+            rol: p.idRol?.nombreRol ?? "Parte procesal",
+            estado,
+            motivo: g?.motivoInasistencia ?? "",
+          };
+        })
+      );
+    }
+  }, [loading, data]);
+
+  const setEstado = (idPersona: number, estado: EstadoAsist) =>
+    setRegistros(prev => prev.map(r => r.idPersona === idPersona ? { ...r, estado } : r));
+  const setMotivo = (idPersona: number, motivo: string) =>
+    setRegistros(prev => prev.map(r => r.idPersona === idPersona ? { ...r, motivo } : r));
+
+  const guardar = async () => {
+    if (registros.some(r => r.estado === null)) return;
+    setGuardando(true);
+    try {
+      await registrarBatch({
+        variables: {
+          idAudiencia: Number(audiencia.idAudiencia),
+          registros: registros.map(r => ({
+            idPersona: r.idPersona,
+            rolEnAudiencia: r.rol,
+            estado: r.estado,
+            motivoInasistencia: r.motivo || null,
+          })),
+        },
+      });
+      await refetch();
+      setEditando(false);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  if (loading) return null;
+  if (partes.length === 0) return null;
+
+  const colores: Record<string, string> = {
+    PRESENTE:    "bg-emerald-500",
+    AUSENTE:     "bg-red-500",
+    JUSTIFICADO: "bg-amber-500",
+  };
+
+  return (
+    <div className="border-t border-gray-200 dark:border-slate-700 pt-3 mt-1">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+          <Users className="w-3.5 h-3.5" /> Asistencia
+          {hayDatos && !editando && (
+            <span className="ml-1 flex gap-1">
+              {registros.map(r => r.estado && (
+                <span key={r.idPersona} className={`w-2 h-2 rounded-full inline-block ${colores[r.estado]}`} title={`${r.nombre}: ${r.estado}`} />
+              ))}
+            </span>
+          )}
+        </p>
+        {!editando && (
+          <button
+            onClick={() => setEditando(true)}
+            className="text-xs text-indigo-500 hover:text-indigo-700 font-medium flex items-center gap-1"
+          >
+            <Edit2 className="w-3 h-3" />
+            {hayDatos ? "Editar" : "Registrar"}
+          </button>
+        )}
+      </div>
+
+      {!editando && hayDatos && (
+        <div className="flex flex-wrap gap-2">
+          {registros.map(r => (
+            <div key={r.idPersona} className="flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full shrink-0 ${r.estado ? colores[r.estado] : "bg-gray-300"}`} />
+              <span className="text-xs text-gray-600 dark:text-gray-300">{r.nombre}</span>
+              {r.estado && (
+                <span className={`text-xs px-1.5 py-0.5 rounded-full text-white ${colores[r.estado]}`}>
+                  {r.estado === "PRESENTE" ? "Presente" : r.estado === "AUSENTE" ? "Ausente" : "Justificado"}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {editando && (
+        <div className="space-y-2">
+          {registros.map(r => (
+            <div key={r.idPersona} className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300 flex-1 truncate">{r.nombre}</span>
+                <div className="flex gap-1">
+                  {(["PRESENTE", "AUSENTE", "JUSTIFICADO"] as EstadoAsist[]).map(est => (
+                    <button
+                      key={est}
+                      onClick={() => setEstado(r.idPersona, est)}
+                      className={`px-2 py-1 rounded-lg text-xs font-semibold transition-all ${
+                        r.estado === est
+                          ? `${colores[est!]} text-white`
+                          : "bg-gray-100 dark:bg-slate-700 text-gray-500 hover:bg-gray-200 dark:hover:bg-slate-600"
+                      }`}
+                    >
+                      {est === "PRESENTE" ? "Presente" : est === "AUSENTE" ? "Ausente" : "Justif."}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {(r.estado === "AUSENTE" || r.estado === "JUSTIFICADO") && (
+                <input
+                  type="text"
+                  placeholder="Motivo (opcional)..."
+                  value={r.motivo}
+                  onChange={e => setMotivo(r.idPersona, e.target.value)}
+                  className="w-full px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-600 text-xs text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-indigo-500 outline-none"
+                />
+              )}
+            </div>
+          ))}
+          <div className="flex gap-2 justify-end pt-1">
+            <button
+              onClick={() => setEditando(false)}
+              disabled={guardando}
+              className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 text-xs font-medium hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={guardar}
+              disabled={guardando || registros.some(r => r.estado === null)}
+              className="px-3 py-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white text-xs font-semibold transition-colors flex items-center gap-1"
+            >
+              {guardando ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+              Guardar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 export function ModalAsistenciaDenuncia({
   audiencia, partes, onClose,
 }: {

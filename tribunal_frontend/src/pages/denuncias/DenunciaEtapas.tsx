@@ -28,6 +28,14 @@ export function parseFechaLocal(fechaStr: string): Date {
   return new Date(y, m - 1, d);
 }
 
+function fechaLocalISO(incluirHora = false): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const fecha = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  if (!incluirHora) return fecha;
+  return `${fecha}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function calcularDiasHabiles(desde: string, hasta: Date = new Date()): number {
   const inicio = parseFechaLocal(desde);
   inicio.setHours(0, 0, 0, 0);
@@ -323,7 +331,7 @@ interface EtapaRetiroProps {
 
 export function EtapaRetiro({ onRetirar, saving }: EtapaRetiroProps) {
   const [motivo, setMotivo] = useState("");
-  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [fecha, setFecha] = useState(fechaLocalISO());
   const [confirmando, setConfirmando] = useState(false);
 
   if (!confirmando) {
@@ -401,7 +409,7 @@ interface EtapaConciliacionProps {
 
 export function EtapaConciliacion({ denuncia, onConciliar, saving, onDocumentoListo }: EtapaConciliacionProps) {
   const [acta, setActa] = useState("");
-  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [fecha, setFecha] = useState(fechaLocalISO());
   const [confirmando, setConfirmando] = useState(false);
 
   if (!confirmando) {
@@ -499,7 +507,7 @@ interface EtapaDeclaracionInformativaProps {
 
 export function EtapaDeclaracionInformativa({ onRegistrarDeclaracion, saving, disabled }: EtapaDeclaracionInformativaProps) {
   const [declaracion, setDeclaracion] = useState("");
-  const [fechaDeclaracion, setFechaDeclaracion] = useState(new Date().toISOString().slice(0, 16));
+  const [fechaDeclaracion, setFechaDeclaracion] = useState(fechaLocalISO(true));
 
   return (
     <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-200 dark:border-indigo-800 p-6">
@@ -704,7 +712,7 @@ interface EtapaResolucionProps {
 
 export function EtapaResolucion({ onEmitirResolucion, saving }: EtapaResolucionProps) {
   const [resolucion, setResolucion] = useState("");
-  const [fechaResolucion, setFechaResolucion] = useState(new Date().toISOString().slice(0, 10));
+  const [fechaResolucion, setFechaResolucion] = useState(fechaLocalISO());
   const [tipoResolucion, setTipoResolucion] = useState("SANCIONATORIA");
   const [tipoSancion, setTipoSancion] = useState("");
   const [detalleSancion, setDetalleSancion] = useState("");
@@ -808,11 +816,11 @@ export function EtapaApelacion({
   saving,
 }: EtapaApelacionProps) {
   const [fechaApelacion, setFechaApelacion] = useState(
-    new Date().toISOString().slice(0, 10)
+    fechaLocalISO()
   );
   const [recurrente, setRecurrente] = useState<"DENUNCIANTE" | "DENUNCIADO" | "">("");
   const [fechaRemision, setFechaRemision] = useState(
-    new Date().toISOString().slice(0, 10)
+    fechaLocalISO()
   );
   const [resolucionApelacion, setResolucionApelacion] = useState("");
   const esApelada = denuncia.estado === "APELADA";
@@ -1110,7 +1118,7 @@ interface EtapaAclaracionProps {
 
 export function EtapaAclaracion({ denuncia, onRegistrar, saving }: EtapaAclaracionProps) {
   const [texto, setTexto] = useState(denuncia.aclaracionEnmienda || "");
-  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [fecha, setFecha] = useState(fechaLocalISO());
   const [abierto, setAbierto] = useState(false);
 
   if (denuncia.aclaracionEnmienda) {
@@ -1214,7 +1222,7 @@ interface EtapaNotificacionResolucionProps {
 export function EtapaNotificacionResolucion({
   denuncia, onRegistrar, saving
 }: EtapaNotificacionResolucionProps) {
-  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [fecha, setFecha] = useState(fechaLocalISO());
   const [abierto, setAbierto] = useState(false);
 
   if (denuncia.fechaNotificacionResolucion) {
@@ -1312,7 +1320,7 @@ export function EtapaMedidasPrecautorias({
   denuncia, onRegistrar, saving
 }: EtapaMedidasPrecautoriasProps) {
   const [texto, setTexto] = useState(denuncia.medidasPrecautorias || "");
-  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [fecha, setFecha] = useState(fechaLocalISO());
   const [abierto, setAbierto] = useState(false);
 
   if (denuncia.medidasPrecautorias) {
@@ -1475,7 +1483,7 @@ interface EtapaFallecimientoProps {
 export function EtapaFallecimiento({
   denuncia, onRegistrar, saving
 }: EtapaFallecimientoProps) {
-  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [fecha, setFecha] = useState(fechaLocalISO());
   const [confirmando, setConfirmando] = useState(false);
 
   if (!confirmando) {
@@ -1560,7 +1568,7 @@ interface EtapaDesistimientoProps {
 export function EtapaDesistimiento({
   denuncia, onRegistrar, saving
 }: EtapaDesistimientoProps) {
-  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [fecha, setFecha] = useState(fechaLocalISO());
   const [motivo, setMotivo] = useState("");
   const [confirmando, setConfirmando] = useState(false);
 
@@ -1665,7 +1673,7 @@ interface EtapaPrescripcionProps {
 export function EtapaPrescripcion({
   denuncia, onRegistrar, saving
 }: EtapaPrescripcionProps) {
-  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [fecha, setFecha] = useState(fechaLocalISO());
   const [fundamentacion, setFundamentacion] = useState("");
   const [confirmando, setConfirmando] = useState(false);
 
@@ -1797,7 +1805,7 @@ interface EtapaCompulsaProps {
 export function EtapaCompulsa({
   denuncia, onRegistrar, saving
 }: EtapaCompulsaProps) {
-  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [fecha, setFecha] = useState(fechaLocalISO());
   const [resolucion, setResolucion] = useState(denuncia.resolucionCompulsa || "");
   const [abierto, setAbierto] = useState(false);
 
@@ -2115,13 +2123,13 @@ export function EtapaEjecucionRectorado({
   const destinatario = getDestinatarioEjecucion(denuncia.tipoDenunciado);
 
   const [fechaRemision, setFechaRemision] = useState(
-    denuncia.fechaRemisionRectorado ?? new Date().toISOString().slice(0, 10)
+    denuncia.fechaRemisionRectorado ?? fechaLocalISO()
   );
   const [obsRemision, setObsRemision] = useState(
     denuncia.observacionesEjecucion ?? ""
   );
   const [fechaRectoral, setFechaRectoral] = useState(
-    denuncia.fechaResolucionRectoral ?? new Date().toISOString().slice(0, 10)
+    denuncia.fechaResolucionRectoral ?? fechaLocalISO()
   );
   const [numRectoral, setNumRectoral] = useState(
     denuncia.numeroResolucionRectoral ?? ""
@@ -2130,7 +2138,7 @@ export function EtapaEjecucionRectorado({
     denuncia.observacionesEjecucion ?? ""
   );
   const [fechaGaceta, setFechaGaceta] = useState(
-    denuncia.fechaRegistroGaceta ?? new Date().toISOString().slice(0, 10)
+    denuncia.fechaRegistroGaceta ?? fechaLocalISO()
   );
   const [numGaceta, setNumGaceta] = useState(denuncia.numeroGaceta ?? "");
 

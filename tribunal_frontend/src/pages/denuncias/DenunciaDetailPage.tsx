@@ -98,10 +98,8 @@ import {
 } from "./DenunciaEtapas";
 import {
   FormAudienciaDenuncia,
-  ModalCitacionesDenuncia,
-  ModalAsistenciaDenuncia,
+  AsistenciaInlineAudiencia,
 } from "./DenunciaAudiencias";
-
 
 import {
   FormDocumentoDenuncia,
@@ -199,8 +197,7 @@ export default function DenunciaDetailPage() {
 
   const [showFormAud, setShowFormAud]   = useState(false);
   const [editandoAud, setEditandoAud]   = useState<any | null>(null);
-  const [citacionAud, setCitacionAud]   = useState<any | null>(null);
-  const [asistenciaAud, setAsistenciaAud] = useState<any | null>(null);
+  const [asistenciaAudId, setAsistenciaAudId] = useState<number | null>(null);
   const [eliminandoAudId, setEliminandoAudId] = useState<number | null>(null);
   
 
@@ -1847,18 +1844,9 @@ export default function DenunciaDetailPage() {
                             )}
                           
 
-                            <button onClick={() => setCitacionAud(a)}
-                              title="Enviar citaciones por email"
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
-                              <Send className="w-3.5 h-3.5" />
-                            </button>
-                            <button onClick={() => setAsistenciaAud(a)}
-                              title="Tomar asistencia"
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors">
-                              <ClipboardList className="w-3.5 h-3.5" />
-                            </button>
                             <button
                               onClick={() => { setEditandoAud(a); setShowFormAud(true); }}
+                              title="Editar audiencia"
                               className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
                               <FileText className="w-3.5 h-3.5" />
                             </button>
@@ -1920,24 +1908,17 @@ export default function DenunciaDetailPage() {
                             </div>
                           )}
                         </div>
+                        {(a.estadoAudiencia === "REALIZADA" || a.estadoAudiencia === "EN_CURSO") && (
+                          <AsistenciaInlineAudiencia
+                            audiencia={a}
+                            partes={partes.filter((p: any) => p.activo)}
+                          />
+                        )}
                       </div>
                     ))}
                   </div>
 
-                  {citacionAud && (
-                    <ModalCitacionesDenuncia
-                      audiencia={citacionAud}
-                      partes={partes.filter((p: any) => p.activo)}
-                      onClose={() => setCitacionAud(null)}
-                    />
-                  )}
-                  {asistenciaAud && (
-                    <ModalAsistenciaDenuncia
-                      audiencia={asistenciaAud}
-                      partes={partes.filter((p: any) => p.activo)}
-                      onClose={() => setAsistenciaAud(null)}
-                    />
-                  )}
+                  
                 </>
               )}
             </div>
