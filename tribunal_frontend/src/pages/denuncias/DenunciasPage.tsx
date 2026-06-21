@@ -14,7 +14,7 @@ import { useCrudNotifications } from "../../hooks/useCrudNotifications";
 import {
   AlertCircle, CheckCircle, ChevronLeft, ChevronRight,
   Edit, Eye, FileText, Plus, Search, Trash2, User, X,
-  Scale,
+  Scale, GitBranch,
 } from "lucide-react";
 
 
@@ -670,38 +670,32 @@ export default function DenunciasPage() {
                       {fmtFecha(denuncia.fechaDenuncia)}
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => navigate(`/denuncias/${denuncia.id}`)}
-                          disabled={saving}
-                          className="p-2 rounded-lg text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors disabled:opacity-40"
-                          title="Ver detalle"
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
+                            denuncia.estado === "EJECUTADA" || denuncia.estado === "ARCHIVADA"
+                              ? "bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400"
+                              : "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400"
+                          }`}
                         >
-                          <Eye className="w-4 h-4" />
+                          <GitBranch className="w-3.5 h-3.5" /> Gestionar
                         </button>
                         <button
                           onClick={() => abrirEditar(denuncia)}
                           disabled={saving}
-                          className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-40"
-                          title="Editar"
+                          title="Editar datos básicos"
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-40"
                         >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => setEstadoModal({ open: true, denuncia, nuevoEstado: denuncia.estado })}
-                          disabled={updatingEstado === denuncia.id}
-                          className="p-2 rounded-lg text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors disabled:opacity-40"
-                          title="Cambiar estado"
-                        >
-                          <CheckCircle className="w-4 h-4" />
+                          <Edit className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => eliminar(denuncia.id, denuncia.numeroDenuncia)}
                           disabled={deletingId === denuncia.id}
-                          className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-40"
-                          title="Eliminar"
+                          title="Eliminar denuncia"
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-40"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </td>

@@ -10,7 +10,7 @@ import {
 } from "../../graphql/audiencias";
 import {
   X, Calendar, Send, ClipboardList, CheckCircle, AlertCircle,
-  Loader2, Save, Edit2, Users, Search, Plus,
+  Loader2, Save, Edit2, Users, Search, Plus, UserCheck,  // ← agregás UserCheck
 } from "lucide-react";
 
 // ─── Estilos compartidos ──────────────────────────────────────────────────
@@ -139,7 +139,7 @@ const INIT_AUD = {
 };
 
 export function FormAudienciaDenuncia({
-  idExpediente, editando, tiposAud, salasAud, conformaciones, estadoDenuncia, onSaved, onCancel,
+  idExpediente, editando, tiposAud, salasAud, conformaciones, estadoDenuncia, onSaved, onCancel, onIrAVocales,
 }: {
   idExpediente: number;
   editando: any | null;
@@ -149,6 +149,7 @@ export function FormAudienciaDenuncia({
   estadoDenuncia: string;
   onSaved: () => void;
   onCancel: () => void;
+  onIrAVocales?: () => void;
 }) {
   const [crear]            = useMutation(CREAR_AUDIENCIA);
   const [actualizar]       = useMutation(ACTUALIZAR_AUDIENCIA);
@@ -300,10 +301,16 @@ export function FormAudienciaDenuncia({
             </p>
           </div>
         </div>
-        <div className="flex justify-end mt-4">
-          <button onClick={onCancel}
+        <div className="flex justify-between mt-4">
+          <button
+            onClick={onCancel}
             className="px-4 py-2 rounded-xl border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 text-sm font-medium hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors">
             Cancelar
+          </button>
+          <button
+            onClick={() => { onCancel(); onIrAVocales?.(); }}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors">
+            <UserCheck className="w-3.5 h-3.5" /> → Ir al tab Vocales
           </button>
         </div>
       </div>

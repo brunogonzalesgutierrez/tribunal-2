@@ -16,6 +16,9 @@ import { GET_SALAS_TRIBUNAL } from "../../graphql/tribunal";
 import { GET_TIPOS_AUDIENCIA, GET_SALAS_AUDIENCIA, ELIMINAR_AUDIENCIA, ACTUALIZAR_AUDIENCIA } from "../../graphql/audiencias";
 import { gql } from "@apollo/client";
 import { BtnGenerarPdfResolucion } from "./DenunciaPdfResolucion";
+// Agregar esta línea junto a los otros imports locales
+import { ModalAccionAudiencia } from "./ModalAccionAudiencia";
+import type { AccionAudiencia } from "./ModalAccionAudiencia";
 
 const GET_VOCALES_DISPONIBLES = gql`
   query {
@@ -214,6 +217,10 @@ export default function DenunciaDetailPage() {
   const [errVocal, setErrVocal]                 = useState("");
   const [modalVocal, setModalVocal]             = useState(false);
   const [eliminandoVocalId, setEliminandoVocalId] = useState<number | null>(null);
+  const [modalAudiencia, setModalAudiencia] = useState<{
+  accion: AccionAudiencia;
+  audiencia: any;
+} | null>(null);
 
 
 
@@ -1701,6 +1708,7 @@ export default function DenunciaDetailPage() {
                       estadoDenuncia={denuncia.estado}
                       onSaved={() => { setShowFormAud(false); setEditandoAud(null); refetch(); }}
                       onCancel={() => { setShowFormAud(false); setEditandoAud(null); }}
+                      onIrAVocales={() => { setShowFormAud(false); setTabActiva("vocales"); }}  
                     />
                   )}
 
@@ -1756,47 +1764,13 @@ export default function DenunciaDetailPage() {
                             {a.estadoAudiencia === "PROGRAMADA" && (
                               <>
                                 <button
-                                  onClick={async () => {
-                                    if (!confirm(`¿Iniciar la audiencia "${a.idTipoAudiencia?.nombre}" ahora?`)) return;
-                                    const ahora = new Date();
-                                    const fechaHoraInicio = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}T${String(ahora.getHours()).padStart(2,'0')}:${String(ahora.getMinutes()).padStart(2,'0')}`;
-                                    try {
-                                      await actualizarAudiencia({
-                                        variables: {
-                                          id: Number(a.idAudiencia),
-                                          input: {
-                                            estadoAudiencia: "EN_CURSO",
-                                            fechaHoraInicio: fechaHoraInicio,
-                                          }
-                                        }
-                                      });
-                                      await refetch();
-                                      toast.success("Audiencia iniciada — hora de inicio registrada");
-                                    } catch (e: any) {
-                                      toast.error(e.message ?? "Error al iniciar la audiencia");
-                                    }
-                                  }}
+                                  onClick={() => setModalAudiencia({ accion: "INICIAR", audiencia: a })}
                                   className="px-2.5 py-1 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-semibold transition-colors flex items-center gap-1"
                                 >
                                   <Clock className="w-3.5 h-3.5" /> Iniciar
                                 </button>
                                 <button
-                                  onClick={async () => {
-                                    const motivo = prompt("Motivo de suspensión (requerido):");
-                                    if (!motivo?.trim()) return;
-                                    try {
-                                      await actualizarAudiencia({
-                                        variables: {
-                                          id: Number(a.idAudiencia),
-                                          input: { estadoAudiencia: "SUSPENDIDA", motivoSuspension: motivo.trim() }
-                                        }
-                                      });
-                                      await refetch();
-                                      toast.success("Audiencia suspendida");
-                                    } catch (e: any) {
-                                      toast.error(e.message ?? "Error al suspender la audiencia");
-                                    }
-                                  }}
+                                  onClick={() => setModalAudiencia({ accion: "SUSPENDER", audiencia: a })}
                                   className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors flex items-center gap-1"
                                 >
                                   <AlertTriangle className="w-3.5 h-3.5" /> Suspender
@@ -1807,26 +1781,7 @@ export default function DenunciaDetailPage() {
                             {/* EN_CURSO → puede finalizarse */}
                             {a.estadoAudiencia === "EN_CURSO" && (
                               <button
-                                onClick={async () => {
-                                  if (!confirm("¿Finalizar la audiencia ahora? Se registrará la hora de cierre.")) return;
-                                  const ahora = new Date();
-                                  const fechaHoraFin = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}T${String(ahora.getHours()).padStart(2,'0')}:${String(ahora.getMinutes()).padStart(2,'0')}`;
-                                  try {
-                                    await actualizarAudiencia({
-                                      variables: {
-                                        id: Number(a.idAudiencia),
-                                        input: {
-                                          estadoAudiencia: "REALIZADA",
-                                          fechaHoraFin: fechaHoraFin,
-                                        }
-                                      }
-                                    });
-                                    await refetch();
-                                    toast.success("Audiencia finalizada — hora de cierre registrada");
-                                  } catch (e: any) {
-                                    toast.error(e.message ?? "Error al finalizar la audiencia");
-                                  }
-                                }}
+                                onClick={() => setModalAudiencia({ accion: "FINALIZAR", audiencia: a })}
                                 className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold transition-colors flex items-center gap-1 animate-pulse"
                               >
                                 <CheckCircle className="w-3.5 h-3.5" /> Finalizar
@@ -2402,6 +2357,39 @@ export default function DenunciaDetailPage() {
         </div>
 
       </div>
+      {/* ══ MODAL ACCIÓN AUDIENCIA ══ */}
+      {modalAudiencia && (
+        <ModalAccionAudiencia
+          accion={modalAudiencia.accion}
+          nombreAudiencia={modalAudiencia.audiencia.idTipoAudiencia?.nombre ?? "Audiencia"}
+          onCancelar={() => setModalAudiencia(null)}
+          onConfirmar={async (motivo) => {
+            const a = modalAudiencia.audiencia;
+            const ahora = new Date();
+            const ts = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}T${String(ahora.getHours()).padStart(2,'0')}:${String(ahora.getMinutes()).padStart(2,'0')}`;
+
+            if (modalAudiencia.accion === "INICIAR") {
+              await actualizarAudiencia({
+                variables: { id: Number(a.idAudiencia), input: { estadoAudiencia: "EN_CURSO", fechaHoraInicio: ts } }
+              });
+              toast.success("Audiencia iniciada — hora de inicio registrada");
+            } else if (modalAudiencia.accion === "SUSPENDER") {
+              await actualizarAudiencia({
+                variables: { id: Number(a.idAudiencia), input: { estadoAudiencia: "SUSPENDIDA", motivoSuspension: motivo } }
+              });
+              toast.success("Audiencia suspendida");
+            } else if (modalAudiencia.accion === "FINALIZAR") {
+              await actualizarAudiencia({
+                variables: { id: Number(a.idAudiencia), input: { estadoAudiencia: "REALIZADA", fechaHoraFin: ts } }
+              });
+              toast.success("Audiencia finalizada — hora de cierre registrada");
+            }
+
+            await refetch();
+            setModalAudiencia(null);
+          }}
+        />
+      )}
     </div>
   );
 }
